@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using LofiBeats.Cli.Commands;
 using LofiBeats.Core.BeatGeneration;
 using LofiBeats.Core.Effects;
+using LofiBeats.Core.Playback;
 
 namespace LofiBeats.Cli;
 
@@ -31,6 +32,9 @@ public static class Startup
 
                 // Register audio effect services
                 services.AddSingleton<IEffectFactory, EffectFactory>();
+
+                // Register audio playback service
+                services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
             })
             .ConfigureLogging((context, logging) =>
             {
