@@ -8,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHealthChecks();
 
 // Register our core services as singletons
 builder.Services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
@@ -23,6 +24,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Add health check endpoint
+app.MapHealthChecks("/healthz");
 
 // Define our API endpoints
 var api = app.MapGroup("/api/lofi");
@@ -76,5 +80,19 @@ api.MapPost("/effect", async (IAudioPlaybackService playback, IEffectFactory eff
         return Results.Ok(new { message = $"{name} effect disabled" });
     }
 });
+
+// Shutdown endpoint
+api.MapPost("/shutdown", () =>
+{
+    Task.Run(async () =>
+    {
+        await Task.Delay(500); // Small delay to allow response to be sent
+        Environment.Exit(0);
+    });
+    return Results.Ok(new { message = "Service shutting down..." });
+});
+
+// Configure to run on port 5000
+app.Urls.Add("http://localhost:5000");
 
 app.Run();

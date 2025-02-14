@@ -4,17 +4,17 @@ using Microsoft.Extensions.Logging;
 
 namespace LofiBeats.Cli.Commands;
 
-public class CommandLineInterface
+public class CommandLineInterface : IDisposable
 {
     private readonly RootCommand _rootCommand;
     private readonly ILogger<CommandLineInterface> _logger;
-    private readonly HttpClient _httpClient;
-    private const string ServiceUrl = "http://localhost:5032/api/lofi";
+    private readonly ServiceConnectionHelper _serviceHelper;
 
-    public CommandLineInterface(ILogger<CommandLineInterface> logger)
+    public CommandLineInterface(ILogger<CommandLineInterface> logger, ILoggerFactory loggerFactory)
     {
         _logger = logger;
-        _httpClient = new HttpClient();
+        _serviceHelper = new ServiceConnectionHelper(
+            loggerFactory.CreateLogger<ServiceConnectionHelper>());
         
         _rootCommand = new RootCommand("Lofi Beats Generator & Player CLI")
         {
@@ -34,7 +34,7 @@ public class CommandLineInterface
             _logger.LogInformation("Executing play command");
             try
             {
-                var response = await _httpClient.PostAsync($"{ServiceUrl}/play", null);
+                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, "play");
                 var result = await response.Content.ReadFromJsonAsync<PlayResponse>();
                 if (result?.Pattern != null)
                 {
@@ -44,7 +44,6 @@ public class CommandLineInterface
             catch (Exception ex)
             {
                 Console.WriteLine($"Error: {ex.Message}");
-                Console.WriteLine("Make sure the LofiBeats service is running (dotnet run --project src/LofiBeats.Service)");
             }
         });
         _rootCommand.AddCommand(playCommand);
@@ -56,7 +55,7 @@ public class CommandLineInterface
             _logger.LogInformation("Executing stop command");
             try
             {
-                var response = await _httpClient.PostAsync($"{ServiceUrl}/stop", null);
+                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, "stop");
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
                 if (result?.Message != null)
                 {
@@ -83,9 +82,9 @@ public class CommandLineInterface
             _logger.LogInformation("Executing effect command with name: {Name}, enable: {Enable}", name, enable);
             try
             {
-                var response = await _httpClient.PostAsync(
-                    $"{ServiceUrl}/effect?name={Uri.EscapeDataString(name)}&enable={enable}", 
-                    null);
+                var response = await _serviceHelper.SendCommandAsync(
+                    HttpMethod.Post,
+                    $"effect?name={Uri.EscapeDataString(name)}&enable={enable}");
                 
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
                 if (!response.IsSuccessStatusCode)
@@ -127,9 +126,11 @@ public class CommandLineInterface
             _logger.LogInformation("Setting volume to: {Level}", level);
             try
             {
-                var response = await _httpClient.PostAsync($"{ServiceUrl}/volume?level={level}", null);
-                var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
+                var response = await _serviceHelper.SendCommandAsync(
+                    HttpMethod.Post,
+                    $"volume?level={level}");
                 
+                var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
                 if (!response.IsSuccessStatusCode)
                 {
                     Console.WriteLine($"Error: {result?.Error}");
@@ -147,6 +148,23 @@ public class CommandLineInterface
             }
         }, volumeOption);
         _rootCommand.AddCommand(volumeCommand);
+
+        // Add shutdown command
+        var shutdownCommand = new Command("shutdown", "Shuts down the LofiBeats service");
+        shutdownCommand.SetHandler(async () =>
+        {
+            _logger.LogInformation("Executing shutdown command");
+            try
+            {
+                await _serviceHelper.ShutdownServiceAsync();
+                Console.WriteLine("Service shutdown requested successfully.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        });
+        _rootCommand.AddCommand(shutdownCommand);
 
         // Add version command
         var versionCommand = new Command("version", "Display version information");
@@ -168,6 +186,6 @@ public class CommandLineInterface
 
     public void Dispose()
     {
-        _httpClient?.Dispose();
+        (_serviceHelper as IDisposable)?.Dispose();
     }
 } 
