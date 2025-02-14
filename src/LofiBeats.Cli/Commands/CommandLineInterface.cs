@@ -124,6 +124,30 @@ public class CommandLineInterface
         }, effectNameOpt, enableOpt);
         _rootCommand.AddCommand(effectCommand);
 
+        // Add volume command
+        var volumeCommand = new Command("volume", "Adjusts master volume");
+        var volumeOption = new Option<float>(
+            "--level",
+            description: "Volume level between 0.0 and 1.0",
+            getDefaultValue: () => 1.0f);
+        volumeOption.AddValidator(result =>
+        {
+            var value = result.GetValueOrDefault<float>();
+            if (value < 0f || value > 1f)
+            {
+                result.ErrorMessage = "Volume level must be between 0.0 and 1.0";
+            }
+        });
+        volumeCommand.AddOption(volumeOption);
+
+        volumeCommand.SetHandler((float level) =>
+        {
+            _logger.LogInformation("Setting volume to: {Level}", level);
+            _playbackService.SetVolume(level);
+            Console.WriteLine($"Volume set to: {level:F2}");
+        }, volumeOption);
+        _rootCommand.AddCommand(volumeCommand);
+
         // Add version command
         var versionCommand = new Command("version", "Display version information");
         versionCommand.SetHandler(() =>

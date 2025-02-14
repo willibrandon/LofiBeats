@@ -11,4 +11,5 @@ public interface IAudioPlaybackService
     void StopPlayback();
     void AddEffect(IAudioEffect effect);
     void RemoveEffect(string effectName);
+    void SetVolume(float volume);
 } 

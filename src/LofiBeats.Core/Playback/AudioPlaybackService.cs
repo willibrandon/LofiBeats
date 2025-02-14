@@ -8,7 +8,7 @@ namespace LofiBeats.Core.Playback;
 public class AudioPlaybackService : IAudioPlaybackService, IDisposable
 {
     private readonly ILogger<AudioPlaybackService> _logger;
-    private readonly IWavePlayer _outputDevice;
+    private readonly WaveOutEvent _waveOut;
     private readonly MixingSampleProvider _mixer;
     private readonly List<IAudioEffect> _effects = new List<IAudioEffect>();
     private ISampleProvider? _currentSource;
@@ -20,15 +20,15 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
         _logger = logger;
         
         // Create the output device and mixer
-        _outputDevice = new WaveOutEvent();
+        _waveOut = new WaveOutEvent();
         _mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2))
         {
             ReadFully = true // Ensures continuous playback
         };
 
         // Initialize and start playing (will play silence when no inputs)
-        _outputDevice.Init(_mixer);
-        _outputDevice.Play();
+        _waveOut.Init(_mixer);
+        _waveOut.Play();
         
         _logger.LogInformation("AudioPlaybackService initialized with continuous playback");
     }
@@ -101,8 +101,15 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
         }
     }
 
+    public void SetVolume(float volume)
+    {
+        // Volume range is 0.0f to 1.0f for WaveOutEvent
+        _waveOut.Volume = Math.Clamp(volume, 0f, 1f);
+        _logger.LogInformation($"Volume set to: {volume}");
+    }
+
     public void Dispose()
     {
-        _outputDevice?.Dispose();
+        _waveOut?.Dispose();
     }
 } 
