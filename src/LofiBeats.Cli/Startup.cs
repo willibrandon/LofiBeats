@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using LofiBeats.Cli.Commands;
 using LofiBeats.Core.BeatGeneration;
+using LofiBeats.Core.Configuration;
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.Playback;
 
@@ -16,14 +17,19 @@ public static class Startup
         return Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((hostingContext, config) =>
             {
+                var env = hostingContext.HostingEnvironment;
+                
                 config.SetBasePath(Directory.GetCurrentDirectory())
                     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                    .AddJsonFile($"appsettings.{hostingContext.HostingEnvironment.EnvironmentName}.json", optional: true, reloadOnChange: true)
+                    .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true, reloadOnChange: true)
                     .AddEnvironmentVariables()
                     .AddCommandLine(args);
             })
             .ConfigureServices((context, services) =>
             {
+                // Bind configuration
+                services.Configure<AudioSettings>(context.Configuration.GetSection("AudioSettings"));
+
                 // Register our CLI interface
                 services.AddSingleton<CommandLineInterface>();
 

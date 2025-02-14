@@ -663,7 +663,7 @@ git commit -m "Added unit tests for beat generation and effect logic"
 
 ---
 
-## Chunk 9: (Optional) Configuration & Deployment
+## Chunk 9: Configuration & Deployment
 
 **Goal**  
 Add an `appsettings.json` or environment-based configuration. Show how to **publish** the application cross-platform.
