@@ -6,6 +6,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <!-- Pre-build cleanup for Visual Studio (SAFE VERSION - NO RECURSION!) -->
+  <Target Name="CleanupService" BeforeTargets="PreBuildEvent">
+    <Message Text="🧹 Cleaning up any running services..." Importance="high" />
+    <Exec Command="pwsh -NoProfile -NonInteractive -Command &quot;&amp; { Get-Process -Name dotnet | Where-Object {$_.MainWindowTitle -eq '' -and $_.CommandLine -like '*LofiBeats.Service.dll*'} | Stop-Process -Force }&quot;" IgnoreExitCode="true" />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.1" />
   </ItemGroup>
