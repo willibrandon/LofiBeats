@@ -32,7 +32,7 @@ app.MapHealthChecks("/healthz");
 var api = app.MapGroup("/api/lofi");
 
 // Play endpoint
-api.MapPost("/play", async (IAudioPlaybackService playback, IBeatGenerator generator) =>
+api.MapPost("/play", (IAudioPlaybackService playback, IBeatGenerator generator) =>
 {
     var pattern = generator.GeneratePattern();
     var beatSource = new BeatPatternSampleProvider(pattern, app.Logger);
@@ -59,7 +59,7 @@ api.MapPost("/volume", (IAudioPlaybackService playback, float level) =>
 });
 
 // Effect endpoint
-api.MapPost("/effect", async (IAudioPlaybackService playback, IEffectFactory effectFactory, string name, bool enable) =>
+api.MapPost("/effect", (IAudioPlaybackService playback, IEffectFactory effectFactory, string name, bool enable) =>
 {
     if (enable)
     {

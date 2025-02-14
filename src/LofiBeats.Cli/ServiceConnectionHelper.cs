@@ -163,13 +163,23 @@ public class ServiceConnectionHelper
 
     public async Task ShutdownServiceAsync()
     {
+        // Check if service is running first
+        if (!await IsServiceRunningAsync())
+        {
+            _logger.LogInformation("No running service found - nothing to shut down.");
+            return;
+        }
+
         try
         {
+            _logger.LogInformation("Shutting down running service...");
             await _httpClient.PostAsync($"{_serviceUrl}/api/lofi/shutdown", null);
+            _logger.LogInformation("Service shutdown requested successfully.");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error while shutting down service. It may have already been stopped.");
+            _logger.LogWarning(ex, "Error while shutting down service.");
+            throw; // Let the CLI handle the error
         }
     }
 } 

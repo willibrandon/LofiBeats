@@ -157,7 +157,11 @@ public class CommandLineInterface : IDisposable
             try
             {
                 await _serviceHelper.ShutdownServiceAsync();
-                Console.WriteLine("Service shutdown requested successfully.");
+            }
+            catch (HttpRequestException)
+            {
+                // Don't show technical error for connection issues
+                Console.WriteLine("Service is not running.");
             }
             catch (Exception ex)
             {

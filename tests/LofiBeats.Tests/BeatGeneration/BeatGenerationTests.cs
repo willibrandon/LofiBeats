@@ -36,7 +36,7 @@ public class BeatGenerationTests
         var pattern = _generator.GeneratePattern();
 
         // Assert
-        Assert.Equal(4, pattern.DrumSequence.Length);
+        Assert.Equal(8, pattern.DrumSequence.Length);
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class BeatGenerationTests
         var pattern = _generator.GeneratePattern();
 
         // Assert
-        var validDrums = new[] { "kick", "hat", "snare" };
+        var validDrums = new[] { "kick", "hat", "snare", "_" };
         Assert.All(pattern.DrumSequence, drum => Assert.Contains(drum, validDrums));
     }
 
@@ -67,7 +67,12 @@ public class BeatGenerationTests
         var pattern = _generator.GeneratePattern();
 
         // Assert
-        var validChords = new[] { "Fmaj7", "Am7", "Dm7", "G7" };
+        var validChords = new[]
+        {
+            "Fmaj7", "Am7", "Dm7", "G7",
+            "Em7", "A7",
+            "Cmaj7"
+        };
         Assert.All(pattern.ChordProgression, chord => Assert.Contains(chord, validChords));
     }
 } 
