@@ -5,7 +5,7 @@ namespace LofiBeats.Core.BeatGeneration;
 
 public class BasicLofiBeatGenerator : IBeatGenerator
 {
-    private static readonly Random _rnd = new();
+    private readonly Random _rnd;
     private readonly ILogger<BasicLofiBeatGenerator> _logger;
 
     // Common lofi chord progressions
@@ -31,6 +31,8 @@ public class BasicLofiBeatGenerator : IBeatGenerator
     public BasicLofiBeatGenerator(ILogger<BasicLofiBeatGenerator> logger)
     {
         _logger = logger;
+        _rnd = new Random((int)(DateTime.Now.Ticks & 0xFFFFFFFF)); // Seed with current time
+        _logger.LogInformation("Beat generator initialized with seed: {Seed}", DateTime.Now.Ticks);
     }
 
     public BeatPattern GeneratePattern()
