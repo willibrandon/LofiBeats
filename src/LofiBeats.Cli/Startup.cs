@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using LofiBeats.Cli.Commands;
 using LofiBeats.Core.BeatGeneration;
+using LofiBeats.Core.Effects;
 
 namespace LofiBeats.Cli;
 
@@ -27,6 +28,9 @@ public static class Startup
 
                 // Register beat generation services
                 services.AddSingleton<IBeatGenerator, BasicLofiBeatGenerator>();
+
+                // Register audio effect services
+                services.AddSingleton<IEffectFactory, EffectFactory>();
             })
             .ConfigureLogging((context, logging) =>
             {
