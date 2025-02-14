@@ -1,0 +1,6 @@
+@LofiBeats.Service_HostAddress = http://localhost:5032
+
+GET {{LofiBeats.Service_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,8 +1,6 @@
 using System.CommandLine;
+using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
-using LofiBeats.Core.BeatGeneration;
-using LofiBeats.Core.Effects;
-using LofiBeats.Core.Playback;
 
 namespace LofiBeats.Cli.Commands;
 
@@ -10,20 +8,13 @@ public class CommandLineInterface
 {
     private readonly RootCommand _rootCommand;
     private readonly ILogger<CommandLineInterface> _logger;
-    private readonly IBeatGenerator _beatGenerator;
-    private readonly IAudioPlaybackService _playbackService;
-    private readonly IEffectFactory _effectFactory;
+    private readonly HttpClient _httpClient;
+    private const string ServiceUrl = "http://localhost:5032/api/lofi";
 
-    public CommandLineInterface(
-        ILogger<CommandLineInterface> logger,
-        IBeatGenerator beatGenerator,
-        IAudioPlaybackService playbackService,
-        IEffectFactory effectFactory)
+    public CommandLineInterface(ILogger<CommandLineInterface> logger)
     {
         _logger = logger;
-        _beatGenerator = beatGenerator;
-        _playbackService = playbackService;
-        _effectFactory = effectFactory;
+        _httpClient = new HttpClient();
         
         _rootCommand = new RootCommand("Lofi Beats Generator & Player CLI")
         {
@@ -36,51 +27,46 @@ public class CommandLineInterface
 
     private void ConfigureCommands()
     {
-        // Add generate command
-        var generateCommand = new Command("generate", "Generates a new beat pattern");
-        generateCommand.SetHandler(() =>
-        {
-            _logger.LogInformation("Executing generate command");
-            var pattern = _beatGenerator.GeneratePattern();
-            Console.WriteLine($"Generated pattern: {pattern}");
-        });
-        _rootCommand.AddCommand(generateCommand);
-
         // Add play command
-        var playCommand = new Command("play", "Plays the current or generated beat");
-        playCommand.SetHandler(() =>
+        var playCommand = new Command("play", "Plays a new lofi beat");
+        playCommand.SetHandler(async () =>
         {
             _logger.LogInformation("Executing play command");
-            
-            // Generate a new beat pattern if none exists
-            var pattern = _beatGenerator.GeneratePattern();
-            Console.WriteLine($"Playing pattern: {pattern}");
-            
-            // Create and set up the audio chain based on the pattern
-            var beatSource = new BeatPatternSampleProvider(pattern, _logger);
-            _playbackService.SetSource(beatSource);
-            
-            // Add vinyl effect by default for that lofi feel
-            var effect = _effectFactory.CreateEffect("vinyl", beatSource);
-            if (effect != null)
+            try
             {
-                _playbackService.AddEffect(effect);
+                var response = await _httpClient.PostAsync($"{ServiceUrl}/play", null);
+                var result = await response.Content.ReadFromJsonAsync<PlayResponse>();
+                if (result?.Pattern != null)
+                {
+                    Console.WriteLine($"Playing new beat pattern: {result.Pattern}");
+                }
             }
-            
-            _playbackService.StartPlayback();
-            Console.WriteLine("Playing lofi beat... Press Enter to stop");
-            Console.ReadLine(); // Wait for user input before stopping
-            _playbackService.StopPlayback();
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+                Console.WriteLine("Make sure the LofiBeats service is running (dotnet run --project src/LofiBeats.Service)");
+            }
         });
         _rootCommand.AddCommand(playCommand);
 
         // Add stop command
         var stopCommand = new Command("stop", "Stops audio playback");
-        stopCommand.SetHandler(() =>
+        stopCommand.SetHandler(async () =>
         {
             _logger.LogInformation("Executing stop command");
-            _playbackService.StopPlayback();
-            Console.WriteLine("Playback stopped.");
+            try
+            {
+                var response = await _httpClient.PostAsync($"{ServiceUrl}/stop", null);
+                var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
+                if (result?.Message != null)
+                {
+                    Console.WriteLine(result.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
         });
         _rootCommand.AddCommand(stopCommand);
 
@@ -92,34 +78,30 @@ public class CommandLineInterface
         effectCommand.AddOption(effectNameOpt);
         effectCommand.AddOption(enableOpt);
 
-        effectCommand.SetHandler((string name, bool enable) =>
+        effectCommand.SetHandler(async (string name, bool enable) =>
         {
             _logger.LogInformation("Executing effect command with name: {Name}, enable: {Enable}", name, enable);
-
-            if (enable)
+            try
             {
-                var currentSource = _playbackService.CurrentSource;
-                if (currentSource == null)
+                var response = await _httpClient.PostAsync(
+                    $"{ServiceUrl}/effect?name={Uri.EscapeDataString(name)}&enable={enable}", 
+                    null);
+                
+                var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
+                if (!response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine("No audio source is currently playing. Start playback first.");
+                    Console.WriteLine($"Error: {result?.Error}");
                     return;
                 }
 
-                var newEffect = _effectFactory.CreateEffect(name, currentSource);
-                if (newEffect != null)
+                if (result?.Message != null)
                 {
-                    _playbackService.AddEffect(newEffect);
-                    Console.WriteLine($"{name} effect enabled.");
-                }
-                else
-                {
-                    Console.WriteLine($"Effect '{name}' not recognized.");
+                    Console.WriteLine(result.Message);
                 }
             }
-            else
+            catch (Exception ex)
             {
-                _playbackService.RemoveEffect(name);
-                Console.WriteLine($"{name} effect disabled.");
+                Console.WriteLine($"Error: {ex.Message}");
             }
         }, effectNameOpt, enableOpt);
         _rootCommand.AddCommand(effectCommand);
@@ -140,11 +122,29 @@ public class CommandLineInterface
         });
         volumeCommand.AddOption(volumeOption);
 
-        volumeCommand.SetHandler((float level) =>
+        volumeCommand.SetHandler(async (float level) =>
         {
             _logger.LogInformation("Setting volume to: {Level}", level);
-            _playbackService.SetVolume(level);
-            Console.WriteLine($"Volume set to: {level:F2}");
+            try
+            {
+                var response = await _httpClient.PostAsync($"{ServiceUrl}/volume?level={level}", null);
+                var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Error: {result?.Error}");
+                    return;
+                }
+
+                if (result?.Message != null)
+                {
+                    Console.WriteLine(result.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
         }, volumeOption);
         _rootCommand.AddCommand(volumeCommand);
 
@@ -164,5 +164,10 @@ public class CommandLineInterface
     {
         _logger.LogInformation("Executing command with args: {Args}", string.Join(" ", args));
         return await _rootCommand.InvokeAsync(args);
+    }
+
+    public void Dispose()
+    {
+        _httpClient?.Dispose();
     }
 } 

@@ -1,12 +1,8 @@
+using LofiBeats.Cli.Commands;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using LofiBeats.Cli.Commands;
-using LofiBeats.Core.BeatGeneration;
-using LofiBeats.Core.Configuration;
-using LofiBeats.Core.Effects;
-using LofiBeats.Core.Playback;
 
 namespace LofiBeats.Cli;
 
@@ -27,20 +23,8 @@ public static class Startup
             })
             .ConfigureServices((context, services) =>
             {
-                // Bind configuration
-                services.Configure<AudioSettings>(context.Configuration.GetSection("AudioSettings"));
-
                 // Register our CLI interface
                 services.AddSingleton<CommandLineInterface>();
-
-                // Register beat generation services
-                services.AddSingleton<IBeatGenerator, BasicLofiBeatGenerator>();
-
-                // Register audio effect services
-                services.AddSingleton<IEffectFactory, EffectFactory>();
-
-                // Register audio playback service
-                services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
             })
             .ConfigureLogging((context, logging) =>
             {
