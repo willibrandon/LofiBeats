@@ -47,24 +47,28 @@ public class CommandLineInterface
         _rootCommand.AddCommand(generateCommand);
 
         // Add play command
-        var playCommand = new Command("play", "Starts audio playback");
+        var playCommand = new Command("play", "Plays the current or generated beat");
         playCommand.SetHandler(() =>
         {
             _logger.LogInformation("Executing play command");
             
-            // Create and set up the audio chain
-            var testTone = new AutoDisposingSampleProvider(new TestTone());
-            _playbackService.SetSource(testTone);
+            // Generate a new beat pattern if none exists
+            var pattern = _beatGenerator.GeneratePattern();
+            Console.WriteLine($"Playing pattern: {pattern}");
             
-            // Add vinyl effect to the chain
-            var effect = _effectFactory.CreateEffect("vinyl", testTone);
+            // Create and set up the audio chain based on the pattern
+            var beatSource = new BeatPatternSampleProvider(pattern, _logger);
+            _playbackService.SetSource(beatSource);
+            
+            // Add vinyl effect by default for that lofi feel
+            var effect = _effectFactory.CreateEffect("vinyl", beatSource);
             if (effect != null)
             {
                 _playbackService.AddEffect(effect);
             }
             
             _playbackService.StartPlayback();
-            Console.WriteLine("Playing test tone with vinyl effect... Press Enter to stop");
+            Console.WriteLine("Playing lofi beat... Press Enter to stop");
             Console.ReadLine(); // Wait for user input before stopping
             _playbackService.StopPlayback();
         });
@@ -94,9 +98,14 @@ public class CommandLineInterface
 
             if (enable)
             {
-                var testTone = new AutoDisposingSampleProvider(new TestTone());
-                var newEffect = _effectFactory.CreateEffect(name, testTone);
+                var currentSource = _playbackService.CurrentSource;
+                if (currentSource == null)
+                {
+                    Console.WriteLine("No audio source is currently playing. Start playback first.");
+                    return;
+                }
 
+                var newEffect = _effectFactory.CreateEffect(name, currentSource);
                 if (newEffect != null)
                 {
                     _playbackService.AddEffect(newEffect);

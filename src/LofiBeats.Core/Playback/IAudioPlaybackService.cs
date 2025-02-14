@@ -5,6 +5,7 @@ namespace LofiBeats.Core.Playback;
 
 public interface IAudioPlaybackService
 {
+    ISampleProvider? CurrentSource { get; }
     void SetSource(ISampleProvider source);
     void StartPlayback();
     void StopPlayback();

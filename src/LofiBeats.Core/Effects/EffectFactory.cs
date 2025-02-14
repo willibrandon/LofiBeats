@@ -30,6 +30,7 @@ public class EffectFactory : IEffectFactory
         {
             "vinyl" => new VinylCrackleEffect(source, _loggerFactory.CreateLogger<VinylCrackleEffect>()),
             "lowpass" => new LowPassFilterEffect(source, _loggerFactory.CreateLogger<LowPassFilterEffect>()),
+            "reverb" => new ReverbEffect(source, _loggerFactory.CreateLogger<ReverbEffect>()),
             _ => throw new ArgumentException($"Unknown effect: {effectName}", nameof(effectName))
         };
     }

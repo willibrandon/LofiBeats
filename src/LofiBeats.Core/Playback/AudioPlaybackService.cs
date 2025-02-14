@@ -13,6 +13,8 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
     private readonly List<IAudioEffect> _effects = new List<IAudioEffect>();
     private ISampleProvider? _currentSource;
 
+    public ISampleProvider? CurrentSource => _currentSource;
+
     public AudioPlaybackService(ILogger<AudioPlaybackService> logger)
     {
         _logger = logger;
