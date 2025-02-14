@@ -48,6 +48,32 @@ api.MapPost("/stop", (IAudioPlaybackService playback) =>
     return Results.Ok(new { message = "Playback stopped" });
 });
 
+// Pause endpoint
+api.MapPost("/pause", (IAudioPlaybackService playback) =>
+{
+    var state = playback.GetPlaybackState();
+    if (state != NAudio.Wave.PlaybackState.Playing)
+    {
+        return Results.BadRequest(new { error = "No active playback to pause" });
+    }
+
+    playback.PausePlayback();
+    return Results.Ok(new { message = "Playback paused" });
+});
+
+// Resume endpoint
+api.MapPost("/resume", (IAudioPlaybackService playback) =>
+{
+    var state = playback.GetPlaybackState();
+    if (state != NAudio.Wave.PlaybackState.Paused)
+    {
+        return Results.BadRequest(new { error = "Playback is not paused" });
+    }
+
+    playback.ResumePlayback();
+    return Results.Ok(new { message = "Playback resumed" });
+});
+
 // Volume endpoint
 api.MapPost("/volume", (IAudioPlaybackService playback, float level) =>
 {

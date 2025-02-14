@@ -69,6 +69,60 @@ public class CommandLineInterface : IDisposable
         });
         _rootCommand.AddCommand(stopCommand);
 
+        // Add pause command
+        var pauseCommand = new Command("pause", "Pauses audio playback");
+        pauseCommand.SetHandler(async () =>
+        {
+            _logger.LogInformation("Executing pause command");
+            try
+            {
+                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, "pause");
+                var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Error: {result?.Error}");
+                    return;
+                }
+
+                if (result?.Message != null)
+                {
+                    Console.WriteLine(result.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        });
+        _rootCommand.AddCommand(pauseCommand);
+
+        // Add resume command
+        var resumeCommand = new Command("resume", "Resumes audio playback");
+        resumeCommand.SetHandler(async () =>
+        {
+            _logger.LogInformation("Executing resume command");
+            try
+            {
+                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, "resume");
+                var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Error: {result?.Error}");
+                    return;
+                }
+
+                if (result?.Message != null)
+                {
+                    Console.WriteLine(result.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        });
+        _rootCommand.AddCommand(resumeCommand);
+
         // Add effect command
         var effectCommand = new Command("effect", "Manage effects");
         var effectNameOpt = new Option<string>("--name", "Name of the effect to manage") { IsRequired = true };

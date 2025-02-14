@@ -82,6 +82,26 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
         _logger.LogInformation("Playback stopped - source removed from mixer");
     }
 
+    public void PausePlayback()
+    {
+        if (_waveOut.PlaybackState == PlaybackState.Playing)
+        {
+            _waveOut.Pause();
+            _logger.LogInformation("Playback paused.");
+        }
+    }
+
+    public void ResumePlayback()
+    {
+        if (_waveOut.PlaybackState == PlaybackState.Paused)
+        {
+            _waveOut.Play();
+            _logger.LogInformation("Playback resumed.");
+        }
+    }
+
+    public PlaybackState GetPlaybackState() => _waveOut.PlaybackState;
+
     public void AddEffect(IAudioEffect effect)
     {
         var convertedEffect = ConvertToRightChannelCount(effect);
