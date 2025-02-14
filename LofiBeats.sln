@@ -10,6 +10,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{DAD93E08-5AEF-49CE-A8CB-56DD1464C985}"
 	ProjectSection(SolutionItems) = preProject
 		docs\DESIGN.md = docs\DESIGN.md
+		docs\Rules for AI.md = docs\Rules for AI.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LofiBeats.Core", "src\LofiBeats.Core\LofiBeats.Core.csproj", "{F106366A-4BB3-4CB9-83E0-A152AF7B8B5E}"
