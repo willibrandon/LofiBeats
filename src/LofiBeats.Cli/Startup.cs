@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using LofiBeats.Cli.Commands;
+using LofiBeats.Core.BeatGeneration;
 
 namespace LofiBeats.Cli;
 
@@ -24,9 +25,8 @@ public static class Startup
                 // Register our CLI interface
                 services.AddSingleton<CommandLineInterface>();
 
-                // TODO: Register other services as we create them
-                // services.AddSingleton<IBeatGenerator, BasicLofiBeatGenerator>();
-                // services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
+                // Register beat generation services
+                services.AddSingleton<IBeatGenerator, BasicLofiBeatGenerator>();
             })
             .ConfigureLogging((context, logging) =>
             {
