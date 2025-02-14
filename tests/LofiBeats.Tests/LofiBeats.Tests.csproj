@@ -19,6 +19,8 @@
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
+		<ProjectReference Include="..\..\src\LofiBeats.Core\LofiBeats.Core.csproj" />
+		<ProjectReference Include="..\..\src\LofiBeats.Infrastructure\LofiBeats.Infrastructure.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
