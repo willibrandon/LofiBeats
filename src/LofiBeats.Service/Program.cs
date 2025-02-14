@@ -1,6 +1,7 @@
 using LofiBeats.Core.BeatGeneration;
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.Playback;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,14 +39,14 @@ api.MapPost("/play", (IAudioPlaybackService playback, IBeatGenerator generator) 
     var beatSource = new BeatPatternSampleProvider(pattern, app.Logger);
     playback.SetSource(beatSource);
     playback.StartPlayback();
-    return Results.Ok(new { message = "Playback started", pattern = pattern });
+    return Results.Text(JsonSerializer.Serialize(new { message = "Playback started", pattern = pattern }), "application/json");
 });
 
 // Stop endpoint
 api.MapPost("/stop", (IAudioPlaybackService playback) =>
 {
     playback.StopPlayback();
-    return Results.Ok(new { message = "Playback stopped" });
+    return Results.Text(JsonSerializer.Serialize(new { message = "Playback stopped" }), "application/json");
 });
 
 // Pause endpoint
@@ -54,11 +55,11 @@ api.MapPost("/pause", (IAudioPlaybackService playback) =>
     var state = playback.GetPlaybackState();
     if (state != NAudio.Wave.PlaybackState.Playing)
     {
-        return Results.BadRequest(new { error = "No active playback to pause" });
+        return Results.Text(JsonSerializer.Serialize(new { error = "No active playback to pause" }), "application/json", statusCode: 400);
     }
 
     playback.PausePlayback();
-    return Results.Ok(new { message = "Playback paused" });
+    return Results.Text(JsonSerializer.Serialize(new { message = "Playback paused" }), "application/json");
 });
 
 // Resume endpoint
@@ -67,21 +68,21 @@ api.MapPost("/resume", (IAudioPlaybackService playback) =>
     var state = playback.GetPlaybackState();
     if (state != NAudio.Wave.PlaybackState.Paused)
     {
-        return Results.BadRequest(new { error = "Playback is not paused" });
+        return Results.Text(JsonSerializer.Serialize(new { error = "Playback is not paused" }), "application/json", statusCode: 400);
     }
 
     playback.ResumePlayback();
-    return Results.Ok(new { message = "Playback resumed" });
+    return Results.Text(JsonSerializer.Serialize(new { message = "Playback resumed" }), "application/json");
 });
 
 // Volume endpoint
 api.MapPost("/volume", (IAudioPlaybackService playback, float level) =>
 {
     if (level < 0 || level > 1)
-        return Results.BadRequest(new { error = "Volume must be between 0.0 and 1.0" });
+        return Results.Text(JsonSerializer.Serialize(new { error = "Volume must be between 0.0 and 1.0" }), "application/json", statusCode: 400);
 
     playback.SetVolume(level);
-    return Results.Ok(new { message = $"Volume set to {level:F2}" });
+    return Results.Text(JsonSerializer.Serialize(new { message = $"Volume set to {level:F2}" }), "application/json");
 });
 
 // Effect endpoint
@@ -91,19 +92,19 @@ api.MapPost("/effect", (IAudioPlaybackService playback, IEffectFactory effectFac
     {
         var currentSource = playback.CurrentSource;
         if (currentSource == null)
-            return Results.BadRequest(new { error = "No audio source is currently playing" });
+            return Results.Text(JsonSerializer.Serialize(new { error = "No audio source is currently playing" }), "application/json", statusCode: 400);
 
         var effect = effectFactory.CreateEffect(name, currentSource);
         if (effect == null)
-            return Results.BadRequest(new { error = $"Unknown effect: {name}" });
+            return Results.Text(JsonSerializer.Serialize(new { error = $"Unknown effect: {name}" }), "application/json", statusCode: 400);
 
         playback.AddEffect(effect);
-        return Results.Ok(new { message = $"{name} effect enabled" });
+        return Results.Text(JsonSerializer.Serialize(new { message = $"{name} effect enabled" }), "application/json");
     }
     else
     {
         playback.RemoveEffect(name);
-        return Results.Ok(new { message = $"{name} effect disabled" });
+        return Results.Text(JsonSerializer.Serialize(new { message = $"{name} effect disabled" }), "application/json");
     }
 });
 
@@ -115,10 +116,13 @@ api.MapPost("/shutdown", () =>
         await Task.Delay(500); // Small delay to allow response to be sent
         Environment.Exit(0);
     });
-    return Results.Ok(new { message = "Service shutting down..." });
+    return Results.Text(JsonSerializer.Serialize(new { message = "Service shutting down..." }), "application/json");
 });
 
 // Configure to run on port 5000
 app.Urls.Add("http://localhost:5000");
 
 app.Run();
+
+// Make the Program class public for testing
+public partial class Program { }
