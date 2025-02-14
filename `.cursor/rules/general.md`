@@ -1,0 +1,17 @@
+# General Project Rules
+
+This is a .NET 9 Lofi Beats Generator project following clean architecture principles. When providing code:
+
+1. Always use C# 12/.NET 9 features where appropriate
+2. Follow Microsoft's C# coding conventions
+3. Format all responses in markdown
+4. When showing code edits, include enough context (like function/class names) but minimize showing unchanged code
+5. Prefer async/await patterns for I/O operations
+6. Use nullable reference types
+7. Include XML documentation comments on public APIs
+
+Reference Architecture:
+- LofiBeats.Cli - Command line interface
+- LofiBeats.Core - Core domain logic
+- LofiBeats.Infrastructure - External dependencies
+- LofiBeats.Tests - Test project 

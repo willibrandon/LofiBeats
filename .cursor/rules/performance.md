@@ -1,0 +1,25 @@
+# Performance Rules
+
+1. Audio Processing:
+   - Use buffer pooling for audio data
+   - Minimize allocations in audio pipeline
+   - Use SIMD operations where possible
+   - Profile hot paths regularly
+
+2. Memory Management:
+   - Use ArrayPool<T> for temporary buffers
+   - Implement object pooling for frequent allocations
+   - Avoid boxing in audio processing code
+   - Use Span<T>/Memory<T> for buffer operations
+
+3. Threading:
+   - Keep audio thread free of blocking operations
+   - Use lock-free algorithms where possible
+   - Proper synchronization of state changes
+   - Monitor thread pool usage
+
+4. Real-time Considerations:
+   - Minimize garbage collection impact
+   - Use high-precision timing
+   - Monitor audio glitches
+   - Handle device latency properly 

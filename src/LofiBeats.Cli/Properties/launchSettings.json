@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "LofiBeats.Cli": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}

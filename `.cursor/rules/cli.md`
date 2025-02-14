@@ -1,0 +1,11 @@
+# CLI Rules
+
+For command-line interface code:
+
+1. Use System.CommandLine for argument parsing
+2. Provide helpful error messages and usage examples
+3. Support both interactive and command modes
+4. Follow POSIX command-line conventions
+5. Include command help documentation
+6. Handle CTRL+C gracefully
+7. Support verbose/quiet output modes 
