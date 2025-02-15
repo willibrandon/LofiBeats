@@ -166,7 +166,7 @@ namespace LofiBeats.Tests.Playback
             Assert.Equal(ALError.NoError, error);
         }
 
-        [Fact]
+        [SkippableFact]
         public void Play_WithNullDevice_ThrowsException()
         {
             Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
