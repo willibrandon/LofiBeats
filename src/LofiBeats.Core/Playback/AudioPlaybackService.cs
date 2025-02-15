@@ -1,19 +1,24 @@
-using LofiBeats.Core.Effects;
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
+using LofiBeats.Core.Effects;
 
 namespace LofiBeats.Core.Playback;
 
+/// <summary>
+/// Service for managing audio playback and effects.
+/// </summary>
 public class AudioPlaybackService : IAudioPlaybackService, IDisposable
 {
     private readonly ILogger<AudioPlaybackService> _logger;
     private readonly ILoggerFactory _loggerFactory;
-    private readonly WaveOutEvent _waveOut;
+    private readonly IAudioOutput _audioOutput;
     private readonly MixingSampleProvider _mixer;
+    private readonly Dictionary<Guid, ISampleProvider> _sources;
+    private readonly Dictionary<string, IAudioEffect> _effects;
+    private bool _isDisposed;
     private ISampleProvider? _currentSource;
     private SerialEffectChain? _effectChain;
-    private bool _isPaused;
 
     public ISampleProvider? CurrentSource => _currentSource;
 
@@ -21,193 +26,203 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
     {
         _logger = logger;
         _loggerFactory = loggerFactory;
+        _sources = new Dictionary<Guid, ISampleProvider>();
+        _effects = new Dictionary<string, IAudioEffect>();
+        _mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
+        _audioOutput = CreateAudioOutput();
+        _audioOutput.Init(_mixer.ToWaveProvider());
+    }
 
-        // Create the output device and mixer
-        _waveOut = new WaveOutEvent();
-        _mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2))
-        {
-            ReadFully = true // Ensures continuous playback
-        };
+    protected virtual IAudioOutput CreateAudioOutput()
+    {
+        return AudioOutputFactory.CreateForCurrentPlatform(_loggerFactory);
+    }
 
-        // Initialize and start playing (will play silence when no inputs)
-        _waveOut.Init(_mixer);
-        _waveOut.Play();
-        _isPaused = false;
-
-        _logger.LogInformation("AudioPlaybackService initialized with continuous playback");
+    public AudioPlaybackService(ILogger<AudioPlaybackService> logger, ILoggerFactory loggerFactory, IAudioOutput audioOutput)
+    {
+        _logger = logger;
+        _loggerFactory = loggerFactory;
+        _sources = new Dictionary<Guid, ISampleProvider>();
+        _effects = new Dictionary<string, IAudioEffect>();
+        _mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
+        _audioOutput = audioOutput;
+        _audioOutput.Init(_mixer.ToWaveProvider());
     }
 
     public void SetSource(ISampleProvider source)
     {
-        // Convert mono to stereo if needed
-        var convertedSource = ConvertToRightChannelCount(source);
+        if (_isDisposed) return;
 
-        // Remove existing inputs
+        // Remove existing source if any
         if (_currentSource != null)
         {
             _mixer.RemoveMixerInput(_currentSource);
         }
-        if (_effectChain != null)
+
+        // Ensure stereo output
+        var stereoSource = source.WaveFormat.Channels == 1
+            ? new MonoToStereoSampleProvider(source)
+            : source;
+
+        _currentSource = stereoSource;
+
+        // If we have effects, recreate the chain
+        if (_effects.Count > 0)
         {
-            _mixer.RemoveMixerInput(_effectChain);
-        }
-
-        _currentSource = convertedSource;
-
-        // Create a new effect chain with the current source
-        _effectChain = new SerialEffectChain(_currentSource, _loggerFactory.CreateLogger<SerialEffectChain>(), _loggerFactory);
-        _mixer.AddMixerInput(_effectChain);
-
-        _logger.LogInformation("Audio source set and added to mixer");
-    }
-
-    private ISampleProvider ConvertToRightChannelCount(ISampleProvider input)
-    {
-        if (input.WaveFormat.Channels == _mixer.WaveFormat.Channels)
-        {
-            return input;
-        }
-        if (input.WaveFormat.Channels == 1 && _mixer.WaveFormat.Channels == 2)
-        {
-            return new MonoToStereoSampleProvider(input);
-        }
-        throw new NotImplementedException("Not yet implemented this channel count conversion");
-    }
-
-    public void StartPlayback()
-    {
-        if (_currentSource == null)
-        {
-            _logger.LogWarning("No audio source set. Adding test tone.");
-            SetSource(new TestTone());
-        }
-
-        _isPaused = false;
-        _logger.LogInformation("Playback active - mixer is continuously playing");
-    }
-
-    public void StopPlayback()
-    {
-        // Remove the effect chain if present
-        if (_effectChain != null)
-        {
-            _mixer.RemoveMixerInput(_effectChain);
-            _effectChain = null;
-        }
-
-        // Remove the current source
-        _currentSource = null;
-
-        _isPaused = false;
-        _logger.LogInformation("Playback stopped - all sources and effects removed from mixer");
-    }
-
-    public void StopWithEffect(IAudioEffect effect)
-    {
-        if (_currentSource == null || _effectChain == null)
-        {
-            StopPlayback();
-            return;
-        }
-
-        // Remove existing chain from mixer
-        _mixer.RemoveMixerInput(_effectChain);
-
-        // Create a new chain with just the stop effect
-        var stopChain = new SerialEffectChain(_currentSource, _loggerFactory.CreateLogger<SerialEffectChain>(), _loggerFactory);
-        stopChain.AddEffect(effect);
-        _mixer.AddMixerInput(stopChain);
-
-        // Start a timer to check when the effect is finished
-        var timer = new System.Timers.Timer(100); // Check every 100ms
-        timer.Elapsed += (s, e) =>
-        {
-            if (effect is TapeStopEffect tapeStop && tapeStop.IsFinished)
+            _effectChain = new SerialEffectChain(
+                _currentSource,
+                _loggerFactory.CreateLogger<SerialEffectChain>(),
+                _loggerFactory);
+            foreach (var effect in _effects.Values)
             {
-                timer.Stop();
-                timer.Dispose();
-                StopPlayback();
+                _effectChain.AddEffect(effect);
             }
-        };
-        timer.Start();
-
-        _logger.LogInformation("Stopping playback with effect");
-    }
-
-    public void PausePlayback()
-    {
-        if (!_isPaused && _effectChain != null)
-        {
-            _mixer.RemoveMixerInput(_effectChain);
-            _isPaused = true;
-            _logger.LogInformation("Playback paused.");
-        }
-    }
-
-    public void ResumePlayback()
-    {
-        if (_isPaused && _effectChain != null)
-        {
-            _mixer.AddMixerInput(_effectChain);
-            _isPaused = false;
-            _logger.LogInformation("Playback resumed.");
-        }
-    }
-
-    public PlaybackState GetPlaybackState()
-    {
-        if (_currentSource == null) return PlaybackState.Stopped;
-        if (_isPaused) return PlaybackState.Paused;
-        return PlaybackState.Playing;
-    }
-
-    public void AddEffect(IAudioEffect effect)
-    {
-        if (_effectChain == null)
-        {
-            if (_currentSource == null)
-            {
-                _logger.LogWarning("Cannot add effect - no audio source set");
-                return;
-            }
-            _effectChain = new SerialEffectChain(_currentSource, _loggerFactory.CreateLogger<SerialEffectChain>(), _loggerFactory);
             _mixer.AddMixerInput(_effectChain);
         }
         else
         {
-            // Temporarily remove the chain from the mixer
-            _mixer.RemoveMixerInput(_effectChain);
+            _mixer.AddMixerInput(_currentSource);
         }
 
-        _effectChain.AddEffect(effect);
-        
-        // Re-add the chain to the mixer if it's not paused
-        if (!_isPaused)
+        // Start playback automatically
+        _audioOutput.Play();
+    }
+
+    public void StartPlayback()
+    {
+        if (_isDisposed) return;
+
+        if (_currentSource == null)
         {
+            // Add a test tone if no source is available
+            var testTone = new SignalGenerator(44100, 1)
+            {
+                Gain = 0.2,
+                Frequency = 440,
+                Type = SignalGeneratorType.Sin
+            };
+
+            SetSource(testTone);
+        }
+
+        _audioOutput.Play();
+    }
+
+    public void StopPlayback()
+    {
+        if (_isDisposed) return;
+        _audioOutput.Stop();
+        _currentSource = null;
+        _effectChain = null;
+        _mixer.RemoveAllMixerInputs();
+    }
+
+    public void StopWithEffect(IAudioEffect effect)
+    {
+        if (_isDisposed) return;
+        if (_currentSource == null) return;
+
+        // Create a new chain just for the stop effect
+        var stopChain = new SerialEffectChain(
+            _currentSource,
+            _loggerFactory.CreateLogger<SerialEffectChain>(),
+            _loggerFactory);
+        stopChain.AddEffect(effect);
+
+        // Remove existing inputs
+        _mixer.RemoveAllMixerInputs();
+        
+        // Add the stop chain
+        _mixer.AddMixerInput(stopChain);
+
+        // The effect (e.g. TapeStopEffect) will signal when it's done
+        // by returning 0 samples, at which point playback will stop
+    }
+
+    public void PausePlayback()
+    {
+        if (_isDisposed) return;
+        _audioOutput.Pause();
+    }
+
+    public void ResumePlayback()
+    {
+        if (_isDisposed) return;
+        _audioOutput.Play();
+    }
+
+    public PlaybackState GetPlaybackState()
+    {
+        if (_isDisposed) return PlaybackState.Stopped;
+        return _audioOutput.PlaybackState;
+    }
+
+    public void AddEffect(IAudioEffect effect)
+    {
+        if (_isDisposed) return;
+        if (_currentSource == null) return;
+
+        // Remove existing effect with same name if any
+        RemoveEffect(effect.Name);
+
+        // Add to effects dictionary
+        _effects.Add(effect.Name, effect);
+
+        // If this is our first effect, create the chain
+        if (_effectChain == null)
+        {
+            _mixer.RemoveMixerInput(_currentSource);
+            _effectChain = new SerialEffectChain(
+                _currentSource,
+                _loggerFactory.CreateLogger<SerialEffectChain>(),
+                _loggerFactory);
             _mixer.AddMixerInput(_effectChain);
         }
-        
-        _logger.LogInformation($"{effect.Name} effect added.");
+
+        // Add to the chain
+        _effectChain.AddEffect(effect);
     }
 
     public void RemoveEffect(string effectName)
     {
-        if (_effectChain != null)
+        if (_isDisposed) return;
+        if (_effectChain == null) return;
+
+        if (_effects.Remove(effectName))
         {
             _effectChain.RemoveEffect(effectName);
-            _logger.LogInformation($"{effectName} effect removed.");
+
+            // If no more effects, remove the chain
+            if (_effects.Count == 0 && _currentSource != null)
+            {
+                _mixer.RemoveMixerInput(_effectChain);
+                _effectChain = null;
+                _mixer.AddMixerInput(_currentSource);
+            }
         }
     }
 
     public void SetVolume(float volume)
     {
-        // Volume range is 0.0f to 1.0f for WaveOutEvent
-        _waveOut.Volume = Math.Clamp(volume, 0f, 1f);
-        _logger.LogInformation($"Volume set to: {volume}");
+        if (_isDisposed) return;
+        _audioOutput.SetVolume(volume);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_isDisposed)
+        {
+            if (disposing)
+            {
+                _audioOutput.Dispose();
+            }
+            _isDisposed = true;
+        }
     }
 
     public void Dispose()
     {
-        _waveOut?.Dispose();
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 }

@@ -143,14 +143,6 @@ dotnet test --filter "Category=AI_Generated"
 4. Push to the branch
 5. Create a Pull Request
 
-### Coding Standards
-
-- Use C# latest features (currently targeting .NET 9.0)
-- Follow Microsoft's C# coding conventions
-- Add XML documentation for public APIs
-- Include unit tests for new features
-- Ensure cross-platform compatibility
-
 ## Telemetry
 
 The application collects anonymous usage telemetry to improve the user experience. Data is stored in:
@@ -164,10 +156,3 @@ Telemetry can be disabled in the configuration file.
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- NAudio for audio processing
-- Serilog for logging
-- xUnit for testing
-- GitHub Actions for CI/CD 

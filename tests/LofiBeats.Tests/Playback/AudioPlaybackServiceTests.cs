@@ -3,6 +3,7 @@ using LofiBeats.Core.Playback;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NAudio.Wave;
+using System.Threading;
 
 namespace LofiBeats.Tests.Playback;
 
@@ -13,6 +14,8 @@ public class AudioPlaybackServiceTests
     private readonly Mock<ILoggerFactory> _loggerFactoryMock;
     private readonly Mock<ISampleProvider> _sampleProviderMock;
     private readonly Mock<IAudioEffect> _effectMock;
+    private readonly Mock<IAudioOutput> _audioOutputMock;
+    private PlaybackState _playbackState;
 
     public AudioPlaybackServiceTests()
     {
@@ -20,6 +23,8 @@ public class AudioPlaybackServiceTests
         _loggerFactoryMock = new Mock<ILoggerFactory>();
         _sampleProviderMock = new Mock<ISampleProvider>();
         _effectMock = new Mock<IAudioEffect>();
+        _audioOutputMock = new Mock<IAudioOutput>();
+        _playbackState = PlaybackState.Stopped;
 
         // Setup mock sample provider
         _sampleProviderMock.Setup(x => x.WaveFormat)
@@ -30,9 +35,25 @@ public class AudioPlaybackServiceTests
         _effectMock.Setup(x => x.WaveFormat)
             .Returns(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
 
-        // Setup logger factory to return a mock logger for any type
-        _loggerFactoryMock.Setup(x => x.CreateLogger(It.IsAny<string>()))
+        // Setup mock audio output
+        _audioOutputMock.Setup(x => x.Play())
+            .Callback(() => _playbackState = PlaybackState.Playing);
+        _audioOutputMock.Setup(x => x.Pause())
+            .Callback(() => _playbackState = PlaybackState.Paused);
+        _audioOutputMock.Setup(x => x.Stop())
+            .Callback(() => _playbackState = PlaybackState.Stopped);
+        _audioOutputMock.Setup(x => x.PlaybackState)
+            .Returns(() => _playbackState);
+
+        // Setup logger factory to return our logger mock
+        _loggerFactoryMock.Setup(x => x.CreateLogger(It.Is<string>(s => s == typeof(AudioPlaybackService).FullName)))
+            .Returns(_loggerMock.Object);
+        _loggerFactoryMock.Setup(x => x.CreateLogger(It.Is<string>(s => s == typeof(SerialEffectChain).FullName)))
             .Returns(new Mock<ILogger>().Object);
+
+        // Setup logger factory to return our audio output mock
+        _loggerFactoryMock.Setup(x => x.CreateLogger(It.Is<string>(s => s == typeof(AudioPlaybackService).FullName)))
+            .Returns(_loggerMock.Object);
     }
 
     [Fact]
@@ -100,7 +121,7 @@ public class AudioPlaybackServiceTests
     public void PauseAndResume_ModifiesPlaybackStateCorrectly()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object);
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
         service.SetSource(_sampleProviderMock.Object);
         
         // Act & Assert - Initial state
