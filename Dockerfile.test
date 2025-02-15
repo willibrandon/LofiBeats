@@ -1,0 +1,19 @@
+FROM mcr.microsoft.com/dotnet/sdk:9.0-preview-bookworm-slim
+
+WORKDIR /app
+
+# Copy solution and project files first to optimize layer caching
+COPY *.sln .
+COPY src/LofiBeats.Core/*.csproj src/LofiBeats.Core/
+COPY src/LofiBeats.Service/*.csproj src/LofiBeats.Service/
+COPY src/LofiBeats.Cli/*.csproj src/LofiBeats.Cli/
+COPY tests/LofiBeats.Tests/*.csproj tests/LofiBeats.Tests/
+
+# Restore NuGet packages
+RUN dotnet restore /p:TreatWarningsAsErrors=false
+
+# Copy the rest of the code
+COPY . .
+
+# Run tests, excluding Windows-specific tests
+ENTRYPOINT ["dotnet", "test", "--filter", "Category!=Platform_Specific"] 

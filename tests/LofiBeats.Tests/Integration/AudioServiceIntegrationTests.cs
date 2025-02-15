@@ -1,5 +1,6 @@
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.Playback;
+using LofiBeats.Core.Telemetry;
 using LofiBeats.Service;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,12 +25,29 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
             builder.ConfigureServices(services =>
             {
                 // Replace the real AudioPlaybackService with our test version
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IAudioPlaybackService));
-                if (descriptor != null)
+                var audioDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IAudioPlaybackService));
+                if (audioDescriptor != null)
                 {
-                    services.Remove(descriptor);
+                    services.Remove(audioDescriptor);
                 }
                 services.AddSingleton<IAudioPlaybackService, TestAudioPlaybackService>();
+
+                // Replace telemetry services with mocks
+                var telemetryDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(ITelemetryService));
+                if (telemetryDescriptor != null)
+                {
+                    services.Remove(telemetryDescriptor);
+                }
+                var mockTelemetry = new Mock<ITelemetryService>();
+                services.AddSingleton(mockTelemetry.Object);
+
+                var trackerDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(TelemetryTracker));
+                if (trackerDescriptor != null)
+                {
+                    services.Remove(trackerDescriptor);
+                }
+                var mockLogger = new Mock<ILogger<TelemetryTracker>>();
+                services.AddSingleton(new TelemetryTracker(mockTelemetry.Object, mockLogger.Object));
             });
         });
         _client = _factory.CreateClient();

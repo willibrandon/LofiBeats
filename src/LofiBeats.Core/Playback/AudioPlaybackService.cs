@@ -205,7 +205,9 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
     public void SetVolume(float volume)
     {
         if (_isDisposed) return;
-        _audioOutput.SetVolume(volume);
+        // Clamp volume between 0 and 1
+        float clampedVolume = Math.Max(0f, Math.Min(1f, volume));
+        _audioOutput.SetVolume(clampedVolume);
     }
 
     protected virtual void Dispose(bool disposing)
