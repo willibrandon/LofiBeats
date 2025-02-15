@@ -66,14 +66,14 @@ ctl.!default {\n\
 # Create entrypoint script with debug info
 RUN echo '#!/bin/bash\n\
 echo "Starting PulseAudio in system mode (root) ..."\n\
-pulseaudio --system --daemonize=no --exit-idle-time=-1 --disallow-module-loading -vvv &\n\
+pulseaudio --system --daemonize=no --exit-idle-time=-1 --disallow-module-loading -v 2>&1 | grep -v "protocol-native.c\|sink-input.c\|module-null-sink.c" &\n\
 \n\
 sleep 2\n\
 \n\
 # Show audio debug info\n\
 echo "=== PulseAudio Status ==="\n\
 pactl info || true\n\
-pactl list || true\n\
+pactl list short || true\n\
 \n\
 echo "=== ALSA Status ==="\n\
 aplay -l || true\n\
@@ -84,7 +84,7 @@ openal-info || true\n\
 \n\
 # Set environment variables for OpenAL\n\
 export ALSOFT_DRIVERS=pulse\n\
-export ALSOFT_LOGLEVEL=4\n\
+export ALSOFT_LOGLEVEL=2\n\
 export ALSOFT_LOGFILE=/tmp/openal.log\n\
 \n\
 # Run the actual command\n\
