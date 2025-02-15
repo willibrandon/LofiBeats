@@ -13,7 +13,7 @@ builder.Services.AddHealthChecks();
 
 // Register our core services as singletons
 builder.Services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
-builder.Services.AddSingleton<IBeatGenerator, BasicLofiBeatGenerator>();
+builder.Services.AddSingleton<IBeatGeneratorFactory, BeatGeneratorFactory>();
 builder.Services.AddSingleton<IEffectFactory, EffectFactory>();
 
 var app = builder.Build();
@@ -34,16 +34,18 @@ app.MapHealthChecks("/healthz");
 var api = app.MapGroup("/api/lofi");
 
 // Generate endpoint
-api.MapPost("/generate", (IBeatGenerator generator, string style = "basic") =>
+api.MapPost("/generate", (IBeatGeneratorFactory factory, string style = "basic") =>
 {
-    var pattern = generator.GeneratePattern(style ?? "basic");
+    var generator = factory.GetGenerator(style);
+    var pattern = generator.GeneratePattern();
     return Results.Text(JsonSerializer.Serialize(new { message = "Pattern generated", pattern = pattern }), "application/json");
 });
 
 // Play endpoint
-api.MapPost("/play", (IAudioPlaybackService playback, IBeatGenerator generator, string style = "basic") =>
+api.MapPost("/play", (IAudioPlaybackService playback, IBeatGeneratorFactory factory, string style = "basic") =>
 {
-    var pattern = generator.GeneratePattern(style ?? "basic");
+    var generator = factory.GetGenerator(style);
+    var pattern = generator.GeneratePattern();
     var beatSource = new BeatPatternSampleProvider(pattern, app.Logger);
     playback.SetSource(beatSource);
     playback.StartPlayback();

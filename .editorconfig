@@ -2,3 +2,6 @@
 
 # Default severity for analyzer diagnostics with category 'Performance'
 dotnet_analyzer_diagnostic.category-Performance.severity = warning
+
+# IDE0300: Simplify collection initialization
+dotnet_diagnostic.IDE0300.severity = warning
