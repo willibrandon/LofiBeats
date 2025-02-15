@@ -5,7 +5,7 @@ namespace LofiBeats.Core.Effects;
 
 public class ReverbEffect : IAudioEffect
 {
-    private readonly ISampleProvider _source;
+    private ISampleProvider _source;
     private readonly ILogger<ReverbEffect> _logger;
     private float[] _delayBuffer;
     private int _writePos;
@@ -34,6 +34,12 @@ public class ReverbEffect : IAudioEffect
 
         _logger.LogInformation("ReverbEffect initialized with delay: {DelayMs}ms, feedback: {Feedback}, mix: {Mix}", 
             delayMs, feedback, mix);
+    }
+
+    public void SetSource(ISampleProvider source)
+    {
+        _source = source ?? throw new ArgumentNullException(nameof(source));
+        _logger.LogInformation("ReverbEffect source updated");
     }
 
     public int Read(float[] buffer, int offset, int count)

@@ -8,17 +8,19 @@ namespace LofiBeats.Core.Playback;
 public class AudioPlaybackService : IAudioPlaybackService, IDisposable
 {
     private readonly ILogger<AudioPlaybackService> _logger;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly WaveOutEvent _waveOut;
     private readonly MixingSampleProvider _mixer;
-    private readonly List<IAudioEffect> _effects = new List<IAudioEffect>();
     private ISampleProvider? _currentSource;
-    private bool _isPaused;  // Track if we're paused separately from _waveOut state
+    private SerialEffectChain? _effectChain;
+    private bool _isPaused;
 
     public ISampleProvider? CurrentSource => _currentSource;
 
-    public AudioPlaybackService(ILogger<AudioPlaybackService> logger)
+    public AudioPlaybackService(ILogger<AudioPlaybackService> logger, ILoggerFactory loggerFactory)
     {
         _logger = logger;
+        _loggerFactory = loggerFactory;
 
         // Create the output device and mixer
         _waveOut = new WaveOutEvent();
@@ -40,13 +42,22 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
         // Convert mono to stereo if needed
         var convertedSource = ConvertToRightChannelCount(source);
 
+        // Remove existing inputs
         if (_currentSource != null)
         {
             _mixer.RemoveMixerInput(_currentSource);
         }
+        if (_effectChain != null)
+        {
+            _mixer.RemoveMixerInput(_effectChain);
+        }
 
         _currentSource = convertedSource;
-        _mixer.AddMixerInput(convertedSource);
+
+        // Create a new effect chain with the current source
+        _effectChain = new SerialEffectChain(_currentSource, _loggerFactory.CreateLogger<SerialEffectChain>(), _loggerFactory);
+        _mixer.AddMixerInput(_effectChain);
+
         _logger.LogInformation("Audio source set and added to mixer");
     }
 
@@ -77,20 +88,15 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
 
     public void StopPlayback()
     {
-        // Remove the main audio source if present
-        if (_currentSource != null)
+        // Remove the effect chain if present
+        if (_effectChain != null)
         {
-            _mixer.RemoveMixerInput(_currentSource);
-            _currentSource = null;
+            _mixer.RemoveMixerInput(_effectChain);
+            _effectChain = null;
         }
 
-        // Also remove all effects that were added
-        foreach (var effect in _effects.ToList()) // Use ToList() to avoid modifying the collection during iteration
-        {
-            _mixer.RemoveMixerInput(effect);
-        }
-
-        _effects.Clear();
+        // Remove the current source
+        _currentSource = null;
 
         _isPaused = false;
         _logger.LogInformation("Playback stopped - all sources and effects removed from mixer");
@@ -98,9 +104,9 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
 
     public void PausePlayback()
     {
-        if (!_isPaused && _currentSource != null)
+        if (!_isPaused && _effectChain != null)
         {
-            _mixer.RemoveMixerInput(_currentSource);
+            _mixer.RemoveMixerInput(_effectChain);
             _isPaused = true;
             _logger.LogInformation("Playback paused.");
         }
@@ -108,9 +114,9 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
 
     public void ResumePlayback()
     {
-        if (_isPaused && _currentSource != null)
+        if (_isPaused && _effectChain != null)
         {
-            _mixer.AddMixerInput(_currentSource);
+            _mixer.AddMixerInput(_effectChain);
             _isPaused = false;
             _logger.LogInformation("Playback resumed.");
         }
@@ -125,19 +131,38 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
 
     public void AddEffect(IAudioEffect effect)
     {
-        var convertedEffect = ConvertToRightChannelCount(effect);
-        _effects.Add(effect);
-        _mixer.AddMixerInput(convertedEffect);
+        if (_effectChain == null)
+        {
+            if (_currentSource == null)
+            {
+                _logger.LogWarning("Cannot add effect - no audio source set");
+                return;
+            }
+            _effectChain = new SerialEffectChain(_currentSource, _loggerFactory.CreateLogger<SerialEffectChain>(), _loggerFactory);
+            _mixer.AddMixerInput(_effectChain);
+        }
+        else
+        {
+            // Temporarily remove the chain from the mixer
+            _mixer.RemoveMixerInput(_effectChain);
+        }
+
+        _effectChain.AddEffect(effect);
+        
+        // Re-add the chain to the mixer if it's not paused
+        if (!_isPaused)
+        {
+            _mixer.AddMixerInput(_effectChain);
+        }
+        
         _logger.LogInformation($"{effect.Name} effect added.");
     }
 
     public void RemoveEffect(string effectName)
     {
-        var effectToRemove = _effects.Find(e => e.Name.Equals(effectName, StringComparison.OrdinalIgnoreCase));
-        if (effectToRemove != null)
+        if (_effectChain != null)
         {
-            _mixer.RemoveMixerInput(effectToRemove);
-            _effects.Remove(effectToRemove);
+            _effectChain.RemoveEffect(effectName);
             _logger.LogInformation($"{effectName} effect removed.");
         }
     }

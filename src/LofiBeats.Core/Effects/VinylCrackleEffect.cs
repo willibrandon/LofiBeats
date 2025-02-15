@@ -5,7 +5,7 @@ namespace LofiBeats.Core.Effects;
 
 public class VinylCrackleEffect : IAudioEffect
 {
-    private readonly ISampleProvider _source;
+    private ISampleProvider _source;
     private readonly Random _rand = new();
     private readonly ILogger<VinylCrackleEffect> _logger;
 
@@ -17,6 +17,12 @@ public class VinylCrackleEffect : IAudioEffect
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _logger.LogInformation("VinylCrackleEffect initialized");
+    }
+
+    public void SetSource(ISampleProvider source)
+    {
+        _source = source ?? throw new ArgumentNullException(nameof(source));
+        _logger.LogInformation("VinylCrackleEffect source updated");
     }
 
     public int Read(float[] buffer, int offset, int count)

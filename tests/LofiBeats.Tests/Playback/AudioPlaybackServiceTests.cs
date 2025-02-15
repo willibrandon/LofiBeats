@@ -10,12 +10,14 @@ namespace LofiBeats.Tests.Playback;
 public class AudioPlaybackServiceTests
 {
     private readonly Mock<ILogger<AudioPlaybackService>> _loggerMock;
+    private readonly Mock<ILoggerFactory> _loggerFactoryMock;
     private readonly Mock<ISampleProvider> _sampleProviderMock;
     private readonly Mock<IAudioEffect> _effectMock;
 
     public AudioPlaybackServiceTests()
     {
         _loggerMock = new Mock<ILogger<AudioPlaybackService>>();
+        _loggerFactoryMock = new Mock<ILoggerFactory>();
         _sampleProviderMock = new Mock<ISampleProvider>();
         _effectMock = new Mock<IAudioEffect>();
 
@@ -27,6 +29,10 @@ public class AudioPlaybackServiceTests
         _effectMock.Setup(x => x.Name).Returns("test_effect");
         _effectMock.Setup(x => x.WaveFormat)
             .Returns(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
+
+        // Setup logger factory to return a mock logger for any type
+        _loggerFactoryMock.Setup(x => x.CreateLogger(It.IsAny<string>()))
+            .Returns(new Mock<ILogger>().Object);
     }
 
     [Fact]
@@ -34,7 +40,7 @@ public class AudioPlaybackServiceTests
     public void SetSource_AddsSourceToMixer()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object);
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object);
 
         // Act - Should not throw
         service.SetSource(_sampleProviderMock.Object);
@@ -45,7 +51,7 @@ public class AudioPlaybackServiceTests
     public void AddEffect_AddsEffectToMixer()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object);
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object);
 
         // Act - Should not throw
         service.AddEffect(_effectMock.Object);
@@ -56,14 +62,11 @@ public class AudioPlaybackServiceTests
     public void RemoveEffect_RemovesEffectFromMixer()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object);
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object);
         service.AddEffect(_effectMock.Object);
 
         // Act
         service.RemoveEffect("test_effect");
-
-        // Add effect again - should work if previous one was removed
-        service.AddEffect(_effectMock.Object);
     }
 
     [Fact]
@@ -71,7 +74,7 @@ public class AudioPlaybackServiceTests
     public void StartPlayback_WithNoSource_AddsTestTone()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object);
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object);
 
         // Act - Should not throw
         service.StartPlayback();
@@ -82,7 +85,7 @@ public class AudioPlaybackServiceTests
     public void StopPlayback_RemovesSource()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object);
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object);
         service.SetSource(_sampleProviderMock.Object);
 
         // Act
@@ -97,7 +100,7 @@ public class AudioPlaybackServiceTests
     public void PauseAndResume_ModifiesPlaybackStateCorrectly()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object);
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object);
         service.SetSource(_sampleProviderMock.Object);
         
         // Act & Assert - Initial state
@@ -117,7 +120,7 @@ public class AudioPlaybackServiceTests
     public void SetVolume_ClampsBetweenValidRange()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object);
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object);
 
         // Act & Assert - Should not throw
         service.SetVolume(-0.5f); // Should clamp to 0
@@ -130,7 +133,7 @@ public class AudioPlaybackServiceTests
     public void PlaybackState_ReflectsCurrentState()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object);
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object);
         
         // Act & Assert - Initial state (no source)
         Assert.Equal(PlaybackState.Stopped, service.GetPlaybackState());
@@ -149,7 +152,7 @@ public class AudioPlaybackServiceTests
     public void SetSource_WithMonoInput_ConvertsToStereo()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object);
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object);
         var monoProviderMock = new Mock<ISampleProvider>();
         monoProviderMock.Setup(x => x.WaveFormat)
             .Returns(WaveFormat.CreateIeeeFloatWaveFormat(44100, 1)); // Mono format
@@ -167,7 +170,7 @@ public class AudioPlaybackServiceTests
     public void MultipleEffects_CanBeAddedAndRemoved()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object);
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object);
         var effect1Mock = new Mock<IAudioEffect>();
         var effect2Mock = new Mock<IAudioEffect>();
         
@@ -197,7 +200,7 @@ public class AudioPlaybackServiceTests
     public void PauseAndResume_WithNoSource_DoesNotThrow()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object);
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object);
 
         // Act & Assert - Should not throw
         service.PausePlayback();

@@ -5,7 +5,7 @@ namespace LofiBeats.Core.Effects;
 
 public class LowPassFilterEffect : IAudioEffect
 {
-    private readonly ISampleProvider _source;
+    private ISampleProvider _source;
     private readonly ILogger<LowPassFilterEffect> _logger;
     private readonly float _cutoffFrequency;
     private readonly float _resonance;
@@ -32,6 +32,12 @@ public class LowPassFilterEffect : IAudioEffect
         _alpha = dt / (rc + dt);
 
         _logger.LogInformation("LowPassFilterEffect initialized with cutoff frequency {Frequency}Hz", cutoffFrequency);
+    }
+
+    public void SetSource(ISampleProvider source)
+    {
+        _source = source ?? throw new ArgumentNullException(nameof(source));
+        _logger.LogInformation("LowPassFilterEffect source updated");
     }
 
     public int Read(float[] buffer, int offset, int count)

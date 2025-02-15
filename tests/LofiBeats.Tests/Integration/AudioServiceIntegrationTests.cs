@@ -3,6 +3,8 @@ using LofiBeats.Core.Playback;
 using LofiBeats.Service;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Moq;
 using NAudio.Wave;
 using System.Net;
 using System.Net.Http.Json;
@@ -115,9 +117,9 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
         Assert.Equal(PlaybackState.Paused, testService.GetPlaybackState());
         Assert.NotNull(testService.CurrentSource);
 
-        // 3. Resume playback - THIS SHOULD WORK BUT FAILS WITH 400
+        // 3. Resume playback
         var resumeResponse = await _client.PostAsync("/api/lofi/resume", null);
-        Assert.Equal(HttpStatusCode.OK, resumeResponse.StatusCode); // This will fail because we get 400
+        Assert.Equal(HttpStatusCode.OK, resumeResponse.StatusCode);
         var result = await resumeResponse.Content.ReadFromJsonAsync<ApiResponse>();
         Assert.Equal("Playback resumed", result?.Message);
         Assert.Equal(PlaybackState.Playing, testService.GetPlaybackState());
@@ -141,14 +143,51 @@ public class TestAudioPlaybackService : IAudioPlaybackService
 {
     private PlaybackState _state = PlaybackState.Stopped;
     private ISampleProvider? _currentSource;
-    private readonly List<IAudioEffect> _effects = new();
+    private SerialEffectChain? _effectChain;
     private float _volume = 1.0f;
+    private readonly Mock<ILoggerFactory> _loggerFactoryMock;
+
+    public TestAudioPlaybackService()
+    {
+        _loggerFactoryMock = new Mock<ILoggerFactory>();
+        _loggerFactoryMock.Setup(x => x.CreateLogger(It.IsAny<string>()))
+            .Returns(new Mock<ILogger>().Object);
+    }
 
     public ISampleProvider? CurrentSource => _currentSource;
 
-    public void AddEffect(IAudioEffect effect) => _effects.Add(effect);
-    public void RemoveEffect(string effectName) => _effects.RemoveAll(e => e.Name == effectName);
-    public void SetSource(ISampleProvider source) => _currentSource = source;
+    public void AddEffect(IAudioEffect effect)
+    {
+        if (_effectChain == null && _currentSource != null)
+        {
+            _effectChain = new SerialEffectChain(
+                _currentSource, 
+                new Mock<ILogger<SerialEffectChain>>().Object,
+                _loggerFactoryMock.Object);
+        }
+        if (_effectChain != null)
+        {
+            _effectChain.AddEffect(effect);
+        }
+    }
+
+    public void RemoveEffect(string effectName)
+    {
+        _effectChain?.RemoveEffect(effectName);
+    }
+
+    public void SetSource(ISampleProvider source)
+    {
+        _currentSource = source;
+        if (_effectChain != null)
+        {
+            _effectChain = new SerialEffectChain(
+                _currentSource, 
+                new Mock<ILogger<SerialEffectChain>>().Object,
+                _loggerFactoryMock.Object);
+        }
+    }
+
     public void SetVolume(float volume) => _volume = volume;
 
     public void StartPlayback()
@@ -160,6 +199,7 @@ public class TestAudioPlaybackService : IAudioPlaybackService
     {
         _state = PlaybackState.Stopped;
         _currentSource = null;
+        _effectChain = null;
     }
 
     public void PausePlayback()
