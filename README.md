@@ -26,14 +26,15 @@ dotnet tool install --global LofiBeats.Cli
 lofi play --style jazzy
 
 # Add some effects
-lofi effect --name tapestop
 lofi effect --name reverb
+lofi effect --name tapeflutter
+lofi effect --name vinyl
 
 # Control volume
 lofi volume 0.8
 
-# Stop playback
-lofi stop
+# Stop playback with tapestop effect
+lofi stop --tapestop
 ```
 
 ## Architecture
