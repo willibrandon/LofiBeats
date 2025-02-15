@@ -14,8 +14,18 @@ public class Program
             nameof(LogErrorExecutingCommand)),
         "An error occurred while executing the command");
 
+    private static readonly CancellationTokenSource _cts = new();
+
     public static async Task<int> Main(string[] args)
     {
+        // Set up Ctrl+C handling
+        Console.CancelKeyPress += (sender, e) =>
+        {
+            Console.WriteLine("\nShutting down gracefully...");
+            e.Cancel = true; // Prevent abrupt termination
+            _cts.Cancel();
+        };
+
         // Set up global exception handling
         AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
         {
@@ -32,7 +42,17 @@ public class Program
         {
             // Get the CLI interface from the service provider
             var cli = host.Services.GetRequiredService<CommandLineInterface>();
-            return await cli.ExecuteAsync(args);
+            return await cli.ExecuteAsync(args, _cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Get telemetry if possible
+            var telemetry = host.Services.GetService<TelemetryTracker>();
+            if (telemetry != null)
+            {
+                await telemetry.TrackApplicationStop();
+            }
+            return 0;
         }
         catch (Exception ex)
         {

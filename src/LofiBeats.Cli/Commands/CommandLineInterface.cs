@@ -427,15 +427,33 @@ public class CommandLineInterface : IDisposable
 
         // Add interactive command
         var interactiveCommand = new Command("interactive", "Enters an interactive mode for real-time control");
-        interactiveCommand.SetHandler(async () =>
+        interactiveCommand.SetHandler(async (InvocationContext context) =>
         {
+            var cancellationToken = context.GetCancellationToken();
             _logEnteringInteractiveMode(_logger, null);
             Console.WriteLine("Entering interactive mode. Type 'help' for commands, 'exit' to quit.");
             
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
+                if (cancellationToken.IsCancellationRequested) break;
+
                 Console.Write("> ");
-                var line = Console.ReadLine();
+                
+                // Use ReadLine with a small delay to check for cancellation
+                var line = await Task.Run(() => 
+                {
+                    while (!cancellationToken.IsCancellationRequested)
+                    {
+                        if (Console.KeyAvailable)
+                        {
+                            return Console.ReadLine();
+                        }
+                        Thread.Sleep(100);
+                    }
+                    return null;
+                }, cancellationToken);
+
+                if (cancellationToken.IsCancellationRequested || line == null) break;
                 
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 if (line.Equals("exit", StringComparison.OrdinalIgnoreCase)) break;
@@ -463,6 +481,10 @@ public class CommandLineInterface : IDisposable
                     var args = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                     await _rootCommand.InvokeAsync(args);
                 }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error: {ex.Message}");
@@ -487,7 +509,7 @@ public class CommandLineInterface : IDisposable
         _logCommandsConfigured(_logger, null);
     }
 
-    public async Task<int> ExecuteAsync(string[] args)
+    public async Task<int> ExecuteAsync(string[] args, CancellationToken cancellationToken = default)
     {
         _logExecutingCommand(_logger, string.Join(" ", args), null);
         return await _rootCommand.InvokeAsync(args);
