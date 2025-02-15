@@ -1,6 +1,7 @@
 using System.CommandLine;
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
+using System.CommandLine.Invocation;
 
 namespace LofiBeats.Cli.Commands;
 
@@ -45,6 +46,9 @@ public class CommandLineInterface : IDisposable
 
     private static readonly Action<ILogger, Exception?> _logExecutingGenerateCommand =
         LoggerMessage.Define(LogLevel.Information, new EventId(11, "ExecutingGenerateCommand"), "Executing generate command");
+
+    private static readonly Action<ILogger, Exception?> _logEnteringInteractiveMode =
+        LoggerMessage.Define(LogLevel.Information, new EventId(12, "EnteringInteractiveMode"), "Entering interactive mode");
 
     public CommandLineInterface(ILogger<CommandLineInterface> logger, ILoggerFactory loggerFactory)
     {
@@ -295,6 +299,53 @@ public class CommandLineInterface : IDisposable
             Console.WriteLine("LofiBeats CLI v0.1.0");
         });
         _rootCommand.AddCommand(versionCommand);
+
+        // Add interactive command
+        var interactiveCommand = new Command("interactive", "Enters an interactive mode for real-time control");
+        interactiveCommand.SetHandler(async () =>
+        {
+            _logEnteringInteractiveMode(_logger, null);
+            Console.WriteLine("Entering interactive mode. Type 'help' for commands, 'exit' to quit.");
+            
+            while (true)
+            {
+                Console.Write("> ");
+                var line = Console.ReadLine();
+                
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (line.Equals("exit", StringComparison.OrdinalIgnoreCase)) break;
+                if (line.Equals("help", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Show available commands
+                    Console.WriteLine("\nAvailable commands:");
+                    Console.WriteLine("  generate [--style=<style>] - Generate a new beat pattern");
+                    Console.WriteLine("  play [--style=<style>]    - Play a new lofi beat");
+                    Console.WriteLine("  stop                      - Stop audio playback");
+                    Console.WriteLine("  pause                     - Pause audio playback");
+                    Console.WriteLine("  resume                    - Resume audio playback");
+                    Console.WriteLine("  effect --name=<name> [--enable=true|false] - Manage effects");
+                    Console.WriteLine("  volume --level=<0.0-1.0>  - Adjust master volume");
+                    Console.WriteLine("  version                   - Display version information");
+                    Console.WriteLine("  help                      - Show this help message");
+                    Console.WriteLine("  exit                      - Exit interactive mode\n");
+                    continue;
+                }
+
+                try
+                {
+                    // Split the line into args and invoke the root command
+                    var args = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    await _rootCommand.InvokeAsync(args);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error: {ex.Message}");
+                }
+            }
+
+            Console.WriteLine("Exiting interactive mode.");
+        });
+        _rootCommand.AddCommand(interactiveCommand);
 
         _logCommandsConfigured(_logger, null);
     }
