@@ -113,4 +113,12 @@ jobs:
       run: |
         for package in packages/*.nupkg; do
           dotnet nuget push "$package" --source "github" --api-key ${{ secrets.GITHUB_TOKEN }}
-        done 
+        done
+        
+    - name: Publish to NuGet
+      run: |
+        for package in packages/*.nupkg; do
+          dotnet nuget push "$package" --source "https://api.nuget.org/v3/index.json" --api-key ${{ secrets.NUGET_API_KEY }}
+        done
+      env:
+        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }} 
