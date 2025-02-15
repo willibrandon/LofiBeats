@@ -140,7 +140,7 @@ public class ServiceConnectionHelper
 
             // 3. Start new service process
             _logStartingService(_logger, null);
-            StartServiceProcess();
+            await StartServiceAsync();
 
             // 4. Wait until it responds or timeout
             const int maxStartupWaitRetries = 10;
@@ -292,43 +292,46 @@ public class ServiceConnectionHelper
         }
     }
 
-    private void StartServiceProcess()
+    private async Task StartServiceAsync()
     {
-        // For test environment - skip actual process start
-        if (Environment.GetEnvironmentVariable("MOCK_SERVICE_TEST") == "true")
-        {
-            _logServiceStarted(_logger, _servicePath, null);
-            return;
-        }
-
-        _logStartingService(_logger, null);
-
-        var servicePath = _servicePath;
-        var workingDirectory = Path.GetDirectoryName(servicePath);
-
-        if (string.IsNullOrEmpty(workingDirectory))
-        {
-            throw new Exception("Could not determine working directory for service.");
-        }
-
-        var psi = new ProcessStartInfo
-        {
-            FileName = "dotnet",
-            Arguments = $"exec \"{servicePath}\"",
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-
         try
         {
-            var process = Process.Start(psi);
-            if (process == null)
+            var servicePath = GetDefaultServicePath();
+            var serviceDirectory = Path.GetDirectoryName(servicePath)!;
+
+            // Copy service appsettings if they don't exist
+            var cliDirectory = AppContext.BaseDirectory;
+            var serviceSettings = Path.Combine(cliDirectory, "service.appsettings.json");
+            var serviceDevSettings = Path.Combine(cliDirectory, "service.appsettings.Development.json");
+            var targetSettings = Path.Combine(serviceDirectory, "appsettings.json");
+            var targetDevSettings = Path.Combine(serviceDirectory, "appsettings.Development.json");
+
+            await Task.Run(() =>
             {
-                throw new Exception("Failed to start process - Process.Start returned null");
-            }
+                if (File.Exists(serviceSettings))
+                {
+                    File.Copy(serviceSettings, targetSettings, true);
+                }
+                if (File.Exists(serviceDevSettings))
+                {
+                    File.Copy(serviceDevSettings, targetDevSettings, true);
+                }
+            });
+
+            // Start the service process
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "dotnet",
+                    Arguments = $"\"{servicePath}\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    WorkingDirectory = serviceDirectory
+                }
+            };
 
             process.OutputDataReceived += (sender, e) => 
             {
@@ -341,6 +344,7 @@ public class ServiceConnectionHelper
                     _logServiceError(_logger, e.Data, null);
             };
 
+            process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 

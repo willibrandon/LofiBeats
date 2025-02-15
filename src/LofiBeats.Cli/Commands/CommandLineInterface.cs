@@ -56,6 +56,9 @@ public class CommandLineInterface : IDisposable
     private static readonly Action<ILogger, string, Exception?> _logInvalidBeatStyle =
         LoggerMessage.Define<string>(LogLevel.Warning, new EventId(14, "InvalidBeatStyle"), "Invalid beat style '{Style}'");
 
+    private static readonly Action<ILogger, Exception?> _logExecutingUpdateCommand =
+        LoggerMessage.Define(LogLevel.Information, new EventId(15, "ExecutingUpdateCommand"), "Executing update command");
+
     private static readonly string[] ValidEffects = ["vinyl", "reverb", "lowpass"];
     private static readonly string[] ValidBeatStyles = ["basic", "jazzy", "chillhop"];
 
@@ -97,6 +100,22 @@ public class CommandLineInterface : IDisposable
 
     private void ConfigureCommands()
     {
+        // Add update command
+        var updateCommand = new Command("update", "Update the CLI tool to the latest version");
+        updateCommand.Description = "Updates the LofiBeats CLI tool to the latest version.\n\n" +
+                                  "Since this is distributed as a .NET tool, you can update it using:\n" +
+                                  "  dotnet tool update --global lofi\n\n" +
+                                  "This will fetch and install the latest version from NuGet.";
+        
+        updateCommand.SetHandler(() =>
+        {
+            _logExecutingUpdateCommand(_logger, null);
+            Console.WriteLine("To update the LofiBeats CLI tool, run:");
+            Console.WriteLine("  dotnet tool update --global lofi");
+            Console.WriteLine("\nThis will update to the latest version from NuGet.");
+        });
+        _rootCommand.AddCommand(updateCommand);
+
         // Add generate command with enhanced description and validation
         var generateCommand = new Command("generate", "Generates a new lofi beat pattern with customizable style")
         {
@@ -429,9 +448,10 @@ public class CommandLineInterface : IDisposable
                     Console.WriteLine("  stop                      - Stop audio playback");
                     Console.WriteLine("  pause                     - Pause audio playback");
                     Console.WriteLine("  resume                    - Resume audio playback");
-                    Console.WriteLine("  effect --name=<name> [--enable=true|false] - Manage effects");
+                    Console.WriteLine("  effect <name> [--enable=true|false] - Manage effects");
                     Console.WriteLine("  volume --level=<0.0-1.0>  - Adjust master volume");
                     Console.WriteLine("  version                   - Display version information");
+                    Console.WriteLine("  update                    - Update to latest version");
                     Console.WriteLine("  help                      - Show this help message");
                     Console.WriteLine("  exit                      - Exit interactive mode\n");
                     continue;
@@ -456,11 +476,13 @@ public class CommandLineInterface : IDisposable
         // Add help examples to the root command
         _rootCommand.Description = "A command-line application for generating and playing lofi beats\n\n" +
             "Examples:\n" +
-            "  Generate a jazzy beat:        lofi-beats generate --style=jazzy\n" +
-            "  Play with a specific style:   lofi-beats play --style=chillhop\n" +
-            "  Enable vinyl effect:          lofi-beats effect --name=vinyl --enable\n" +
-            "  Adjust volume:                lofi-beats volume --level=0.8\n" +
-            "  Interactive mode:             lofi-beats interactive";
+            "  Generate a jazzy beat:        lofi generate --style=jazzy\n" +
+            "  Play with a specific style:   lofi play --style=chillhop\n" +
+            "  Enable vinyl effect:          lofi effect vinyl\n" +
+            "  Adjust volume:                lofi volume --level=0.8\n" +
+            "  Interactive mode:             lofi interactive\n" +
+            "  Update to latest version:     lofi update\n\n" +
+            "For more information about a command, run: lofi help <command>";
 
         _logCommandsConfigured(_logger, null);
     }
