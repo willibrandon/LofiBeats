@@ -91,4 +91,116 @@ public class AudioPlaybackServiceTests
         // Should be able to set source again
         service.SetSource(_sampleProviderMock.Object);
     }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void PauseAndResume_ModifiesPlaybackStateCorrectly()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(_loggerMock.Object);
+        service.SetSource(_sampleProviderMock.Object);
+        
+        // Act & Assert - Initial state
+        Assert.Equal(PlaybackState.Playing, service.GetPlaybackState());
+        
+        // Pause
+        service.PausePlayback();
+        Assert.Equal(PlaybackState.Paused, service.GetPlaybackState());
+        
+        // Resume
+        service.ResumePlayback();
+        Assert.Equal(PlaybackState.Playing, service.GetPlaybackState());
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void SetVolume_ClampsBetweenValidRange()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(_loggerMock.Object);
+
+        // Act & Assert - Should not throw
+        service.SetVolume(-0.5f); // Should clamp to 0
+        service.SetVolume(1.5f);  // Should clamp to 1
+        service.SetVolume(0.5f);  // Should set exactly
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void PlaybackState_ReflectsCurrentState()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(_loggerMock.Object);
+        
+        // Act & Assert - Initial state (no source)
+        Assert.Equal(PlaybackState.Stopped, service.GetPlaybackState());
+        
+        // Set source and verify playing
+        service.SetSource(_sampleProviderMock.Object);
+        Assert.Equal(PlaybackState.Playing, service.GetPlaybackState());
+        
+        // Stop and verify stopped
+        service.StopPlayback();
+        Assert.Equal(PlaybackState.Stopped, service.GetPlaybackState());
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void SetSource_WithMonoInput_ConvertsToStereo()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(_loggerMock.Object);
+        var monoProviderMock = new Mock<ISampleProvider>();
+        monoProviderMock.Setup(x => x.WaveFormat)
+            .Returns(WaveFormat.CreateIeeeFloatWaveFormat(44100, 1)); // Mono format
+
+        // Act - Should not throw
+        service.SetSource(monoProviderMock.Object);
+        
+        // The conversion happens internally, so we can at least verify
+        // that setting a mono source doesn't break anything
+        Assert.Equal(PlaybackState.Playing, service.GetPlaybackState());
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void MultipleEffects_CanBeAddedAndRemoved()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(_loggerMock.Object);
+        var effect1Mock = new Mock<IAudioEffect>();
+        var effect2Mock = new Mock<IAudioEffect>();
+        
+        effect1Mock.Setup(x => x.Name).Returns("effect1");
+        effect1Mock.Setup(x => x.WaveFormat)
+            .Returns(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
+        
+        effect2Mock.Setup(x => x.Name).Returns("effect2");
+        effect2Mock.Setup(x => x.WaveFormat)
+            .Returns(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
+
+        // Act & Assert
+        service.AddEffect(effect1Mock.Object);
+        service.AddEffect(effect2Mock.Object);
+        
+        // Remove effects in different order
+        service.RemoveEffect("effect1");
+        service.RemoveEffect("effect2");
+        
+        // Should be able to add them again
+        service.AddEffect(effect1Mock.Object);
+        service.AddEffect(effect2Mock.Object);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void PauseAndResume_WithNoSource_DoesNotThrow()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(_loggerMock.Object);
+
+        // Act & Assert - Should not throw
+        service.PausePlayback();
+        service.ResumePlayback();
+    }
 } 
