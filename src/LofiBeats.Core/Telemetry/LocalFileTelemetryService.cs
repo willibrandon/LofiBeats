@@ -8,8 +8,13 @@ namespace LofiBeats.Core.Telemetry;
 /// <summary>
 /// A telemetry service implementation that stores telemetry data in local files.
 /// </summary>
-public class LocalFileTelemetryService : ITelemetryService, IDisposable
+public class LocalFileTelemetryService : ITelemetryService, IAsyncDisposable
 {
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        WriteIndented = true
+    };
+
     private readonly ILogger<LocalFileTelemetryService> _logger;
     private readonly string _basePath;
     private readonly string _sessionId;
@@ -19,7 +24,7 @@ public class LocalFileTelemetryService : ITelemetryService, IDisposable
     private readonly SemaphoreSlim _flushLock = new(1, 1);
     private bool _disposed;
 
-    public LocalFileTelemetryService(ILogger<LocalFileTelemetryService> logger)
+    public LocalFileTelemetryService(ILogger<LocalFileTelemetryService> logger, string? basePath = null)
     {
         _logger = logger;
         _sessionId = Guid.NewGuid().ToString();
@@ -27,12 +32,27 @@ public class LocalFileTelemetryService : ITelemetryService, IDisposable
         _bufferSize = 100; // Buffer up to 100 events before forcing a flush
 
         // Set up the telemetry directory
-        _basePath = Path.Combine(
+        _basePath = basePath ?? Path.Combine(
+            Environment.GetEnvironmentVariable("LOCALAPPDATA") ?? 
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "LofiBeats",
             "Telemetry"
         );
-        Directory.CreateDirectory(_basePath);
+
+        // Ensure directory exists and is accessible
+        try
+        {
+            Directory.CreateDirectory(_basePath);
+            var testFile = Path.Combine(_basePath, $"test_{Guid.NewGuid()}.tmp");
+            File.WriteAllText(testFile, "test");
+            File.Delete(testFile);
+            _logger.LogInformation("Telemetry service initialized with base path: {BasePath}", _basePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize telemetry directory at {BasePath}", _basePath);
+            throw;
+        }
 
         // Set up a timer to flush the buffer every minute
         _flushTimer = new Timer(async _ => await FlushAsync(), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
@@ -40,6 +60,8 @@ public class LocalFileTelemetryService : ITelemetryService, IDisposable
 
     public void TrackEvent(string eventName, IDictionary<string, string>? properties = null)
     {
+        if (_disposed) return;
+
         var telemetryEvent = new TelemetryEvent
         {
             Name = eventName,
@@ -48,10 +70,13 @@ public class LocalFileTelemetryService : ITelemetryService, IDisposable
         };
 
         EnqueueAndMaybeFlush(telemetryEvent);
+        _logger.LogDebug("Tracked event: {EventName}", eventName);
     }
 
     public void TrackMetric(string metricName, double value, IDictionary<string, string>? properties = null)
     {
+        if (_disposed) return;
+
         var metric = new TelemetryMetric
         {
             Name = metricName,
@@ -61,10 +86,13 @@ public class LocalFileTelemetryService : ITelemetryService, IDisposable
         };
 
         EnqueueAndMaybeFlush(metric);
+        _logger.LogDebug("Tracked metric: {MetricName} = {Value}", metricName, value);
     }
 
     public void TrackException(Exception ex, IDictionary<string, string>? properties = null)
     {
+        if (_disposed) return;
+
         var combinedProperties = new Dictionary<string, string>(properties ?? new Dictionary<string, string>())
         {
             { "ExceptionType", ex.GetType().Name },
@@ -73,10 +101,12 @@ public class LocalFileTelemetryService : ITelemetryService, IDisposable
         };
 
         TrackEvent("Exception", combinedProperties);
+        _logger.LogDebug("Tracked exception: {ExceptionType}", ex.GetType().Name);
     }
 
     public void TrackPerformance(string operation, TimeSpan duration, IDictionary<string, string>? properties = null)
     {
+        if (_disposed) return;
         TrackMetric($"Performance.{operation}", duration.TotalMilliseconds, properties);
     }
 
@@ -97,13 +127,15 @@ public class LocalFileTelemetryService : ITelemetryService, IDisposable
             }
 
             var fileName = Path.Combine(_basePath, $"telemetry_{DateTime.UtcNow:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}.json");
-            await File.WriteAllTextAsync(fileName, JsonSerializer.Serialize(eventsToFlush));
+            var json = JsonSerializer.Serialize(eventsToFlush, SerializerOptions);
+            await File.WriteAllTextAsync(fileName, json);
 
             _logger.LogInformation("Flushed {Count} telemetry events to {FileName}", eventsToFlush.Count, fileName);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error flushing telemetry buffer");
+            throw; // Rethrow to make test failures more obvious
         }
         finally
         {
@@ -124,15 +156,20 @@ public class LocalFileTelemetryService : ITelemetryService, IDisposable
         }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
 
         _disposed = true;
-        _flushTimer.Dispose();
+        await _flushTimer.DisposeAsync();
         _flushLock.Dispose();
         
         // Ensure any remaining telemetry is flushed
-        FlushAsync().Wait();
+        await FlushAsync();
+    }
+
+    public void Dispose()
+    {
+        DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 } 
