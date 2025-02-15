@@ -289,9 +289,10 @@ public class ServiceConnectionHelperTests : IDisposable
 
     [SkippableFact]
     [Trait("Category", "AI_Generated")]
+    [Trait("Category", "Platform_Specific")]
     public async Task GetExistingServiceProcesses_WhenMockProcessTest_ReturnsCurrentProcess()
     {
-        Skip.IfNot(RuntimeInformation.IsOSPlatform(OSPlatform.Windows), "Process management tests are Windows-only");
+        Skip.If(!OperatingSystem.IsWindows(), "Process management tests are Windows-specific");
         
         // Arrange
         SetupHttpMockResponse(HttpStatusCode.OK, endpoint: "healthz");

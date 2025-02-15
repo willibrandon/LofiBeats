@@ -110,13 +110,38 @@ public class TelemetryConfiguration
         var basePath = IsTestEnvironment ? 
             Path.Combine(Path.GetTempPath(), "LofiBeatsTests", "Telemetry") :
             Path.Combine(
-                Environment.GetEnvironmentVariable("LOCALAPPDATA") ?? 
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                GetDefaultAppDataPath(),
                 "LofiBeats",
                 "Telemetry"
             );
 
         return Path.Combine(basePath, IsTestEnvironment ? "Test" : "Production");
+    }
+
+    private static string GetDefaultAppDataPath()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return Environment.GetEnvironmentVariable("LOCALAPPDATA") ?? 
+                   Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        }
+        
+        // For macOS, use ~/Library/Application Support
+        if (OperatingSystem.IsMacOS())
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "Library",
+                "Application Support"
+            );
+        }
+        
+        // For Linux, use ~/.local/share as per XDG Base Directory spec
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".local",
+            "share"
+        );
     }
 
     /// <summary>
