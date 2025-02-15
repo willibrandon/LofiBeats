@@ -16,6 +16,9 @@ public static class TelemetryServiceCollectionExtensions
     {
         // Register the local file telemetry service as the default implementation
         services.AddSingleton<ITelemetryService, LocalFileTelemetryService>();
+        
+        // Register the telemetry tracker
+        services.AddSingleton<TelemetryTracker>();
 
         return services;
     }
