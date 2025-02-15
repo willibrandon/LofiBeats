@@ -8,4 +8,26 @@ For test files:
 4. Mock external dependencies (especially audio I/O)
 5. Keep tests focused and atomic
 6. Use Theory for parameterized tests
-7. Include both unit and integration tests 
+7. Include both unit and integration tests
+
+## AI-Generated Tests
+
+All AI-generated tests must:
+
+1. Include the Collection attribute:
+   ```csharp
+   [Collection("AI Generated Tests")]
+   ```
+
+2. Include the Category trait on each test method:
+   ```csharp
+   [Trait("Category", "AI_Generated")]
+   ```
+
+3. Follow all standard testing rules above
+
+This allows:
+- Easy identification of AI-generated tests
+- Filtering tests by category: `dotnet test --filter "Category=AI_Generated"`
+- Running specific collections: `dotnet test --filter "Collection=AI Generated Tests"`
+- Maintaining test organization and documentation 
