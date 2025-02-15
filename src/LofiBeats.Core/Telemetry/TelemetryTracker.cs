@@ -239,4 +239,24 @@ public class TelemetryTracker
     }
 
     #endregion
+
+    #region Direct Tracking Methods
+
+    /// <summary>
+    /// Directly tracks an event with optional properties and timestamp.
+    /// </summary>
+    public void TrackEvent(string eventName, IDictionary<string, string>? properties = null, DateTimeOffset? timestamp = null)
+    {
+        _telemetry.TrackEvent(eventName, properties, timestamp);
+    }
+
+    /// <summary>
+    /// Directly tracks a metric with optional properties.
+    /// </summary>
+    public void TrackMetric(string metricName, double value, IDictionary<string, string>? properties = null)
+    {
+        _telemetry.TrackMetric(metricName, value, properties);
+    }
+
+    #endregion
 } 

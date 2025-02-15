@@ -18,6 +18,22 @@ public class TelemetryConfiguration
     public bool IsTestEnvironment { get; set; }
 
     /// <summary>
+    /// Gets or sets whether to enable Seq logging.
+    /// </summary>
+    public bool EnableSeq { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Seq server URL.
+    /// Defaults to http://localhost:5341 if not specified.
+    /// </summary>
+    public string SeqServerUrl { get; set; } = "http://localhost:5341";
+
+    /// <summary>
+    /// Gets or sets the Seq API key for authentication (optional).
+    /// </summary>
+    public string? SeqApiKey { get; set; }
+
+    /// <summary>
     /// Gets or sets the maximum buffer size before forcing a flush.
     /// </summary>
     public int MaxBufferSize { get; set; } = 100;
@@ -53,6 +69,12 @@ public class TelemetryConfiguration
     /// This is primarily used for testing to ensure telemetry files are created in test-specific locations.
     /// </summary>
     public Func<string>? GetBasePath { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to enable local file logging.
+    /// Defaults to true for backward compatibility.
+    /// </summary>
+    public bool EnableLocalFile { get; set; } = true;
 
     /// <summary>
     /// Checks if an event should be filtered out based on configuration.

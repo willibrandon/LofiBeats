@@ -29,10 +29,38 @@ public static class TelemetryServiceCollectionExtensions
     {
         // Register the configuration
         services.AddSingleton(configuration);
-        
-        // Register the telemetry service
-        services.AddSingleton<ITelemetryService, LocalFileTelemetryService>();
-        
+
+        // Register telemetry services based on configuration
+        if (configuration.EnableLocalFile)
+        {
+            services.AddSingleton<LocalFileTelemetryService>();
+        }
+
+        if (configuration.EnableSeq)
+        {
+            services.AddSingleton<SeqTelemetryService>();
+        }
+
+        // Register the composite telemetry service that combines all enabled services
+        services.AddSingleton<ITelemetryService>(sp =>
+        {
+            var services = new List<ITelemetryService>();
+
+            if (configuration.EnableLocalFile)
+            {
+                services.Add(sp.GetRequiredService<LocalFileTelemetryService>());
+            }
+
+            if (configuration.EnableSeq)
+            {
+                services.Add(sp.GetRequiredService<SeqTelemetryService>());
+            }
+
+            return services.Count == 1 
+                ? services[0] 
+                : new CompositeTelemetryService(services);
+        });
+
         // Register the telemetry tracker
         services.AddSingleton<TelemetryTracker>();
 
