@@ -69,7 +69,7 @@ LofiBeats consists of three main components:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/LofiBeats.git
+git clone https://github.com/willibrandon/LofiBeats.git
 cd LofiBeats
 
 # Build the solution
