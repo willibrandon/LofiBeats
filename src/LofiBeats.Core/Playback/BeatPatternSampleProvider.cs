@@ -20,6 +20,20 @@ public class BeatPatternSampleProvider : ISampleProvider
     private readonly float[] _noiseBuffer = new float[1024]; // For noise-based sounds
     private int _noisePosition;
 
+    // Humanization fields
+    private readonly float _maxTimeShiftMs = 15f; // up to ±15 ms
+    private readonly int[] _timeOffsets; // offset in samples
+    private readonly float _samplesPerMs;
+
+    // Velocity variation fields
+    private readonly float _kickMinVelocity = 0.8f;
+    private readonly float _kickMaxVelocity = 1.0f;
+    private readonly float _snareMinVelocity = 0.6f;
+    private readonly float _snareMaxVelocity = 1.0f;
+    private readonly float _hatMinVelocity = 0.4f;
+    private readonly float _hatMaxVelocity = 0.8f;
+    private readonly Dictionary<int, float> _velocities = new();
+
     public WaveFormat WaveFormat => _waveFormat;
 
     public BeatPatternSampleProvider(BeatPattern pattern, ILogger logger)
@@ -32,6 +46,11 @@ public class BeatPatternSampleProvider : ISampleProvider
         float secondsPerBeat = 60f / pattern.Tempo;
         _samplesPerStep = (int)(secondsPerBeat * _waveFormat.SampleRate);
 
+        // Initialize humanization
+        _samplesPerMs = _waveFormat.SampleRate / 1000f;
+        _timeOffsets = new int[pattern.DrumSequence.Length];
+        RandomizeOffsets();
+
         // Pre-fill noise buffer
         for (int i = 0; i < _noiseBuffer.Length; i++)
         {
@@ -41,11 +60,59 @@ public class BeatPatternSampleProvider : ISampleProvider
         _logger.LogInformation("BeatPatternSampleProvider initialized with tempo {Tempo} BPM", pattern.Tempo);
     }
 
+    private void RandomizeOffsets()
+    {
+        for (int i = 0; i < _timeOffsets.Length; i++)
+        {
+            // For certain drums only (like snare/hat), add random offset
+            string drum = _pattern.DrumSequence[i];
+            if (drum == "snare" || drum == "hat")
+            {
+                float shiftMs = (float)(_rand.NextDouble() * 2 * _maxTimeShiftMs - _maxTimeShiftMs);
+                _timeOffsets[i] = (int)(shiftMs * _samplesPerMs);
+            }
+            else
+            {
+                _timeOffsets[i] = 0; // no offset for kick
+            }
+
+            // Also randomize velocity for this step
+            _velocities[i] = drum.ToLower() switch
+            {
+                "kick" => (float)(_kickMinVelocity + _rand.NextDouble() * (_kickMaxVelocity - _kickMinVelocity)),
+                "snare" => (float)(_snareMinVelocity + _rand.NextDouble() * (_snareMaxVelocity - _snareMinVelocity)),
+                "hat" => (float)(_hatMinVelocity + _rand.NextDouble() * (_hatMaxVelocity - _hatMinVelocity)),
+                _ => 1.0f
+            };
+        }
+    }
+
     public int Read(float[] buffer, int offset, int count)
     {
         for (int i = 0; i < count; i += 2) // Stereo, so increment by 2
         {
-            // Calculate the current step in the pattern
+            // Get the offset for the current step
+            int offsetSamples = _timeOffsets[_currentStep];
+
+            // Adjust the current sample position by the offset
+            int localSampleInStep = _currentSampleInStep - offsetSamples;
+
+            // Generate sample if we're within the valid window
+            float sample;
+            if (localSampleInStep < 0 || localSampleInStep >= _samplesPerStep)
+            {
+                sample = 0f; // Silent if outside the window
+            }
+            else
+            {
+                sample = GenerateSample();
+            }
+
+            // Write to both channels
+            buffer[offset + i] = sample;
+            buffer[offset + i + 1] = sample;
+
+            // Update step counters
             _currentSampleInStep++;
             if (_currentSampleInStep >= _samplesPerStep)
             {
@@ -53,14 +120,8 @@ public class BeatPatternSampleProvider : ISampleProvider
                 _currentStep = (_currentStep + 1) % _pattern.DrumSequence.Length;
                 _kickPhase = 0; // Reset kick phase for new step
                 _kickFreq = 150f; // Reset kick frequency
+                RandomizeOffsets(); // Randomize offsets for next step
             }
-
-            // Generate the sample based on the current step
-            float sample = GenerateSample();
-
-            // Write to both channels
-            buffer[offset + i] = sample;
-            buffer[offset + i + 1] = sample;
 
             // Update phase for oscillator
             _phase += (float)(2 * Math.PI * _frequencies[_currentStep % _frequencies.Length] / _waveFormat.SampleRate);
@@ -77,17 +138,18 @@ public class BeatPatternSampleProvider : ISampleProvider
 
         float sample = 0f;
         float normalizedTime = (float)_currentSampleInStep / _samplesPerStep;
+        float velocity = _velocities[_currentStep];
 
         switch (currentDrum.ToLower())
         {
             case "kick":
-                sample += GenerateKick(normalizedTime);
+                sample += GenerateKick(normalizedTime) * velocity;
                 break;
             case "snare":
-                sample += GenerateSnare(normalizedTime);
+                sample += GenerateSnare(normalizedTime) * velocity;
                 break;
             case "hat":
-                sample += GenerateHiHat(normalizedTime);
+                sample += GenerateHiHat(normalizedTime) * velocity;
                 break;
         }
 
