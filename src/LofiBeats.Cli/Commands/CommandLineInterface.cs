@@ -198,15 +198,37 @@ public class CommandLineInterface : IDisposable
 
         // Add stop command
         var stopCommand = new Command("stop", "Stops audio playback");
-        stopCommand.SetHandler(async () =>
+        stopCommand.Description = "Stops the currently playing audio.\n\n" +
+                                "Options:\n" +
+                                "  --tapestop    Gradually slow down the audio like a tape machine powering off\n\n" +
+                                "Examples:\n" +
+                                "  stop              Stop playback immediately\n" +
+                                "  stop --tapestop   Stop with tape slow-down effect";
+        var tapeStopOpt = new Option<bool>(
+            name: "--tapestop",
+            getDefaultValue: () => false,
+            description: "Gradually slow pitch to zero before stopping");
+        stopCommand.AddOption(tapeStopOpt);
+
+        stopCommand.SetHandler(async (bool tapeStop) =>
         {
             _logExecutingStopCommand(_logger, null);
             try
             {
-                Console.Write("Stopping playback... ");
-                ShowSpinner("Stopping playback", 500);
+                if (tapeStop)
+                {
+                    Console.Write("Applying tape stop effect... ");
+                    ShowSpinner("Applying tape stop effect", 2000);
+                }
+                else
+                {
+                    Console.Write("Stopping playback... ");
+                    ShowSpinner("Stopping playback", 500);
+                }
 
-                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, "stop");
+                var response = await _serviceHelper.SendCommandAsync(
+                    HttpMethod.Post,
+                    $"stop?tapestop={tapeStop}");
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
                 if (result?.Message != null)
                 {
@@ -217,7 +239,7 @@ public class CommandLineInterface : IDisposable
             {
                 Console.WriteLine($"Error: {ex.Message}");
             }
-        });
+        }, tapeStopOpt);
         _rootCommand.AddCommand(stopCommand);
 
         // Add pause command
@@ -465,7 +487,7 @@ public class CommandLineInterface : IDisposable
                     Console.WriteLine("\nAvailable commands:");
                     Console.WriteLine("  generate [--style=<style>] - Generate a new beat pattern");
                     Console.WriteLine("  play [--style=<style>]    - Play a new lofi beat");
-                    Console.WriteLine("  stop                      - Stop audio playback");
+                    Console.WriteLine("  stop [--tapestop]         - Stop audio playback");
                     Console.WriteLine("  pause                     - Pause audio playback");
                     Console.WriteLine("  resume                    - Resume audio playback");
                     Console.WriteLine("  effect <name> [--enable=true|false] - Manage effects");

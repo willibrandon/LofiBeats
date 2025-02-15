@@ -202,6 +202,12 @@ public class TestAudioPlaybackService : IAudioPlaybackService
         _effectChain = null;
     }
 
+    public void StopWithEffect(IAudioEffect effect)
+    {
+        // In test implementation, just stop immediately
+        StopPlayback();
+    }
+
     public void PausePlayback()
     {
         if (_state == PlaybackState.Playing)

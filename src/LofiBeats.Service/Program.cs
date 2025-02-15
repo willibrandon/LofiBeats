@@ -137,10 +137,31 @@ public partial class Program
         });
 
         // Stop endpoint
-        api.MapPost("/stop", (IAudioPlaybackService playback) =>
+        api.MapPost("/stop", (IAudioPlaybackService playback, IEffectFactory effectFactory, bool tapestop = false) =>
         {
-            telemetryTracker.TrackEvent(TelemetryConstants.Events.PlaybackStopped);
-            playback.StopPlayback();
+            telemetryTracker.TrackEvent(TelemetryConstants.Events.PlaybackStopped, new Dictionary<string, string>
+            {
+                { "UseEffect", tapestop.ToString() }
+            });
+
+            if (tapestop)
+            {
+                var currentSource = playback.CurrentSource;
+                if (currentSource != null)
+                {
+                    var effect = effectFactory.CreateEffect("tapestop", currentSource);
+                    playback.StopWithEffect(effect);
+                }
+                else
+                {
+                    playback.StopPlayback();
+                }
+            }
+            else
+            {
+                playback.StopPlayback();
+            }
+
             return Results.Text(JsonSerializer.Serialize(new { message = "Playback stopped" }), "application/json");
         });
 

@@ -9,6 +9,7 @@ public interface IAudioPlaybackService
     void SetSource(ISampleProvider source);
     void StartPlayback();
     void StopPlayback();
+    void StopWithEffect(IAudioEffect effect);
     void PausePlayback();
     void ResumePlayback();
     PlaybackState GetPlaybackState();

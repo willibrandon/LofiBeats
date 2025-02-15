@@ -102,6 +102,38 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
         _logger.LogInformation("Playback stopped - all sources and effects removed from mixer");
     }
 
+    public void StopWithEffect(IAudioEffect effect)
+    {
+        if (_currentSource == null || _effectChain == null)
+        {
+            StopPlayback();
+            return;
+        }
+
+        // Remove existing chain from mixer
+        _mixer.RemoveMixerInput(_effectChain);
+
+        // Create a new chain with just the stop effect
+        var stopChain = new SerialEffectChain(_currentSource, _loggerFactory.CreateLogger<SerialEffectChain>(), _loggerFactory);
+        stopChain.AddEffect(effect);
+        _mixer.AddMixerInput(stopChain);
+
+        // Start a timer to check when the effect is finished
+        var timer = new System.Timers.Timer(100); // Check every 100ms
+        timer.Elapsed += (s, e) =>
+        {
+            if (effect is TapeStopEffect tapeStop && tapeStop.IsFinished)
+            {
+                timer.Stop();
+                timer.Dispose();
+                StopPlayback();
+            }
+        };
+        timer.Start();
+
+        _logger.LogInformation("Stopping playback with effect");
+    }
+
     public void PausePlayback()
     {
         if (!_isPaused && _effectChain != null)

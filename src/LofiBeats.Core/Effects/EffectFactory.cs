@@ -32,6 +32,7 @@ public class EffectFactory : IEffectFactory
             "lowpass" => new LowPassFilterEffect(source, _loggerFactory.CreateLogger<LowPassFilterEffect>()),
             "reverb" => new ReverbEffect(source, _loggerFactory.CreateLogger<ReverbEffect>()),
             "tapeflutter" => new TapeFlutterAndHissEffect(source, _loggerFactory.CreateLogger<TapeFlutterAndHissEffect>()),
+            "tapestop" => new TapeStopEffect(source, _loggerFactory.CreateLogger<TapeStopEffect>()),
             _ => throw new ArgumentException($"Unknown effect: {effectName}", nameof(effectName))
         };
     }
