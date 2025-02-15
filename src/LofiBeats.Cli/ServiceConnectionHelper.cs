@@ -66,6 +66,12 @@ public class ServiceConnectionHelper
     private static readonly Action<ILogger, Exception> _logErrorShuttingDown =
         LoggerMessage.Define(LogLevel.Warning, new EventId(18, "ErrorShuttingDown"), "Error while shutting down service.");
 
+    private static readonly Action<ILogger, string, int, Exception?> _logHealthCheckResponse =
+        LoggerMessage.Define<string, int>(LogLevel.Debug, new EventId(20, "HealthCheckResponse"), "Health check response: {Status} ({StatusCode})");
+
+    private static readonly Action<ILogger, int, Exception?> _logRetryingServiceCheck =
+        LoggerMessage.Define<int>(LogLevel.Debug, new EventId(21, "RetryingServiceCheck"), "Retrying service check (attempt {Attempt})");
+
     public ServiceConnectionHelper(
         ILogger<ServiceConnectionHelper> logger, 
         string serviceUrl = "http://localhost:5000", 
@@ -80,59 +86,77 @@ public class ServiceConnectionHelper
 
     public async Task EnsureServiceRunningAsync()
     {
-        // 1. Check if service is running
-        if (await IsServiceRunningAsync())
-        {
-            _logServiceAlreadyRunning(_logger, null);
-            return;
-        }
+        const int maxStartupRetries = 3;
+        const int retryDelayMs = 500;
 
-        // 2. Not running => Check if there's a stale process
-        var existingProcesses = GetExistingServiceProcesses();
-
-        if (existingProcesses.Count != 0)
+        for (int attempt = 1; attempt <= maxStartupRetries; attempt++)
         {
-            _logFoundExistingProcesses(_logger, null);
-            // Give it a moment to finish starting up if it just started
-            await Task.Delay(1000);
+            // 1. Check if service is running
             if (await IsServiceRunningAsync())
             {
-                _logConnectedToExistingService(_logger, null);
+                _logServiceAlreadyRunning(_logger, null);
                 return;
             }
 
-            // If we can't connect, clean up the stale processes
-            foreach (var proc in existingProcesses)
+            // 2. Look for existing processes
+            var existingProcesses = GetExistingServiceProcesses();
+            if (existingProcesses.Count != 0)
             {
-                try
+                _logFoundExistingProcesses(_logger, null);
+                
+                // Give existing process more time to start up
+                await Task.Delay(retryDelayMs);
+                
+                if (await IsServiceRunningAsync())
                 {
-                    proc.Kill();
-                    _logCleanedUpStaleProcess(_logger, proc.Id, null);
+                    _logConnectedToExistingService(_logger, null);
+                    return;
                 }
-                catch (Exception ex)
+
+                // Only clean up processes on the last attempt
+                if (attempt == maxStartupRetries)
                 {
-                    _logFailedToCleanupProcess(_logger, proc.Id, ex);
+                    foreach (var proc in existingProcesses)
+                    {
+                        try
+                        {
+                            proc.Kill();
+                            _logCleanedUpStaleProcess(_logger, proc.Id, null);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logFailedToCleanupProcess(_logger, proc.Id, ex);
+                        }
+                    }
                 }
             }
-        }
 
-        // 3. Start new service process
-        StartServiceProcess();
-
-        // 4. Wait until it responds or timeout
-        const int maxRetries = 10;
-        for (int i = 0; i < maxRetries; i++)
-        {
-            await Task.Delay(500); // half a second
-            if (await IsServiceRunningAsync())
+            if (attempt < maxStartupRetries)
             {
-                _logServiceStartedSuccessfully(_logger, null);
-                return;
+                _logRetryingServiceCheck(_logger, attempt, null);
+                await Task.Delay(retryDelayMs);
+                continue;
             }
-            _logWaitingForServiceStart(_logger, i + 1, maxRetries, null);
-        }
 
-        throw new Exception("Unable to start LofiBeats service after multiple retries.");
+            // 3. Start new service process
+            _logStartingService(_logger, null);
+            StartServiceProcess();
+
+            // 4. Wait until it responds or timeout
+            const int maxStartupWaitRetries = 10;
+            for (int i = 0; i < maxStartupWaitRetries; i++)
+            {
+                await Task.Delay(500); // half a second
+                if (await IsServiceRunningAsync())
+                {
+                    _logServiceStartedSuccessfully(_logger, null);
+                    return;
+                }
+                _logWaitingForServiceStart(_logger, i + 1, maxStartupWaitRetries, null);
+            }
+
+            throw new Exception("Unable to start LofiBeats service after multiple retries.");
+        }
     }
 
     private List<Process> GetExistingServiceProcesses()
@@ -254,10 +278,16 @@ public class ServiceConnectionHelper
         try
         {
             var response = await _httpClient.GetAsync($"{_serviceUrl}/healthz");
-            return response.IsSuccessStatusCode;
+            _logHealthCheckResponse(_logger, response.StatusCode.ToString(), (int)response.StatusCode, null);
+
+            // Consider both OK and redirect responses as successful
+            // This helps in case HTTPS redirection is re-enabled in the future
+            return response.IsSuccessStatusCode || 
+                   (int)response.StatusCode is >= 300 and < 400;
         }
-        catch
+        catch (Exception ex)
         {
+            _logErrorCheckingProcess(_logger, 0, ex);
             return false;
         }
     }

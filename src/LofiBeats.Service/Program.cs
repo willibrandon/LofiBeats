@@ -24,7 +24,8 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+// Remove HTTPS redirection since this is a local service
+// app.UseHttpsRedirection();
 
 // Add health check endpoint
 app.MapHealthChecks("/healthz");
