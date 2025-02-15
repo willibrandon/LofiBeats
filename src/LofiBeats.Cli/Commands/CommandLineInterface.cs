@@ -160,6 +160,9 @@ public class CommandLineInterface : IDisposable
             _logExecutingPlayCommand(_logger, null);
             try
             {
+                Console.Write("Starting playback... ");
+                ShowSpinner("Starting playback", 1000);
+
                 var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"play?style={Uri.EscapeDataString(style)}");
                 var result = await response.Content.ReadFromJsonAsync<PlayResponse>();
                 if (result?.Pattern != null)
@@ -181,6 +184,9 @@ public class CommandLineInterface : IDisposable
             _logExecutingStopCommand(_logger, null);
             try
             {
+                Console.Write("Stopping playback... ");
+                ShowSpinner("Stopping playback", 500);
+
                 var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, "stop");
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
                 if (result?.Message != null)
@@ -202,6 +208,9 @@ public class CommandLineInterface : IDisposable
             _logExecutingPauseCommand(_logger, null);
             try
             {
+                Console.Write("Pausing playback... ");
+                ShowSpinner("Pausing playback", 500);
+
                 var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, "pause");
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
                 if (!response.IsSuccessStatusCode)
@@ -229,6 +238,9 @@ public class CommandLineInterface : IDisposable
             _logExecutingResumeCommand(_logger, null);
             try
             {
+                Console.Write("Resuming playback... ");
+                ShowSpinner("Resuming playback", 500);
+
                 var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, "resume");
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
                 if (!response.IsSuccessStatusCode)
@@ -288,8 +300,9 @@ public class CommandLineInterface : IDisposable
             _logExecutingEffectCommand(_logger, name, enable, null);
             try
             {
-                Console.Write($"{(enable ? "Enabling" : "Disabling")} {name} effect... ");
-                ShowSpinner($"{(enable ? "Enabling" : "Disabling")} {name} effect", 1000);
+                var action = enable ? "Enabling" : "Disabling";
+                Console.Write($"{action} {name} effect... ");
+                ShowSpinner($"{action} {name} effect", 1000);
 
                 var response = await _serviceHelper.SendCommandAsync(
                     HttpMethod.Post,
@@ -368,11 +381,13 @@ public class CommandLineInterface : IDisposable
             _logExecutingShutdownCommand(_logger, null);
             try
             {
+                Console.Write("Shutting down service... ");
+                ShowSpinner("Shutting down service", 1000);
                 await _serviceHelper.ShutdownServiceAsync();
+                Console.WriteLine("Service has been shut down.");
             }
             catch (HttpRequestException)
             {
-                // Don't show technical error for connection issues
                 Console.WriteLine("Service is not running.");
             }
             catch (Exception ex)
