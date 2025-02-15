@@ -19,7 +19,7 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
     public AudioPlaybackService(ILogger<AudioPlaybackService> logger)
     {
         _logger = logger;
-        
+
         // Create the output device and mixer
         _waveOut = new WaveOutEvent();
         _mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2))
@@ -31,7 +31,7 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
         _waveOut.Init(_mixer);
         _waveOut.Play();
         _isPaused = false;
-        
+
         _logger.LogInformation("AudioPlaybackService initialized with continuous playback");
     }
 
@@ -77,13 +77,23 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
 
     public void StopPlayback()
     {
+        // Remove the main audio source if present
         if (_currentSource != null)
         {
             _mixer.RemoveMixerInput(_currentSource);
             _currentSource = null;
         }
+
+        // Also remove all effects that were added
+        foreach (var effect in _effects.ToList()) // Use ToList() to avoid modifying the collection during iteration
+        {
+            _mixer.RemoveMixerInput(effect);
+        }
+
+        _effects.Clear();
+
         _isPaused = false;
-        _logger.LogInformation("Playback stopped - source removed from mixer");
+        _logger.LogInformation("Playback stopped - all sources and effects removed from mixer");
     }
 
     public void PausePlayback()
@@ -143,4 +153,4 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
     {
         _waveOut?.Dispose();
     }
-} 
+}
