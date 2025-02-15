@@ -12,6 +12,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{DAD93E08-5
 		docs\Chunk-Based Implementation Guide.md = docs\Chunk-Based Implementation Guide.md
 		docs\Configuration and Deployment.md = docs\Configuration and Deployment.md
 		docs\DESIGN.md = docs\DESIGN.md
+		docs\Enhancements.md = docs\Enhancements.md
 		docs\INSTALL.md = docs\INSTALL.md
 		docs\Publishing.md = docs\Publishing.md
 		README.md = README.md

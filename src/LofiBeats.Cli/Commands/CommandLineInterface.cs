@@ -59,7 +59,7 @@ public class CommandLineInterface : IDisposable
     private static readonly Action<ILogger, Exception?> _logExecutingUpdateCommand =
         LoggerMessage.Define(LogLevel.Information, new EventId(15, "ExecutingUpdateCommand"), "Executing update command");
 
-    private static readonly string[] ValidEffects = ["vinyl", "reverb", "lowpass"];
+    private static readonly string[] ValidEffects = ["vinyl", "reverb", "lowpass", "tapeflutter"];
     private static readonly string[] ValidBeatStyles = ["basic", "jazzy", "chillhop"];
 
     private static void ShowSpinner(string message, int durationMs)
@@ -299,13 +299,15 @@ public class CommandLineInterface : IDisposable
 
         effectCommand.Description = "Enable or disable audio effects to enhance your lofi beats.\n\n" +
                          "Available effects:\n" +
-                         "  - vinyl:   Adds vinyl record crackle and noise for that authentic feel\n" +
-                         "  - reverb:  Adds space and atmosphere to create depth\n" +
-                         "  - lowpass: Reduces high frequencies for that warm, mellow sound\n\n" +
+                         "  - vinyl:       Adds vinyl record crackle and noise for that authentic feel\n" +
+                         "  - reverb:      Adds space and atmosphere to create depth\n" +
+                         "  - lowpass:     Reduces high frequencies for that warm, mellow sound\n" +
+                         "  - tapeflutter: Adds wow/flutter pitch drift and tape hiss for vintage vibes\n\n" +
                          "Examples:\n" +
                          "  effect vinyl              Enable vinyl effect\n" +
                          "  effect reverb             Enable reverb effect\n" +
-                         "  effect lowpass --enable=false  Disable lowpass filter";
+                         "  effect lowpass --enable=false  Disable lowpass filter\n" +
+                         "  effect tapeflutter        Enable tape flutter effect";
 
         effectCommand.SetHandler(async (string name, bool enable) =>
         {
