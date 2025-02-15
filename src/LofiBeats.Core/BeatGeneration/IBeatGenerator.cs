@@ -4,5 +4,6 @@ namespace LofiBeats.Core.BeatGeneration;
 
 public interface IBeatGenerator
 {
-    BeatPattern GeneratePattern();
+    BeatPattern GeneratePattern(string style = "basic");
+    string[] GetAvailableStyles();
 } 

@@ -34,9 +34,9 @@ app.MapHealthChecks("/healthz");
 var api = app.MapGroup("/api/lofi");
 
 // Play endpoint
-api.MapPost("/play", (IAudioPlaybackService playback, IBeatGenerator generator) =>
+api.MapPost("/play", (IAudioPlaybackService playback, IBeatGenerator generator, string style = "basic") =>
 {
-    var pattern = generator.GeneratePattern();
+    var pattern = generator.GeneratePattern(style ?? "basic");
     var beatSource = new BeatPatternSampleProvider(pattern, app.Logger);
     playback.SetSource(beatSource);
     playback.StartPlayback();

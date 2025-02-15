@@ -62,23 +62,26 @@ public class CommandLineInterface : IDisposable
     {
         // Add play command
         var playCommand = new Command("play", "Plays a new lofi beat");
-        playCommand.SetHandler(async () =>
+        var styleOption = new Option<string>("--style", () => "basic", "Beat style (basic, jazzy, chillhop)");
+        playCommand.AddOption(styleOption);
+
+        playCommand.SetHandler(async (string style) =>
         {
             _logExecutingPlayCommand(_logger, null);
             try
             {
-                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, "play");
+                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"play?style={Uri.EscapeDataString(style)}");
                 var result = await response.Content.ReadFromJsonAsync<PlayResponse>();
                 if (result?.Pattern != null)
                 {
-                    Console.WriteLine($"Playing new beat pattern: {result.Pattern}");
+                    Console.WriteLine($"Playing new {style} beat pattern: {result.Pattern}");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error: {ex.Message}");
             }
-        });
+        }, styleOption);
         _rootCommand.AddCommand(playCommand);
 
         // Add stop command
