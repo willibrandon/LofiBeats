@@ -939,14 +939,3 @@ We already demonstrated the basics in `CommandLineInterface.cs`, which uses `Sys
    - Use branches or PRs for new features.
 
 ----
-
-# Final Notes
-
-By following this design document and implementation guide, you should be able to create a **fully functioning command-line lofi beats generator and player** in C#. The provided code samples demonstrate the core ideas, while leaving room for customization (e.g., more sophisticated beat generation algorithms, advanced audio effect chaining, and robust error handling). 
-
-This approach ensures:
-- **Modularity** for extending future functionality.
-- **Testability** through DI and separate modules.
-- **Maintainability** via standard .NET 9 practices and a clean architecture. 
-
-Enjoy building your lofi beats application!

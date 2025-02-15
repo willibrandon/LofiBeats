@@ -1,13 +1,20 @@
 # LofiBeats
 
-A command-line tool for generating and playing lofi beats with real-time effects.
+A cross-platform command-line tool and service for generating and playing lofi beats with real-time effects.
 
 ## Features
 
 - Generate lofi beats with different styles (basic, jazzy, chillhop)
-- Real-time audio effects (vinyl, reverb, lowpass)
+- Real-time audio effects:
+  - Tape Stop
+  - Vinyl Simulation (Flutter and Hiss)
+  - Reverb
+  - Low Pass Filter
 - Interactive mode for live control
+- RESTful API service for remote control
 - Cross-platform support (Windows, macOS, Linux)
+- Telemetry support with local file and Seq logging
+- Plugin system for custom effects
 
 ## Quick Start
 
@@ -17,23 +24,150 @@ dotnet tool install --global LofiBeats.Cli
 
 # Start playing some beats
 lofi play --style jazzy
+
+# Add some effects
+lofi effect --name tapestop
+lofi effect --name reverb
+
+# Control volume
+lofi volume 0.8
+
+# Stop playback
+lofi stop
 ```
 
-## Documentation
+## Architecture
 
-- [Installation Guide](docs/INSTALL.md) - Detailed setup and configuration instructions
-- [Configuration Guide](docs/Configuration%20and%20Deployment.md) - Advanced configuration options
+LofiBeats consists of three main components:
 
-## Requirements
+1. **LofiBeats.Cli**: Command-line interface tool
+2. **LofiBeats.Service**: Background service with REST API
+3. **LofiBeats.Core**: Core audio processing and effect implementation
 
-- .NET 9.0 SDK or Runtime
-- Audio output device with working drivers
+## Build Requirements
+
+- .NET 9.0 SDK
 - PowerShell 7+ (Windows) or Terminal (macOS/Linux)
+- Audio output device with working drivers
+
+### Platform-Specific Requirements
+
+#### Windows
+- NAudio native dependencies (included)
+- System.Management package for process management
+
+#### macOS
+- CoreAudio drivers
+- `ps` command available for process management
+
+#### Linux
+- ALSA audio system
+- `pkill` command available for process management
+
+## Building from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/LofiBeats.git
+cd LofiBeats
+
+# Build the solution
+dotnet build
+
+# Run tests (platform-specific tests will be skipped on non-Windows platforms)
+dotnet test
+
+# Create platform-specific releases
+./scripts/publish.sh --runtime linux-x64 --version 1.0.0
+./scripts/publish.sh --runtime osx-x64 --version 1.0.0
+./scripts/publish.sh --runtime win-x64 --version 1.0.0
+```
+
+## Configuration
+
+The application uses two configuration files:
+
+1. `appsettings.json` - CLI configuration
+2. `service.appsettings.json` - Service configuration
+
+Key configuration options:
+
+```json
+{
+  "Telemetry": {
+    "IsEnabled": true,
+    "EnableSeq": false,
+    "SeqServerUrl": "http://localhost:5341",
+    "EnableLocalFile": true
+  }
+}
+```
+
+## API Endpoints
+
+The service exposes the following REST API endpoints:
+
+- `POST /api/lofi/generate` - Generate a new beat pattern
+- `POST /api/lofi/play` - Start playback
+- `POST /api/lofi/stop` - Stop playback
+- `POST /api/lofi/pause` - Pause playback
+- `POST /api/lofi/resume` - Resume playback
+- `POST /api/lofi/volume` - Set volume level
+- `POST /api/lofi/effect` - Add/remove effects
+- `GET /healthz` - Health check endpoint
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+dotnet test
+
+# Run specific test categories
+dotnet test --filter "Category!=Platform_Specific"
+dotnet test --filter "Category=AI_Generated"
+```
+
+### Adding New Effects
+
+1. Create a new effect class in `src/LofiBeats.Core/Effects`
+2. Implement the `IAudioEffect` interface
+3. Register the effect in `EffectFactory.cs`
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+### Coding Standards
+
+- Use C# latest features (currently targeting .NET 9.0)
+- Follow Microsoft's C# coding conventions
+- Add XML documentation for public APIs
+- Include unit tests for new features
+- Ensure cross-platform compatibility
+
+## Telemetry
+
+The application collects anonymous usage telemetry to improve the user experience. Data is stored in:
+
+- Windows: `%LOCALAPPDATA%\LofiBeats\Telemetry`
+- macOS: `~/Library/Application Support/LofiBeats/Telemetry`
+- Linux: `~/.local/share/LofiBeats/Telemetry`
+
+Telemetry can be disabled in the configuration file.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- NAudio for audio processing
+- Serilog for logging
+- xUnit for testing
+- GitHub Actions for CI/CD 
