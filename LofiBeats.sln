@@ -16,8 +16,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{DAD93E08-5
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LofiBeats.Core", "src\LofiBeats.Core\LofiBeats.Core.csproj", "{F106366A-4BB3-4CB9-83E0-A152AF7B8B5E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LofiBeats.Infrastructure", "src\LofiBeats.Infrastructure\LofiBeats.Infrastructure.csproj", "{9233028A-E274-4BF7-8022-1DA1B62A70C7}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LofiBeats.Service", "src\LofiBeats.Service\LofiBeats.Service.csproj", "{BE1E3FBF-C18B-47BD-A71E-9C79BAC699B8}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{8E506800-8169-4AF2-BB0A-59F36E1F73C2}"
@@ -28,6 +26,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{8E50
 		scripts\publish.sh = scripts\publish.sh
 		scripts\run.ps1 = scripts\run.ps1
 		scripts\run.sh = scripts\run.sh
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{0DC30D92-C7F7-4906-B930-4DB25B161A6E}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
 	EndProjectSection
 EndProject
 Global
@@ -76,18 +79,6 @@ Global
 		{F106366A-4BB3-4CB9-83E0-A152AF7B8B5E}.Release|x64.Build.0 = Release|Any CPU
 		{F106366A-4BB3-4CB9-83E0-A152AF7B8B5E}.Release|x86.ActiveCfg = Release|Any CPU
 		{F106366A-4BB3-4CB9-83E0-A152AF7B8B5E}.Release|x86.Build.0 = Release|Any CPU
-		{9233028A-E274-4BF7-8022-1DA1B62A70C7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{9233028A-E274-4BF7-8022-1DA1B62A70C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{9233028A-E274-4BF7-8022-1DA1B62A70C7}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{9233028A-E274-4BF7-8022-1DA1B62A70C7}.Debug|x64.Build.0 = Debug|Any CPU
-		{9233028A-E274-4BF7-8022-1DA1B62A70C7}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{9233028A-E274-4BF7-8022-1DA1B62A70C7}.Debug|x86.Build.0 = Debug|Any CPU
-		{9233028A-E274-4BF7-8022-1DA1B62A70C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{9233028A-E274-4BF7-8022-1DA1B62A70C7}.Release|Any CPU.Build.0 = Release|Any CPU
-		{9233028A-E274-4BF7-8022-1DA1B62A70C7}.Release|x64.ActiveCfg = Release|Any CPU
-		{9233028A-E274-4BF7-8022-1DA1B62A70C7}.Release|x64.Build.0 = Release|Any CPU
-		{9233028A-E274-4BF7-8022-1DA1B62A70C7}.Release|x86.ActiveCfg = Release|Any CPU
-		{9233028A-E274-4BF7-8022-1DA1B62A70C7}.Release|x86.Build.0 = Release|Any CPU
 		{BE1E3FBF-C18B-47BD-A71E-9C79BAC699B8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{BE1E3FBF-C18B-47BD-A71E-9C79BAC699B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BE1E3FBF-C18B-47BD-A71E-9C79BAC699B8}.Debug|x64.ActiveCfg = Debug|Any CPU

@@ -12,6 +12,7 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
     private readonly MixingSampleProvider _mixer;
     private readonly List<IAudioEffect> _effects = new List<IAudioEffect>();
     private ISampleProvider? _currentSource;
+    private bool _isPaused;  // Track if we're paused separately from _waveOut state
 
     public ISampleProvider? CurrentSource => _currentSource;
 
@@ -29,6 +30,7 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
         // Initialize and start playing (will play silence when no inputs)
         _waveOut.Init(_mixer);
         _waveOut.Play();
+        _isPaused = false;
         
         _logger.LogInformation("AudioPlaybackService initialized with continuous playback");
     }
@@ -69,6 +71,7 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
             SetSource(new TestTone());
         }
 
+        _isPaused = false;
         _logger.LogInformation("Playback active - mixer is continuously playing");
     }
 
@@ -79,28 +82,36 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
             _mixer.RemoveMixerInput(_currentSource);
             _currentSource = null;
         }
+        _isPaused = false;
         _logger.LogInformation("Playback stopped - source removed from mixer");
     }
 
     public void PausePlayback()
     {
-        if (_waveOut.PlaybackState == PlaybackState.Playing)
+        if (!_isPaused && _currentSource != null)
         {
-            _waveOut.Pause();
+            _mixer.RemoveMixerInput(_currentSource);
+            _isPaused = true;
             _logger.LogInformation("Playback paused.");
         }
     }
 
     public void ResumePlayback()
     {
-        if (_waveOut.PlaybackState == PlaybackState.Paused)
+        if (_isPaused && _currentSource != null)
         {
-            _waveOut.Play();
+            _mixer.AddMixerInput(_currentSource);
+            _isPaused = false;
             _logger.LogInformation("Playback resumed.");
         }
     }
 
-    public PlaybackState GetPlaybackState() => _waveOut.PlaybackState;
+    public PlaybackState GetPlaybackState()
+    {
+        if (_currentSource == null) return PlaybackState.Stopped;
+        if (_isPaused) return PlaybackState.Paused;
+        return PlaybackState.Playing;
+    }
 
     public void AddEffect(IAudioEffect effect)
     {

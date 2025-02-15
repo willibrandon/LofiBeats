@@ -10,19 +10,52 @@ public class CommandLineInterface : IDisposable
     private readonly ILogger<CommandLineInterface> _logger;
     private readonly ServiceConnectionHelper _serviceHelper;
 
+    private static readonly Action<ILogger, Exception?> _logCommandLineInterfaceInitialized =
+        LoggerMessage.Define(LogLevel.Information, new EventId(0, nameof(CommandLineInterface)), "CommandLineInterface initialized");
+
+    private static readonly Action<ILogger, string, Exception?> _logExecutingCommand =
+        LoggerMessage.Define<string>(LogLevel.Information, new EventId(1, "ExecutingCommand"), "Executing command with args: {Args}");
+
+    private static readonly Action<ILogger, Exception?> _logExecutingPlayCommand =
+        LoggerMessage.Define(LogLevel.Information, new EventId(2, "ExecutingPlayCommand"), "Executing play command");
+
+    private static readonly Action<ILogger, Exception?> _logExecutingStopCommand =
+        LoggerMessage.Define(LogLevel.Information, new EventId(3, "ExecutingStopCommand"), "Executing stop command");
+
+    private static readonly Action<ILogger, Exception?> _logExecutingPauseCommand =
+        LoggerMessage.Define(LogLevel.Information, new EventId(4, "ExecutingPauseCommand"), "Executing pause command");
+
+    private static readonly Action<ILogger, Exception?> _logExecutingResumeCommand =
+        LoggerMessage.Define(LogLevel.Information, new EventId(5, "ExecutingResumeCommand"), "Executing resume command");
+
+    private static readonly Action<ILogger, string, bool, Exception?> _logExecutingEffectCommand =
+        LoggerMessage.Define<string, bool>(LogLevel.Information, new EventId(6, "ExecutingEffectCommand"), "Executing effect command with name: {Name}, enable: {Enable}");
+
+    private static readonly Action<ILogger, float, Exception?> _logSettingVolume =
+        LoggerMessage.Define<float>(LogLevel.Information, new EventId(7, "SettingVolume"), "Setting volume to: {Level}");
+
+    private static readonly Action<ILogger, Exception?> _logExecutingShutdownCommand =
+        LoggerMessage.Define(LogLevel.Information, new EventId(8, "ExecutingShutdownCommand"), "Executing shutdown command");
+
+    private static readonly Action<ILogger, Exception?> _logExecutingVersionCommand =
+        LoggerMessage.Define(LogLevel.Information, new EventId(9, "ExecutingVersionCommand"), "Executing version command");
+
+    private static readonly Action<ILogger, Exception?> _logCommandsConfigured =
+        LoggerMessage.Define(LogLevel.Debug, new EventId(10, "CommandsConfigured"), "Commands configured successfully");
+
     public CommandLineInterface(ILogger<CommandLineInterface> logger, ILoggerFactory loggerFactory)
     {
         _logger = logger;
         _serviceHelper = new ServiceConnectionHelper(
             loggerFactory.CreateLogger<ServiceConnectionHelper>());
-        
+
         _rootCommand = new RootCommand("Lofi Beats Generator & Player CLI")
         {
             Description = "A command-line application for generating and playing lofi beats"
         };
 
         ConfigureCommands();
-        _logger.LogInformation("CommandLineInterface initialized");
+        _logCommandLineInterfaceInitialized(_logger, null);
     }
 
     private void ConfigureCommands()
@@ -31,7 +64,7 @@ public class CommandLineInterface : IDisposable
         var playCommand = new Command("play", "Plays a new lofi beat");
         playCommand.SetHandler(async () =>
         {
-            _logger.LogInformation("Executing play command");
+            _logExecutingPlayCommand(_logger, null);
             try
             {
                 var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, "play");
@@ -52,7 +85,7 @@ public class CommandLineInterface : IDisposable
         var stopCommand = new Command("stop", "Stops audio playback");
         stopCommand.SetHandler(async () =>
         {
-            _logger.LogInformation("Executing stop command");
+            _logExecutingStopCommand(_logger, null);
             try
             {
                 var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, "stop");
@@ -73,7 +106,7 @@ public class CommandLineInterface : IDisposable
         var pauseCommand = new Command("pause", "Pauses audio playback");
         pauseCommand.SetHandler(async () =>
         {
-            _logger.LogInformation("Executing pause command");
+            _logExecutingPauseCommand(_logger, null);
             try
             {
                 var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, "pause");
@@ -100,7 +133,7 @@ public class CommandLineInterface : IDisposable
         var resumeCommand = new Command("resume", "Resumes audio playback");
         resumeCommand.SetHandler(async () =>
         {
-            _logger.LogInformation("Executing resume command");
+            _logExecutingResumeCommand(_logger, null);
             try
             {
                 var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, "resume");
@@ -133,13 +166,13 @@ public class CommandLineInterface : IDisposable
 
         effectCommand.SetHandler(async (string name, bool enable) =>
         {
-            _logger.LogInformation("Executing effect command with name: {Name}, enable: {Enable}", name, enable);
+            _logExecutingEffectCommand(_logger, name, enable, null);
             try
             {
                 var response = await _serviceHelper.SendCommandAsync(
                     HttpMethod.Post,
                     $"effect?name={Uri.EscapeDataString(name)}&enable={enable}");
-                
+
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
                 if (!response.IsSuccessStatusCode)
                 {
@@ -177,13 +210,13 @@ public class CommandLineInterface : IDisposable
 
         volumeCommand.SetHandler(async (float level) =>
         {
-            _logger.LogInformation("Setting volume to: {Level}", level);
+            _logSettingVolume(_logger, level, null);
             try
             {
                 var response = await _serviceHelper.SendCommandAsync(
                     HttpMethod.Post,
                     $"volume?level={level}");
-                
+
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
                 if (!response.IsSuccessStatusCode)
                 {
@@ -207,7 +240,7 @@ public class CommandLineInterface : IDisposable
         var shutdownCommand = new Command("shutdown", "Shuts down the LofiBeats service");
         shutdownCommand.SetHandler(async () =>
         {
-            _logger.LogInformation("Executing shutdown command");
+            _logExecutingShutdownCommand(_logger, null);
             try
             {
                 await _serviceHelper.ShutdownServiceAsync();
@@ -228,17 +261,17 @@ public class CommandLineInterface : IDisposable
         var versionCommand = new Command("version", "Display version information");
         versionCommand.SetHandler(() =>
         {
-            _logger.LogInformation("Executing version command");
+            _logExecutingVersionCommand(_logger, null);
             Console.WriteLine("LofiBeats CLI v0.1.0");
         });
         _rootCommand.AddCommand(versionCommand);
 
-        _logger.LogDebug("Commands configured successfully");
+        _logCommandsConfigured(_logger, null);
     }
 
     public async Task<int> ExecuteAsync(string[] args)
     {
-        _logger.LogInformation("Executing command with args: {Args}", string.Join(" ", args));
+        _logExecutingCommand(_logger, string.Join(" ", args), null);
         return await _rootCommand.InvokeAsync(args);
     }
 
@@ -246,4 +279,4 @@ public class CommandLineInterface : IDisposable
     {
         (_serviceHelper as IDisposable)?.Dispose();
     }
-} 
+}

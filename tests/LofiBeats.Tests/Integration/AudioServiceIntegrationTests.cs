@@ -1,10 +1,10 @@
-using Microsoft.AspNetCore.Mvc.Testing;
-using System.Net;
-using System.Net.Http.Json;
-using LofiBeats.Core.Playback;
 using LofiBeats.Core.Effects;
+using LofiBeats.Core.Playback;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using NAudio.Wave;
+using System.Net;
+using System.Net.Http.Json;
 
 namespace LofiBeats.Tests.Integration;
 
@@ -79,10 +79,43 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
     [Fact]
     public async Task ResumeWithoutPausing_ReturnsBadRequest()
     {
+        // First start playback to get into a playing state
+        await _client.PostAsync("/api/lofi/play", null);
+        
         var response = await _client.PostAsync("/api/lofi/resume", null);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
         Assert.Equal("Playback is not paused", result?.Error);
+    }
+
+    [Fact]
+    public async Task ResumeAfterPlayAndPause_ShouldWork()
+    {
+        var testService = _factory.Services.GetRequiredService<IAudioPlaybackService>();
+        
+        // Initial state should be Stopped
+        Assert.Equal(PlaybackState.Stopped, testService.GetPlaybackState());
+        Assert.Null(testService.CurrentSource);
+
+        // 1. Start playback
+        var playResponse = await _client.PostAsync("/api/lofi/play", null);
+        Assert.Equal(HttpStatusCode.OK, playResponse.StatusCode);
+        Assert.Equal(PlaybackState.Playing, testService.GetPlaybackState());
+        Assert.NotNull(testService.CurrentSource);
+
+        // 2. Pause playback
+        var pauseResponse = await _client.PostAsync("/api/lofi/pause", null);
+        Assert.Equal(HttpStatusCode.OK, pauseResponse.StatusCode);
+        Assert.Equal(PlaybackState.Paused, testService.GetPlaybackState());
+        Assert.NotNull(testService.CurrentSource);
+
+        // 3. Resume playback - THIS SHOULD WORK BUT FAILS WITH 400
+        var resumeResponse = await _client.PostAsync("/api/lofi/resume", null);
+        Assert.Equal(HttpStatusCode.OK, resumeResponse.StatusCode); // This will fail because we get 400
+        var result = await resumeResponse.Content.ReadFromJsonAsync<ApiResponse>();
+        Assert.Equal("Playback resumed", result?.Message);
+        Assert.Equal(PlaybackState.Playing, testService.GetPlaybackState());
+        Assert.NotNull(testService.CurrentSource);
     }
 
     private record ApiResponse
@@ -91,7 +124,7 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
         public string? Error { get; init; }
     }
 
-    private record PlaybackResponse : ApiResponse
+    private sealed record PlaybackResponse : ApiResponse
     {
         public object? Pattern { get; init; }
     }
