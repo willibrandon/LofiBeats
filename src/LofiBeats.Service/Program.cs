@@ -33,6 +33,13 @@ app.MapHealthChecks("/healthz");
 // Define our API endpoints
 var api = app.MapGroup("/api/lofi");
 
+// Generate endpoint
+api.MapPost("/generate", (IBeatGenerator generator, string style = "basic") =>
+{
+    var pattern = generator.GeneratePattern(style ?? "basic");
+    return Results.Text(JsonSerializer.Serialize(new { message = "Pattern generated", pattern = pattern }), "application/json");
+});
+
 // Play endpoint
 api.MapPost("/play", (IAudioPlaybackService playback, IBeatGenerator generator, string style = "basic") =>
 {

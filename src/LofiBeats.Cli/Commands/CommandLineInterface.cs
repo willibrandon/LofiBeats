@@ -43,6 +43,9 @@ public class CommandLineInterface : IDisposable
     private static readonly Action<ILogger, Exception?> _logCommandsConfigured =
         LoggerMessage.Define(LogLevel.Debug, new EventId(10, "CommandsConfigured"), "Commands configured successfully");
 
+    private static readonly Action<ILogger, Exception?> _logExecutingGenerateCommand =
+        LoggerMessage.Define(LogLevel.Information, new EventId(11, "ExecutingGenerateCommand"), "Executing generate command");
+
     public CommandLineInterface(ILogger<CommandLineInterface> logger, ILoggerFactory loggerFactory)
     {
         _logger = logger;
@@ -60,6 +63,30 @@ public class CommandLineInterface : IDisposable
 
     private void ConfigureCommands()
     {
+        // Add generate command
+        var generateCommand = new Command("generate", "Generates a new lofi beat pattern");
+        var generateStyleOption = new Option<string>("--style", () => "basic", "Beat style (basic, jazzy, chillhop)");
+        generateCommand.AddOption(generateStyleOption);
+
+        generateCommand.SetHandler(async (string style) =>
+        {
+            _logExecutingGenerateCommand(_logger, null);
+            try
+            {
+                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"generate?style={Uri.EscapeDataString(style)}");
+                var result = await response.Content.ReadFromJsonAsync<PlayResponse>();
+                if (result?.Pattern != null)
+                {
+                    Console.WriteLine($"Generated new {style} beat pattern: {result.Pattern}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        }, generateStyleOption);
+        _rootCommand.AddCommand(generateCommand);
+
         // Add play command
         var playCommand = new Command("play", "Plays a new lofi beat");
         var styleOption = new Option<string>("--style", () => "basic", "Beat style (basic, jazzy, chillhop)");
