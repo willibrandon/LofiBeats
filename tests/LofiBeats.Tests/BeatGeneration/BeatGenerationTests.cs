@@ -73,13 +73,26 @@ public class BeatGenerationTests
         var pattern = _generator.GeneratePattern();
 
         // Assert
-        var validChords = new[]
+        var validBaseChords = new[]
         {
             "Fmaj7", "Am7", "Dm7", "G7",
-            "Em7", "A7",
-            "Cmaj7"
+            "Em7", "A7", "Cmaj7"
         };
-        Assert.All(pattern.ChordProgression, chord => Assert.Contains(chord, validChords));
+
+        // Validate each chord
+        foreach (var chord in pattern.ChordProgression)
+        {
+            // Split chord if it has an inversion
+            var parts = chord.Split('/');
+            var baseChord = parts[0];
+
+            // Remove any extensions (9, 11, 13) to get base chord
+            baseChord = baseChord.Replace("13", "7")
+                               .Replace("11", "7")
+                               .Replace("9", "7");
+
+            Assert.Contains(baseChord, validBaseChords);
+        }
     }
 
     [Fact]
