@@ -7,4 +7,4 @@ Write-Host "🐳 Building Docker test image..." -ForegroundColor Cyan
 docker build -t lofibeats-test -f Dockerfile.test .
 
 Write-Host "`n🧪 Running tests in Linux container..." -ForegroundColor Cyan
-docker run --rm lofibeats-test 
+docker run --rm --init lofibeats-test dotnet test --no-build --logger "console;verbosity=detailed" 

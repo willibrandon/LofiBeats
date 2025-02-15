@@ -90,4 +90,4 @@ namespace LofiBeats.Tests.Playback
             // Verify that no exceptions are thrown and resources are released
         }
     }
-} 
+}

@@ -1,49 +1,119 @@
-FROM mcr.microsoft.com/dotnet/sdk:9.0-preview-bookworm-slim
+FROM mcr.microsoft.com/dotnet/sdk:9.0
 
-# Install OpenAL and ALSA utilities
+# Install OpenAL and PulseAudio with additional debugging tools
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libopenal1 \
         libopenal-data \
         alsa-utils \
-        kmod && \
+        pulseaudio \
+        pulseaudio-utils \
+        libasound2-plugins \
+        alsa-oss \
+        strace \
+        openal-info && \
     ldconfig && \
     rm -rf /var/lib/apt/lists/*
 
-# Configure ALSA to use null output
-RUN mkdir -p /etc/alsa/conf.d
-COPY asound.conf /etc/asound.conf
+ENV DOTNET_SKIP_WORKLOAD_INSTALLATION=true
+ENV DOTNET_SKIP_WORKLOAD_MANIFEST_UPDATE=true
+ENV DOTNET_CLI_DO_NOT_FETCH_FEEDS=true
+ENV MSBuildEnableWorkloadResolver=false
 
-# Create a script to setup audio
+# Configure OpenAL to use PulseAudio
+RUN mkdir -p /etc/openal && \
+    echo "drivers=pulse\n\
+[pulse]\n\
+allow-moves=true\n\
+default=true\n\
+channels=stereo\n\
+[general]\n\
+channels=stereo\n\
+frequency=44100\n\
+samples=4096\n\
+debug-level=4\n\
+disable-denormals=true\n\
+cf_level=2\n\
+rt-prio=0\n\
+period_size=1024\n\
+periods=4" > /etc/openal/alsoft.conf
+
+# Configure PulseAudio
+RUN mkdir -p /root/.config/pulse && \
+    echo "default-sample-format = s16le\n\
+default-sample-rate = 44100\n\
+default-sample-channels = 2\n\
+default-channel-map = front-left,front-right\n\
+default-fragments = 4\n\
+default-fragment-size-msec = 25" > /root/.config/pulse/daemon.conf
+
+# Configure ALSA
+RUN echo "pcm.!default {\n\
+    type pulse\n\
+}\n\
+\n\
+ctl.!default {\n\
+    type pulse\n\
+}" > /etc/asound.conf
+
+# Create entrypoint script with debug info
 RUN echo '#!/bin/bash\n\
-mkdir -p /dev/snd\n\
-if [ ! -e /dev/snd/seq ]; then\n\
-    ln -s /dev/null /dev/snd/seq\n\
-fi\n\
-exec "$@"' > /entrypoint.sh && \
+# Start pulseaudio daemon\n\
+pulseaudio --start --exit-idle-time=-1 -vvv &\n\
+sleep 2\n\
+\n\
+# Show audio debug info\n\
+echo "=== PulseAudio Status ==="\n\
+pactl info\n\
+pactl list\n\
+\n\
+echo "=== ALSA Status ==="\n\
+aplay -l || true\n\
+cat /proc/asound/cards || true\n\
+\n\
+echo "=== OpenAL Info ==="\n\
+openal-info || true\n\
+\n\
+# Configure the null sink\n\
+pactl load-module module-null-sink sink_name=DummyOutput channels=2 channel_map=front-left,front-right rate=44100\n\
+pactl set-default-sink DummyOutput\n\
+\n\
+# Set environment variables for OpenAL\n\
+export ALSOFT_DRIVERS=pulse\n\
+export ALSOFT_LOGLEVEL=4\n\
+export ALSOFT_LOGFILE=/tmp/openal.log\n\
+\n\
+# Create log file\n\
+touch /tmp/openal.log\n\
+\n\
+# Run the command with debug output\n\
+cd /app\n\
+ALSOFT_DRIVERS=pulse ALSOFT_LOGLEVEL=4 ALSOFT_LOGFILE=/tmp/openal.log $*\n\
+\n\
+# Show OpenAL log if it exists\n\
+echo "=== OpenAL Log ==="\n\
+cat /tmp/openal.log || true' > /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
 WORKDIR /app
 
-# Copy the Directory.Packages.props file
+# Copy project files
 COPY Directory.Packages.props .
-
-# Copy solution and project files first to optimize layer caching
 COPY *.sln .
 COPY src/LofiBeats.Core/*.csproj src/LofiBeats.Core/
 COPY src/LofiBeats.Service/*.csproj src/LofiBeats.Service/
 COPY src/LofiBeats.Cli/*.csproj src/LofiBeats.Cli/
 COPY tests/LofiBeats.Tests/*.csproj tests/LofiBeats.Tests/
 
-# Restore NuGet packages
-RUN dotnet restore /p:TreatWarningsAsErrors=false
+# Restore dependencies
+RUN dotnet restore
 
-# Copy the rest of the code
+# Copy the rest of the source code
 COPY . .
 
-# Build the project
+# Build the solution
 RUN dotnet build --no-restore
 
-# Use our entrypoint script
+# Set the entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["dotnet", "test", "--filter", "Category!=Platform_Specific", "--no-build", "--verbosity:normal"] 
+CMD ["dotnet", "test", "--no-build"] 
