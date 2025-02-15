@@ -1,4 +1,5 @@
 ﻿using LofiBeats.Cli.Commands;
+using LofiBeats.Core.Telemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -15,6 +16,15 @@ public class Program
 
     public static async Task<int> Main(string[] args)
     {
+        // Set up global exception handling
+        AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+        {
+            var ex = args.ExceptionObject as Exception;
+            Console.Error.WriteLine($"FATAL ERROR: {ex?.Message}");
+            Console.Error.WriteLine(ex?.StackTrace);
+            Environment.Exit(1);
+        };
+
         var builder = Startup.CreateHostBuilder(args);
         using var host = builder.Build();
 
@@ -26,8 +36,10 @@ public class Program
         }
         catch (Exception ex)
         {
-            // Get logger if possible, otherwise write to console
+            // Get logger and telemetry if possible
             var logger = host.Services.GetService<ILogger<Program>>();
+            var telemetry = host.Services.GetService<TelemetryTracker>();
+
             if (logger != null)
             {
                 LogErrorExecutingCommand(logger, ex);
@@ -36,6 +48,9 @@ public class Program
             {
                 Console.Error.WriteLine($"Error: {ex.Message}");
             }
+
+            // Track the exception in telemetry if available
+            telemetry?.TrackError(ex, "CLI Command Execution");
 
             return 1;
         }

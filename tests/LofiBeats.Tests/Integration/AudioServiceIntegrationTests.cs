@@ -1,5 +1,6 @@
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.Playback;
+using LofiBeats.Service;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using NAudio.Wave;

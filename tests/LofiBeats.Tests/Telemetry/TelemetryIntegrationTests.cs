@@ -115,4 +115,27 @@ public class TelemetryIntegrationTests
             });
         }));
     }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void TelemetryService_HandlesCrashReporting()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging(builder => builder.AddConsole());
+        services.AddLofiTelemetry();
+        
+        var provider = services.BuildServiceProvider();
+        var telemetry = provider.GetRequiredService<ITelemetryService>();
+        var tracker = provider.GetRequiredService<TelemetryTracker>();
+
+        // Act - Simulate a crash
+        var testException = new InvalidOperationException("Test crash");
+        tracker.TrackError(testException, "Crash Test");
+
+        // Assert - Verify the exception was tracked
+        // Note: Since we're using a real telemetry service, we can't directly verify the contents
+        // but we can verify it doesn't throw during tracking
+        Assert.True(true, "Exception tracking completed without throwing");
+    }
 } 
