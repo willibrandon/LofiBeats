@@ -3,6 +3,7 @@ using LofiBeats.Core.Effects;
 using LofiBeats.Core.Playback;
 using LofiBeats.Core.Telemetry;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,13 +13,34 @@ builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHealthChecks();
 
-// Configure telemetry
-builder.Services.AddLofiTelemetry(new TelemetryConfiguration
+// Configure telemetry from settings
+var telemetryConfig = builder.Configuration.GetSection("Telemetry").Get<TelemetryConfiguration>();
+if (telemetryConfig != null)
 {
-    EnableLocalFile = true,
-    EnableSeq = true,
-    SeqServerUrl = "http://localhost:5341"
-});
+    // Log the configuration values
+    builder.Services.AddLogging(logging =>
+    {
+        logging.AddConsole();
+        logging.AddDebug();
+    });
+    var logger = LoggerFactory.Create(logging => logging.AddConsole()).CreateLogger("Program");
+    logger.LogInformation("Telemetry Configuration: EnableSeq={EnableSeq}, SeqServerUrl={SeqServerUrl}", 
+        telemetryConfig.EnableSeq, telemetryConfig.SeqServerUrl);
+
+    builder.Services.AddLofiTelemetry(telemetryConfig);
+}
+else
+{
+    var logger = LoggerFactory.Create(logging => logging.AddConsole()).CreateLogger("Program");
+    logger.LogWarning("No telemetry configuration found in appsettings.json, using defaults");
+
+    // Fallback to default configuration if settings are missing
+    builder.Services.AddLofiTelemetry(new TelemetryConfiguration
+    {
+        EnableLocalFile = true,
+        EnableSeq = false // Disable Seq by default if no configuration is provided
+    });
+}
 
 // Register our core services as singletons
 builder.Services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();

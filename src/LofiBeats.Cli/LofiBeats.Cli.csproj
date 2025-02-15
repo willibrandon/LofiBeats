@@ -32,4 +32,13 @@
 		</None>
 	</ItemGroup>
 
+	<ItemGroup>
+		<None Include="..\LofiBeats.Service\appsettings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Include="..\LofiBeats.Service\appsettings.Development.json" Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
 </Project>
