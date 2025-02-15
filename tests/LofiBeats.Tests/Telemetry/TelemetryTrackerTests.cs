@@ -36,7 +36,8 @@ public class TelemetryTrackerTests
                 d[TelemetryConstants.Properties.ProcessorArchitecture] == RuntimeInformation.ProcessArchitecture.ToString() &&
                 d[TelemetryConstants.Properties.UserLocale] == Thread.CurrentThread.CurrentCulture.Name &&
                 d[TelemetryConstants.Properties.UserTimeZone] == TimeZoneInfo.Local.Id
-            )), Times.Once);
+            ),
+            It.IsAny<DateTimeOffset?>()), Times.Once);
     }
 
     [Fact]
@@ -57,7 +58,8 @@ public class TelemetryTrackerTests
         
         _telemetryMock.Verify(t => t.TrackEvent(
             It.Is<string>(s => s == TelemetryConstants.Events.ApplicationStopped),
-            null), Times.Once);
+            null,
+            It.IsAny<DateTimeOffset?>()), Times.Once);
         
         _telemetryMock.Verify(t => t.FlushAsync(), Times.Once);
     }
@@ -113,13 +115,15 @@ public class TelemetryTrackerTests
         _telemetryMock.Verify(t => t.TrackEvent(
             It.Is<string>(s => s == TelemetryConstants.Events.AudioLatencySpike),
             It.Is<IDictionary<string, string>>(d => 
-                d["LatencyMs"] == "150.00")), Times.Once);
+                d["LatencyMs"] == "150.00"),
+            It.IsAny<DateTimeOffset?>()), Times.Once);
 
         // Act & Assert - Normal Latency
         _tracker.TrackAudioLatency(normalLatency, bufferUsage, processingLoad);
         _telemetryMock.Verify(t => t.TrackEvent(
             It.Is<string>(s => s == TelemetryConstants.Events.AudioLatencySpike),
-            It.IsAny<IDictionary<string, string>>()), Times.Once); // Should not increment
+            It.IsAny<IDictionary<string, string>>(),
+            It.IsAny<DateTimeOffset?>()), Times.Once); // Should not increment
     }
 
     #endregion
@@ -149,7 +153,8 @@ public class TelemetryTrackerTests
                 d[TelemetryConstants.Properties.BeatTempo] == tempo.ToString() &&
                 d[TelemetryConstants.Properties.BeatKey] == key &&
                 d[TelemetryConstants.Properties.BeatComplexity] == complexity.ToString("F2")
-            )), Times.Once);
+            ),
+            It.IsAny<DateTimeOffset?>()), Times.Once);
 
         _telemetryMock.Verify(t => t.TrackMetric(
             It.Is<string>(s => s == TelemetryConstants.Metrics.BeatGenerationTime),
@@ -194,7 +199,8 @@ public class TelemetryTrackerTests
                 d[TelemetryConstants.Properties.EffectName] == effectName &&
                 d[TelemetryConstants.Properties.EffectParameters].Contains("wetness=0.5") &&
                 d[TelemetryConstants.Properties.EffectParameters].Contains("roomSize=0.8")
-            )), Times.Once);
+            ),
+            It.IsAny<DateTimeOffset?>()), Times.Once);
     }
 
     [Fact]
@@ -273,7 +279,8 @@ public class TelemetryTrackerTests
         _telemetryMock.Verify(t => t.TrackEvent(
             It.Is<string>(s => s == $"UserInteraction.{interactionType}"),
             It.Is<IDictionary<string, string>>(d => 
-                d.ContainsKey("TimeSinceLastInteraction"))), Times.Exactly(2));
+                d.ContainsKey("TimeSinceLastInteraction")),
+            It.IsAny<DateTimeOffset?>()), Times.Exactly(2));
     }
 
     [Fact]
@@ -292,7 +299,8 @@ public class TelemetryTrackerTests
             It.Is<string>(s => s == TelemetryConstants.Events.UserPreferenceChanged),
             It.Is<IDictionary<string, string>>(d =>
                 d["PreferenceName"] == prefName &&
-                d["NewValue"] == prefValue)), Times.Once);
+                d["NewValue"] == prefValue),
+            It.IsAny<DateTimeOffset?>()), Times.Once);
     }
 
     #endregion
@@ -320,7 +328,8 @@ public class TelemetryTrackerTests
         // Should not track as crash
         _telemetryMock.Verify(t => t.TrackEvent(
             It.Is<string>(s => s == TelemetryConstants.Events.ApplicationCrashed),
-            null), Times.Never);
+            null,
+            It.IsAny<DateTimeOffset?>()), Times.Never);
     }
 
     [Fact]
@@ -345,7 +354,8 @@ public class TelemetryTrackerTests
         _telemetryMock.Verify(t => t.TrackEvent(
             It.Is<string>(s => s == TelemetryConstants.Events.ApplicationCrashed),
             It.Is<IDictionary<string, string>>(d =>
-                d["Context"] == context)), Times.Once);
+                d["Context"] == context),
+            It.IsAny<DateTimeOffset?>()), Times.Once);
     }
 
     #endregion

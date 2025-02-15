@@ -17,6 +17,7 @@ public class LocalFileTelemetryServiceTests : IAsyncDisposable
 
     private readonly Mock<ILogger<LocalFileTelemetryService>> _loggerMock;
     private readonly string _testTelemetryPath;
+    private readonly TelemetryConfiguration _config;
     private readonly LocalFileTelemetryService _service;
     private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
 
@@ -24,31 +25,51 @@ public class LocalFileTelemetryServiceTests : IAsyncDisposable
     {
         _loggerMock = new Mock<ILogger<LocalFileTelemetryService>>();
         
-        // Create a temporary directory for test telemetry using platform-specific paths
-        _testTelemetryPath = Path.Combine(
-            Path.GetTempPath(),
-            "LofiBeatsTests",
-            "Telemetry",
-            Guid.NewGuid().ToString());
-
+        // Create unique test directory for this test instance
+        var uniqueTestId = Guid.NewGuid().ToString("N");
+        _testTelemetryPath = Path.Combine(Path.GetTempPath(), "LofiBeatsTests", "Telemetry", uniqueTestId);
+        
+        // Clean up any existing directory
+        if (Directory.Exists(_testTelemetryPath))
+        {
+            Directory.Delete(_testTelemetryPath, true);
+        }
         Directory.CreateDirectory(_testTelemetryPath);
         
-        // Create service with test path
-        _service = new LocalFileTelemetryService(_loggerMock.Object, _testTelemetryPath);
+        // Create test configuration with the unique path
+        _config = new TelemetryConfiguration
+        {
+            IsTestEnvironment = true,
+            MaxBufferSize = 10,
+            FlushIntervalMinutes = 1,
+            MaxFileSizeMB = 1,
+            MaxFileAgeDays = 1,
+            GetBasePath = () => _testTelemetryPath
+        };
+        
+        // Create service with test configuration
+        _service = new LocalFileTelemetryService(_loggerMock.Object, _config);
     }
 
-    private async Task<List<T>> GetTelemetryItemsFromFiles<T>()
+    private sealed class TelemetryFile<T>
     {
+        public List<T> Items { get; set; } = new();
+    }
+
+    private async Task<List<T>> GetTelemetryItemsFromFiles<T>(string? path = null)
+    {
+        var searchPath = path ?? _testTelemetryPath;
         var items = new List<T>();
-        var telemetryFiles = Directory.GetFiles(_testTelemetryPath, "telemetry_*.json");
+        var filePattern = typeof(T) == typeof(TelemetryEvent) ? "telemetry_events_*.json" : "telemetry_metrics_*.json";
+        var telemetryFiles = Directory.GetFiles(searchPath, filePattern);
         
         foreach (var file in telemetryFiles)
         {
             var content = await File.ReadAllTextAsync(file);
-            var fileItems = JsonSerializer.Deserialize<List<T>>(content, SerializerOptions);
-            if (fileItems != null)
+            var telemetryFile = JsonSerializer.Deserialize<TelemetryFile<T>>(content, SerializerOptions);
+            if (telemetryFile?.Items != null)
             {
-                items.AddRange(fileItems);
+                items.AddRange(telemetryFile.Items);
             }
         }
         
@@ -129,7 +150,6 @@ public class LocalFileTelemetryServiceTests : IAsyncDisposable
 
         // Assert
         var metrics = await GetTelemetryItemsFromFiles<TelemetryMetric>();
-        Assert.NotEmpty(metrics);
         var performanceMetric = Assert.Single(metrics);
         Assert.Equal($"Performance.{operation}", performanceMetric.Name);
         Assert.Equal(100.0, performanceMetric.Value);
@@ -251,18 +271,21 @@ public class LocalFileTelemetryServiceTests : IAsyncDisposable
     public async Task MultipleFlushes_CreateSeparateFiles()
     {
         // Arrange
-        var initialFiles = Directory.GetFiles(_testTelemetryPath, "telemetry_*.json").Length;
+        var initialEventFiles = Directory.GetFiles(_testTelemetryPath, "telemetry_events_*.json").Length;
+        var initialMetricFiles = Directory.GetFiles(_testTelemetryPath, "telemetry_metrics_*.json").Length;
 
         // Act
         _service.TrackEvent("Event1");
         await _service.FlushAsync();
         
-        _service.TrackEvent("Event2");
+        _service.TrackMetric("Metric1", 42.0);
         await _service.FlushAsync();
 
         // Assert
-        var files = Directory.GetFiles(_testTelemetryPath, "telemetry_*.json");
-        Assert.Equal(initialFiles + 2, files.Length);
+        var eventFiles = Directory.GetFiles(_testTelemetryPath, "telemetry_events_*.json");
+        var metricFiles = Directory.GetFiles(_testTelemetryPath, "telemetry_metrics_*.json");
+        Assert.Equal(initialEventFiles + 1, eventFiles.Length);
+        Assert.Equal(initialMetricFiles + 1, metricFiles.Length);
     }
 
     [Fact]
@@ -311,16 +334,20 @@ public class LocalFileTelemetryServiceTests : IAsyncDisposable
     public async Task InvalidBasePath_ThrowsException()
     {
         // Arrange
-        var invalidPath = Path.Combine(Path.GetInvalidPathChars().First().ToString());
+        var invalidConfig = new TelemetryConfiguration
+        {
+            GetBasePath = () => Path.Combine(new string(Path.GetInvalidPathChars().First(), 1))
+        };
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<IOException>(() =>
         {
-            var service = new LocalFileTelemetryService(_loggerMock.Object, invalidPath);
+            var service = new LocalFileTelemetryService(_loggerMock.Object, invalidConfig);
             return service.FlushAsync();
         });
         
-        Assert.Contains("filename, directory name, or volume label syntax is incorrect", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("filename, directory name, or volume label syntax is incorrect", 
+            exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -344,6 +371,122 @@ public class LocalFileTelemetryServiceTests : IAsyncDisposable
             $"Event timestamp {e.Timestamp} should be between {beforeTime} and {afterTime}"));
         Assert.All(metrics, m => Assert.True(m.Timestamp >= beforeTime && m.Timestamp <= afterTime,
             $"Metric timestamp {m.Timestamp} should be between {beforeTime} and {afterTime}"));
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task TrackEvent_FiltersTestEvents_InProduction()
+    {
+        // Arrange
+        var prodTestPath = Path.Combine(_testTelemetryPath, "ProdTest");
+        if (Directory.Exists(prodTestPath))
+        {
+            Directory.Delete(prodTestPath, true);
+        }
+        Directory.CreateDirectory(prodTestPath);
+
+        var prodConfig = new TelemetryConfiguration
+        {
+            IsTestEnvironment = false,
+            MaxBufferSize = 1, // Force immediate flush
+            GetBasePath = () => prodTestPath
+        };
+        var prodService = new LocalFileTelemetryService(_loggerMock.Object, prodConfig);
+
+        try
+        {
+            // Act
+            prodService.TrackEvent("TestEvent", new Dictionary<string, string> { ["TestKey"] = "TestValue" });
+            prodService.TrackEvent("ProductionEvent");
+            await prodService.FlushAsync();
+
+            // Assert
+            var events = await GetTelemetryItemsFromFiles<TelemetryEvent>(prodTestPath);
+            Assert.Single(events);
+            Assert.Equal("ProductionEvent", events[0].Name);
+        }
+        finally
+        {
+            await prodService.DisposeAsync();
+            if (Directory.Exists(prodTestPath))
+            {
+                Directory.Delete(prodTestPath, true);
+            }
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task TrackEvent_AllowsTestEvents_InTestEnvironment()
+    {
+        // Arrange & Act
+        _service.TrackEvent("TestEvent");
+        await _service.FlushAsync();
+
+        // Assert
+        var events = await GetTelemetryItemsFromFiles<TelemetryEvent>();
+        Assert.Single(events);
+        Assert.Equal("TestEvent", events[0].Name);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task TrackEvent_RejectsFutureTimestamps()
+    {
+        // Arrange
+        var futureEvent = new TelemetryEvent
+        {
+            Name = "FutureEvent",
+            Timestamp = DateTimeOffset.UtcNow.AddHours(1)
+        };
+
+        // Act - Track the event with the future timestamp directly
+        _service.TrackEvent(futureEvent.Name, null, futureEvent.Timestamp);
+        await _service.FlushAsync();
+
+        // Assert
+        var events = await GetTelemetryItemsFromFiles<TelemetryEvent>();
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task TrackEvent_EnforcesMaxFileSize()
+    {
+        // Arrange
+        var largeValue = new string('x', 500 * 1024); // 500KB
+        var properties = new Dictionary<string, string> { { "LargeValue", largeValue } };
+
+        // Act - Write enough events to exceed max file size
+        for (int i = 0; i < 3; i++) // Should create multiple files
+        {
+            _service.TrackEvent($"Event{i}", properties);
+            await _service.FlushAsync();
+        }
+
+        // Assert
+        var files = Directory.GetFiles(_testTelemetryPath, "telemetry_*.json");
+        Assert.True(files.Length > 1, "Multiple files should be created when size limit is exceeded");
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task CleanupOldFiles_RemovesExpiredFiles()
+    {
+        // Arrange
+        var oldFile = Path.Combine(_testTelemetryPath, "telemetry_old.json");
+        await File.WriteAllTextAsync(oldFile, "{}");
+        File.SetLastWriteTimeUtc(oldFile, DateTime.UtcNow.AddDays(-2));
+
+        var newFile = Path.Combine(_testTelemetryPath, "telemetry_new.json");
+        await File.WriteAllTextAsync(newFile, "{}");
+
+        // Act
+        await Task.Run(() => _config.CleanupOldFiles(_testTelemetryPath));
+
+        // Assert
+        Assert.False(File.Exists(oldFile), "Old file should be deleted");
+        Assert.True(File.Exists(newFile), "New file should be retained");
     }
 
     public async ValueTask DisposeAsync()

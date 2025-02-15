@@ -12,7 +12,8 @@ public interface ITelemetryService
     /// </summary>
     /// <param name="eventName">Name of the event to track</param>
     /// <param name="properties">Optional properties to associate with the event</param>
-    void TrackEvent(string eventName, IDictionary<string, string>? properties = null);
+    /// <param name="timestamp">Optional timestamp for the event. If not provided, current time is used.</param>
+    void TrackEvent(string eventName, IDictionary<string, string>? properties = null, DateTimeOffset? timestamp = null);
 
     /// <summary>
     /// Tracks a metric value.
