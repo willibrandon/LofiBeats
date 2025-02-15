@@ -50,6 +50,36 @@ public class CommandLineInterface : IDisposable
     private static readonly Action<ILogger, Exception?> _logEnteringInteractiveMode =
         LoggerMessage.Define(LogLevel.Information, new EventId(12, "EnteringInteractiveMode"), "Entering interactive mode");
 
+    private static readonly Action<ILogger, string, Exception?> _logEffectNotFound =
+        LoggerMessage.Define<string>(LogLevel.Warning, new EventId(13, "EffectNotFound"), "Effect '{Name}' not found");
+
+    private static readonly Action<ILogger, string, Exception?> _logInvalidBeatStyle =
+        LoggerMessage.Define<string>(LogLevel.Warning, new EventId(14, "InvalidBeatStyle"), "Invalid beat style '{Style}'");
+
+    private static readonly string[] ValidEffects = ["vinyl", "reverb", "lowpass"];
+    private static readonly string[] ValidBeatStyles = ["basic", "jazzy", "chillhop"];
+
+    private static void ShowSpinner(string message, int durationMs)
+    {
+        var spinChars = new[] { '|', '/', '-', '\\' };
+        var originalLeft = Console.CursorLeft;
+        var originalTop = Console.CursorTop;
+        var startTime = DateTime.Now;
+
+        while ((DateTime.Now - startTime).TotalMilliseconds < durationMs)
+        {
+            foreach (var spinChar in spinChars)
+            {
+                Console.SetCursorPosition(originalLeft, originalTop);
+                Console.Write($"{message} {spinChar}");
+                Thread.Sleep(100);
+            }
+        }
+        Console.SetCursorPosition(originalLeft, originalTop);
+        Console.Write(new string(' ', message.Length + 2)); // Clear the spinner
+        Console.SetCursorPosition(originalLeft, originalTop);
+    }
+
     public CommandLineInterface(ILogger<CommandLineInterface> logger, ILoggerFactory loggerFactory)
     {
         _logger = logger;
@@ -67,9 +97,26 @@ public class CommandLineInterface : IDisposable
 
     private void ConfigureCommands()
     {
-        // Add generate command
-        var generateCommand = new Command("generate", "Generates a new lofi beat pattern");
-        var generateStyleOption = new Option<string>("--style", () => "basic", "Beat style (basic, jazzy, chillhop)");
+        // Add generate command with enhanced description and validation
+        var generateCommand = new Command("generate", "Generates a new lofi beat pattern with customizable style")
+        {
+            Description = "Creates a new beat pattern using the specified style. Each style has unique characteristics:\n" +
+                         "  - basic: Standard lofi beat pattern\n" +
+                         "  - jazzy: Syncopated rhythms with jazz-inspired elements\n" +
+                         "  - chillhop: Laid-back beats with hip-hop influence"
+        };
+        var generateStyleOption = new Option<string>(
+            "--style",
+            () => "basic",
+            "Beat style (basic, jazzy, chillhop)");
+        generateStyleOption.AddValidator(result =>
+        {
+            var value = result.GetValueOrDefault<string>();
+            if (!ValidBeatStyles.Contains(value, StringComparer.OrdinalIgnoreCase))
+            {
+                result.ErrorMessage = $"Invalid style '{value}'. Valid styles are: {string.Join(", ", ValidBeatStyles)}";
+            }
+        });
         generateCommand.AddOption(generateStyleOption);
 
         generateCommand.SetHandler(async (string style) =>
@@ -77,7 +124,18 @@ public class CommandLineInterface : IDisposable
             _logExecutingGenerateCommand(_logger, null);
             try
             {
+                Console.Write("Generating beat pattern... ");
+                ShowSpinner("Generating beat pattern", 1500); // Show progress for 1.5 seconds
+
                 var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"generate?style={Uri.EscapeDataString(style)}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    var error = await response.Content.ReadFromJsonAsync<ApiResponse>();
+                    _logInvalidBeatStyle(_logger, style, null);
+                    Console.WriteLine($"Failed to generate beat pattern: {error?.Error ?? "Unknown error"}");
+                    return;
+                }
+
                 var result = await response.Content.ReadFromJsonAsync<PlayResponse>();
                 if (result?.Pattern != null)
                 {
@@ -86,7 +144,8 @@ public class CommandLineInterface : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: {ex.Message}");
+                Console.WriteLine($"Error generating beat pattern: {ex.Message}");
+                Console.WriteLine("Please ensure the LofiBeats service is running and try again.");
             }
         }, generateStyleOption);
         _rootCommand.AddCommand(generateCommand);
@@ -191,18 +250,47 @@ public class CommandLineInterface : IDisposable
         _rootCommand.AddCommand(resumeCommand);
 
         // Add effect command
-        var effectCommand = new Command("effect", "Manage effects");
-        var effectNameOpt = new Option<string>("--name", "Name of the effect to manage") { IsRequired = true };
-        var enableOpt = new Option<bool>("--enable", () => true, "Whether to enable or disable the effect");
+        var effectCommand = new Command("effect", "Manage audio effects");
+        
+        // Add effect name as a required argument instead of an option
+        var effectNameArg = new Argument<string>(
+            name: "effect-name",
+            description: "Name of the effect to manage");
 
-        effectCommand.AddOption(effectNameOpt);
+        effectCommand.AddArgument(effectNameArg);
+        
+        var enableOpt = new Option<bool>(
+            name: "--enable",
+            getDefaultValue: () => true,
+            description: "Enable (true) or disable (false) the effect");
+
         effectCommand.AddOption(enableOpt);
+
+        effectCommand.Description = "Enable or disable audio effects to enhance your lofi beats.\n\n" +
+                         "Available effects:\n" +
+                         "  - vinyl:   Adds vinyl record crackle and noise for that authentic feel\n" +
+                         "  - reverb:  Adds space and atmosphere to create depth\n" +
+                         "  - lowpass: Reduces high frequencies for that warm, mellow sound\n\n" +
+                         "Examples:\n" +
+                         "  effect vinyl              Enable vinyl effect\n" +
+                         "  effect reverb             Enable reverb effect\n" +
+                         "  effect lowpass --enable=false  Disable lowpass filter";
 
         effectCommand.SetHandler(async (string name, bool enable) =>
         {
+            if (!ValidEffects.Contains(name, StringComparer.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"Error: '{name}' is not a valid effect name.");
+                Console.WriteLine($"Available effects are: {string.Join(", ", ValidEffects)}");
+                return;
+            }
+
             _logExecutingEffectCommand(_logger, name, enable, null);
             try
             {
+                Console.Write($"{(enable ? "Enabling" : "Disabling")} {name} effect... ");
+                ShowSpinner($"{(enable ? "Enabling" : "Disabling")} {name} effect", 1000);
+
                 var response = await _serviceHelper.SendCommandAsync(
                     HttpMethod.Post,
                     $"effect?name={Uri.EscapeDataString(name)}&enable={enable}");
@@ -210,7 +298,9 @@ public class CommandLineInterface : IDisposable
                 var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
                 if (!response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine($"Error: {result?.Error}");
+                    _logEffectNotFound(_logger, name, null);
+                    Console.WriteLine($"Error: {result?.Error ?? $"Effect '{name}' not found"}");
+                    Console.WriteLine($"Available effects are: {string.Join(", ", ValidEffects)}");
                     return;
                 }
 
@@ -221,9 +311,10 @@ public class CommandLineInterface : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: {ex.Message}");
+                Console.WriteLine($"Error managing effect: {ex.Message}");
+                Console.WriteLine("Please ensure the LofiBeats service is running and try again.");
             }
-        }, effectNameOpt, enableOpt);
+        }, effectNameArg, enableOpt);
         _rootCommand.AddCommand(effectCommand);
 
         // Add volume command
@@ -346,6 +437,15 @@ public class CommandLineInterface : IDisposable
             Console.WriteLine("Exiting interactive mode.");
         });
         _rootCommand.AddCommand(interactiveCommand);
+
+        // Add help examples to the root command
+        _rootCommand.Description = "A command-line application for generating and playing lofi beats\n\n" +
+            "Examples:\n" +
+            "  Generate a jazzy beat:        lofi-beats generate --style=jazzy\n" +
+            "  Play with a specific style:   lofi-beats play --style=chillhop\n" +
+            "  Enable vinyl effect:          lofi-beats effect --name=vinyl --enable\n" +
+            "  Adjust volume:                lofi-beats volume --level=0.8\n" +
+            "  Interactive mode:             lofi-beats interactive";
 
         _logCommandsConfigured(_logger, null);
     }
