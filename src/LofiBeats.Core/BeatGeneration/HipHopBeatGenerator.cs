@@ -4,7 +4,7 @@ namespace LofiBeats.Core.BeatGeneration;
 
 public class HipHopBeatGenerator : BaseBeatGenerator
 {
-    public override string Style => "lofihiphop";
+    public override string Style => "hiphop";
     public override (int MinTempo, int MaxTempo) TempoRange => (80, 100);
 
     public HipHopBeatGenerator(ILogger<HipHopBeatGenerator> logger) : base(logger)
@@ -13,20 +13,22 @@ public class HipHopBeatGenerator : BaseBeatGenerator
 
     protected override string[][] DefineChordProgressions() =>
     [
-        ["Cm9", "Fm7", "Ab6", "G7"],        // Minor hip hop progression
-        ["Ebmaj7", "Dm7b5", "Cm9", "Bb13"], // Jazz-influenced hip hop
-        ["Gm7", "C9", "Fm7", "Bb7"],        // Minor groove
-        ["Am7", "F9", "Dm7", "E7b9"],       // Urban progression
-        ["Bbmaj9", "Gm11", "Eb6/9", "Cm7"]  // Modern lofi hip hop
+        ["Dm7", "G7", "Cmaj7", "Am7"],      // Classic jazz-hop progression
+        ["Em7", "A7", "Dm7", "Bm7b5"],      // Minor jazz with half-diminished
+        ["Fmaj7", "Em7", "Am7", "Dm7"],     // Descending soul progression
+        ["Gm7", "C7", "Fmaj7", "Em7b5"],    // Minor to major movement
+        ["Am7", "D7", "Gmaj7", "Em7"],      // Secondary dominant progression
+        ["Bm7b5", "E7b9", "Am7", "D7"]      // Jazz turnaround with alterations
     ];
 
     protected override string[][] DefineDrumPatterns() =>
     [
-        ["kick", "hat", "_", "snare", "kick", "hat", "snare", "hat"],            // Classic boom bap
-        ["kick", "_", "snare", "kick", "hat", "kick", "snare", "_"],             // Trap influenced
-        ["kick", "hat", "kick", "snare", "_", "hat", "snare", "hat"],            // Modern bounce
-        ["kick", "hat", "snare", "_", "kick", "hat", "_", "snare"],              // Lo-fi groove
-        ["_", "kick", "snare", "hat", "kick", "kick", "snare", "hat"]            // Syncopated hip hop
+        ["kick", "hat", "snare", "_", "kick", "hat", "snare", "hat"],             // Classic boom bap
+        ["kick", "hat", "snare", "kick", "_", "hat", "snare", "hat"],             // Syncopated kick
+        ["kick", "_", "snare", "hat", "kick", "kick", "snare", "_"],              // Double kick
+        ["kick", "hat", "snare", "_", "kick", "_", "snare", "kick"],              // Kick heavy
+        ["_", "kick", "snare", "hat", "kick", "hat", "snare", "_"],               // Off-beat start
+        ["kick", "hat", "_", "snare", "kick", "hat", "snare", "kick"]             // Complex pattern
     ];
 
     protected override float GetVariationProbability() => 0.35f;
@@ -40,17 +42,26 @@ public class HipHopBeatGenerator : BaseBeatGenerator
             {
                 if (_rnd.NextDouble() < GetStepModificationProbability())
                 {
-                    // Hip hop style often has double kicks and more varied patterns
-                    pattern[i] = _rnd.Next(7) switch
+                    // Hip hop patterns often emphasize kicks and have more complex variations
+                    pattern[i] = _rnd.Next(6) switch
                     {
                         0 => "kick",
                         1 => "hat",
                         2 => "snare",
-                        3 => "kick",  // Extra kick for hip hop feel
-                        4 => "hat",   // Extra hat for rhythm
-                        5 => "_",     // Rest for groove
-                        _ => pattern[i] // Sometimes keep existing
+                        3 => "kick",  // Extra weight on kicks for boom bap feel
+                        4 => "_",     // Rests for groove
+                        _ => pattern[i] // Sometimes keep existing element
                     };
+                }
+            }
+
+            // Add occasional kick doubling for classic boom bap feel
+            if (_rnd.NextDouble() < 0.3)
+            {
+                int pos = _rnd.Next(pattern.Length - 1);
+                if (pattern[pos] == "kick")
+                {
+                    pattern[pos + 1] = "kick";
                 }
             }
         }

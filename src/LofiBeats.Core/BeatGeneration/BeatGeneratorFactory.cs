@@ -21,7 +21,8 @@ public class BeatGeneratorFactory : IBeatGeneratorFactory
         {
             new BasicLofiBeatGenerator(_loggerFactory.CreateLogger<BasicLofiBeatGenerator>()),
             new JazzyBeatGenerator(_loggerFactory.CreateLogger<JazzyBeatGenerator>()),
-            new ChillhopBeatGenerator(_loggerFactory.CreateLogger<ChillhopBeatGenerator>())
+            new ChillhopBeatGenerator(_loggerFactory.CreateLogger<ChillhopBeatGenerator>()),
+            new HipHopBeatGenerator(_loggerFactory.CreateLogger<HipHopBeatGenerator>())
         };
 
         // Add each generator to the dictionary
