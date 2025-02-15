@@ -28,11 +28,12 @@ public abstract class BaseBeatGenerator : IBeatGenerator
         int tempo = _rnd.Next(minTempo, maxTempo + 1);
 
         // Select random progression and pattern
-        var chords = _chordProgressions[_rnd.Next(_chordProgressions.Length)];
+        var chords = _chordProgressions[_rnd.Next(_chordProgressions.Length)].ToArray();
         var basePattern = _drumPatterns[_rnd.Next(_drumPatterns.Length)].ToArray();
 
         // Apply style-specific modifications
         ModifyPattern(basePattern);
+        ModifyChordProgression(chords);
 
         var pattern = new BeatPattern
         {
@@ -51,4 +52,141 @@ public abstract class BaseBeatGenerator : IBeatGenerator
 
     protected virtual float GetVariationProbability() => 0.3f;
     protected virtual float GetStepModificationProbability() => 0.2f;
+
+    // New methods for chord progression variation
+    protected virtual void ModifyChordProgression(string[] chords)
+    {
+        for (int i = 0; i < chords.Length; i++)
+        {
+            // 20% chance to do an inversion
+            if (_rnd.NextDouble() < 0.2)
+            {
+                chords[i] = AddInversion(chords[i]);
+            }
+
+            // 10% chance to add an extension
+            if (_rnd.NextDouble() < 0.1)
+            {
+                chords[i] = AddExtension(chords[i]);
+            }
+        }
+    }
+
+    protected virtual string AddInversion(string chord)
+    {
+        // Parse the chord to get root note and quality
+        var (root, quality) = ParseChord(chord);
+        
+        // Get possible bass notes based on chord quality
+        var bassNotes = GetPossibleBassNotes(root, quality);
+        if (bassNotes.Length == 0) return chord;
+
+        // Add a random bass note
+        return $"{chord}/{bassNotes[_rnd.Next(bassNotes.Length)]}";
+    }
+
+    protected virtual string AddExtension(string chord)
+    {
+        // Don't add extensions to chords that already have them
+        if (chord.Contains('1')) return chord;
+
+        string[] possibleExtensions = ["9", "11", "13"];
+        var extension = possibleExtensions[_rnd.Next(possibleExtensions.Length)];
+
+        // Handle different chord types appropriately
+        if (chord.Contains("maj7"))
+            return chord.Replace("maj7", $"maj{extension}");
+        else if (chord.Contains("m7"))
+            return chord.Replace("m7", $"m{extension}");
+        else if (chord.Contains('7'))
+            return chord.Replace("7", extension);
+        
+        return chord;
+    }
+
+    private static (string Root, string Quality) ParseChord(string chord)
+    {
+        // Basic chord parsing
+        if (string.IsNullOrEmpty(chord)) return ("", "");
+
+        // Get root note (first character, or two characters if sharp/flat)
+        string root = chord[0].ToString();
+        int qualityStart = 1;
+        
+        if (chord.Length > 1 && (chord[1] == '#' || chord[1] == 'b'))
+        {
+            root += chord[1];
+            qualityStart = 2;
+        }
+
+        string quality = chord[qualityStart..];
+        return (root, quality);
+    }
+
+    private static string[] GetPossibleBassNotes(string root, string quality)
+    {
+        // Define possible bass notes based on chord quality
+        if (quality.StartsWith('m'))
+        {
+            // Minor chord - use minor triad notes
+            var third = GetMinorThird(root);
+            var fifth = GetFifth(root);
+            return [third, fifth];
+        }
+        else
+        {
+            // Major chord - use major triad notes
+            var third = GetMajorThird(root);
+            var fifth = GetFifth(root);
+            return [third, fifth];
+        }
+    }
+
+    private static string GetMinorThird(string root)
+    {
+        // Simplified - just handle basic cases
+        return root switch
+        {
+            "C" => "Eb",
+            "D" => "F",
+            "E" => "G",
+            "F" => "Ab",
+            "G" => "Bb",
+            "A" => "C",
+            "B" => "D",
+            _ => root
+        };
+    }
+
+    private static string GetMajorThird(string root)
+    {
+        // Simplified - just handle basic cases
+        return root switch
+        {
+            "C" => "E",
+            "D" => "F#",
+            "E" => "G#",
+            "F" => "A",
+            "G" => "B",
+            "A" => "C#",
+            "B" => "D#",
+            _ => root
+        };
+    }
+
+    private static string GetFifth(string root)
+    {
+        // Simplified - just handle basic cases
+        return root switch
+        {
+            "C" => "G",
+            "D" => "A",
+            "E" => "B",
+            "F" => "C",
+            "G" => "D",
+            "A" => "E",
+            "B" => "F#",
+            _ => root
+        };
+    }
 } 

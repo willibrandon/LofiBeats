@@ -1,6 +1,6 @@
 using LofiBeats.Core.BeatGeneration;
+using LofiBeats.Core.Models;
 using Microsoft.Extensions.Logging;
-using Xunit;
 using Moq;
 
 namespace LofiBeats.Tests.BeatGeneration;
@@ -80,5 +80,34 @@ public class BeatGenerationTests
             "Cmaj7"
         };
         Assert.All(pattern.ChordProgression, chord => Assert.Contains(chord, validChords));
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void ChordProgressions_HaveVariations()
+    {
+        // Arrange
+        var patterns = new List<BeatPattern>();
+        var uniqueChords = new HashSet<string>();
+
+        // Act
+        // Generate multiple patterns to ensure we get variations
+        for (int i = 0; i < 10; i++)
+        {
+            var pattern = _generator.GeneratePattern();
+            patterns.Add(pattern);
+            foreach (var chord in pattern.ChordProgression)
+            {
+                uniqueChords.Add(chord);
+            }
+        }
+
+        // Assert
+        // We should find some variations (inversions or extensions)
+        var hasInversions = uniqueChords.Any(c => c.Contains('/'));
+        var hasExtensions = uniqueChords.Any(c => c.Contains('9') || c.Contains("11") || c.Contains("13"));
+        
+        Assert.True(hasInversions || hasExtensions, 
+            "Should find chord variations (inversions or extensions) across multiple generations");
     }
 } 
