@@ -22,6 +22,11 @@ public class OpenALAudioOutput : IAudioOutput
     private Thread? _updateThread;
     private readonly CancellationTokenSource _cancellationTokenSource;
 
+    /// <summary>
+    /// Gets the OpenAL source ID. Used for testing.
+    /// </summary>
+    public int SourceId => _source;
+
     public OpenALAudioOutput(ILogger<OpenALAudioOutput> logger)
     {
         _logger = logger;

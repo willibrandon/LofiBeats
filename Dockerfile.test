@@ -20,6 +20,22 @@ ENV DOTNET_SKIP_WORKLOAD_MANIFEST_UPDATE=true
 ENV DOTNET_CLI_DO_NOT_FETCH_FEEDS=true
 ENV MSBuildEnableWorkloadResolver=false
 
+# Configure PulseAudio for system mode
+RUN mkdir -p /etc/pulse && \
+    echo "load-module module-native-protocol-unix auth-anonymous=1\n\
+load-module module-native-protocol-tcp auth-anonymous=1\n\
+load-module module-null-sink sink_name=DummyOutput channels=2 channel_map=front-left,front-right rate=44100\n\
+load-module module-always-sink\n\
+set-default-sink DummyOutput" > /etc/pulse/system.pa && \
+    echo "daemonize = no\n\
+system-instance = yes\n\
+exit-idle-time = -1\n\
+allow-module-loading = no\n\
+allow-exit = no\n\
+enable-shm = yes\n\
+enable-memfd = yes\n\
+flat-volumes = no" > /etc/pulse/daemon.conf
+
 # Configure OpenAL to use PulseAudio
 RUN mkdir -p /etc/openal && \
     echo "drivers=pulse\n\
@@ -38,15 +54,6 @@ rt-prio=0\n\
 period_size=1024\n\
 periods=4" > /etc/openal/alsoft.conf
 
-# Configure PulseAudio
-RUN mkdir -p /root/.config/pulse && \
-    echo "default-sample-format = s16le\n\
-default-sample-rate = 44100\n\
-default-sample-channels = 2\n\
-default-channel-map = front-left,front-right\n\
-default-fragments = 4\n\
-default-fragment-size-msec = 25" > /root/.config/pulse/daemon.conf
-
 # Configure ALSA
 RUN echo "pcm.!default {\n\
     type pulse\n\
@@ -58,14 +65,15 @@ ctl.!default {\n\
 
 # Create entrypoint script with debug info
 RUN echo '#!/bin/bash\n\
-# Start pulseaudio daemon\n\
-pulseaudio --start --exit-idle-time=-1 -vvv &\n\
+echo "Starting PulseAudio in system mode (root) ..."\n\
+pulseaudio --system --daemonize=no --exit-idle-time=-1 --disallow-module-loading -vvv &\n\
+\n\
 sleep 2\n\
 \n\
 # Show audio debug info\n\
 echo "=== PulseAudio Status ==="\n\
-pactl info\n\
-pactl list\n\
+pactl info || true\n\
+pactl list || true\n\
 \n\
 echo "=== ALSA Status ==="\n\
 aplay -l || true\n\
@@ -74,26 +82,13 @@ cat /proc/asound/cards || true\n\
 echo "=== OpenAL Info ==="\n\
 openal-info || true\n\
 \n\
-# Configure the null sink\n\
-pactl load-module module-null-sink sink_name=DummyOutput channels=2 channel_map=front-left,front-right rate=44100\n\
-pactl set-default-sink DummyOutput\n\
-\n\
 # Set environment variables for OpenAL\n\
 export ALSOFT_DRIVERS=pulse\n\
 export ALSOFT_LOGLEVEL=4\n\
 export ALSOFT_LOGFILE=/tmp/openal.log\n\
 \n\
-# Create log file\n\
-touch /tmp/openal.log\n\
-\n\
-# Run the command with debug output\n\
-cd /app\n\
-ALSOFT_DRIVERS=pulse ALSOFT_LOGLEVEL=4 ALSOFT_LOGFILE=/tmp/openal.log $*\n\
-\n\
-# Show OpenAL log if it exists\n\
-echo "=== OpenAL Log ==="\n\
-cat /tmp/openal.log || true' > /entrypoint.sh && \
-    chmod +x /entrypoint.sh
+# Run the actual command\n\
+exec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 WORKDIR /app
 
@@ -116,4 +111,4 @@ RUN dotnet build --no-restore
 
 # Set the entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["dotnet", "test", "--no-build"] 
+CMD ["dotnet", "test", "--logger", "console;verbosity=detailed"] 
