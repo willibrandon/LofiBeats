@@ -10,10 +10,16 @@ public class TelemetryEvent
     /// </summary>
     public required string Name { get; set; }
 
+    private DateTimeOffset _timestamp;
+
     /// <summary>
     /// Gets or sets the timestamp when the event occurred.
     /// </summary>
-    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset Timestamp
+    {
+        get => _timestamp;
+        set => _timestamp = value.ToUniversalTime();
+    }
 
     /// <summary>
     /// Gets or sets the properties associated with the event.
@@ -24,4 +30,9 @@ public class TelemetryEvent
     /// Gets or sets the session ID associated with this event.
     /// </summary>
     public string? SessionId { get; set; }
+
+    public TelemetryEvent()
+    {
+        Timestamp = DateTimeOffset.UtcNow;
+    }
 } 

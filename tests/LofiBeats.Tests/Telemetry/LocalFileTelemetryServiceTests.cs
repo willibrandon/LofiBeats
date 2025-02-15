@@ -220,6 +220,132 @@ public class LocalFileTelemetryServiceTests : IAsyncDisposable
             Times.AtLeastOnce);
     }
 
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task ConcurrentEvents_AreAllRecorded()
+    {
+        // Arrange
+        const int numEvents = 50;
+        var events = Enumerable.Range(1, numEvents)
+            .Select(i => $"ConcurrentEvent_{i}")
+            .ToList();
+
+        // Act
+        await Parallel.ForEachAsync(events, async (eventName, ct) =>
+        {
+            _service.TrackEvent(eventName);
+            await Task.Delay(10, ct); // Small delay to ensure overlap
+        });
+
+        await _service.FlushAsync();
+
+        // Assert
+        var telemetryEvents = await GetTelemetryItemsFromFiles<TelemetryEvent>();
+        Assert.Equal(numEvents, telemetryEvents.Count);
+        Assert.All(events, expectedEvent =>
+            Assert.Contains(telemetryEvents, e => e.Name == expectedEvent));
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task MultipleFlushes_CreateSeparateFiles()
+    {
+        // Arrange
+        var initialFiles = Directory.GetFiles(_testTelemetryPath, "telemetry_*.json").Length;
+
+        // Act
+        _service.TrackEvent("Event1");
+        await _service.FlushAsync();
+        
+        _service.TrackEvent("Event2");
+        await _service.FlushAsync();
+
+        // Assert
+        var files = Directory.GetFiles(_testTelemetryPath, "telemetry_*.json");
+        Assert.Equal(initialFiles + 2, files.Length);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task LargePropertyValues_AreHandledCorrectly()
+    {
+        // Arrange
+        var largeValue = new string('x', 10000); // 10KB string
+        var properties = new Dictionary<string, string>
+        {
+            { "LargeProperty", largeValue }
+        };
+
+        // Act
+        _service.TrackEvent("LargePropertyEvent", properties);
+        await _service.FlushAsync();
+
+        // Assert
+        var events = await GetTelemetryItemsFromFiles<TelemetryEvent>();
+        var testEvent = Assert.Single(events);
+        Assert.Equal(largeValue, testEvent.Properties?["LargeProperty"]);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task DisposedService_IgnoresNewEvents()
+    {
+        // Arrange
+        _service.TrackEvent("BeforeDispose");
+        await _service.FlushAsync();
+        
+        var initialEvents = await GetTelemetryItemsFromFiles<TelemetryEvent>();
+        var initialCount = initialEvents.Count;
+
+        // Act
+        await _service.DisposeAsync();
+        _service.TrackEvent("AfterDispose");
+        
+        // Assert
+        var finalEvents = await GetTelemetryItemsFromFiles<TelemetryEvent>();
+        Assert.Equal(initialCount, finalEvents.Count);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task InvalidBasePath_ThrowsException()
+    {
+        // Arrange
+        var invalidPath = Path.Combine(Path.GetInvalidPathChars().First().ToString());
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<IOException>(() =>
+        {
+            var service = new LocalFileTelemetryService(_loggerMock.Object, invalidPath);
+            return service.FlushAsync();
+        });
+        
+        Assert.Contains("filename, directory name, or volume label syntax is incorrect", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task TimestampsAreUtc_AcrossAllTelemetry()
+    {
+        // Arrange & Act
+        var beforeTime = DateTimeOffset.UtcNow;
+        _service.TrackEvent("TimestampEvent");
+        _service.TrackMetric("TimestampMetric", 42.0);
+        _service.TrackException(new Exception("TimestampException"));
+        var afterTime = DateTimeOffset.UtcNow;
+        await _service.FlushAsync();
+
+        // Assert
+        var events = await GetTelemetryItemsFromFiles<TelemetryEvent>();
+        var metrics = await GetTelemetryItemsFromFiles<TelemetryMetric>();
+        
+        // Verify all timestamps are between our before and after times
+        Assert.All(events, e => Assert.True(e.Timestamp >= beforeTime && e.Timestamp <= afterTime,
+            $"Event timestamp {e.Timestamp} should be between {beforeTime} and {afterTime}"));
+        Assert.All(metrics, m => Assert.True(m.Timestamp >= beforeTime && m.Timestamp <= afterTime,
+            $"Metric timestamp {m.Timestamp} should be between {beforeTime} and {afterTime}"));
+    }
+
     public async ValueTask DisposeAsync()
     {
         try

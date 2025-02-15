@@ -15,10 +15,16 @@ public class TelemetryMetric
     /// </summary>
     public double Value { get; set; }
 
+    private DateTimeOffset _timestamp;
+
     /// <summary>
     /// Gets or sets the timestamp when the metric was recorded.
     /// </summary>
-    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset Timestamp
+    {
+        get => _timestamp;
+        set => _timestamp = value.ToUniversalTime();
+    }
 
     /// <summary>
     /// Gets or sets the properties associated with the metric.
@@ -29,4 +35,9 @@ public class TelemetryMetric
     /// Gets or sets the session ID associated with this metric.
     /// </summary>
     public string? SessionId { get; set; }
+
+    public TelemetryMetric()
+    {
+        Timestamp = DateTimeOffset.UtcNow;
+    }
 } 
