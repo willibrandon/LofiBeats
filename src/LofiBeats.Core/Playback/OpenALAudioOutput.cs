@@ -79,19 +79,23 @@ public class OpenALAudioOutput : IAudioOutput
             {
                 int processed = AL.GetSource(_source, ALGetSourcei.BuffersProcessed);
                 
-                for (int i = 0; i < processed; i++)
+                // Only process buffers if we're not paused
+                if (!_isPaused)
                 {
-                    int buffer = AL.SourceUnqueueBuffer(_source);
-                    if (QueueBuffer(buffer))
+                    for (int i = 0; i < processed; i++)
                     {
-                        AL.SourceQueueBuffer(_source, buffer);
+                        int buffer = AL.SourceUnqueueBuffer(_source);
+                        if (QueueBuffer(buffer))
+                        {
+                            AL.SourceQueueBuffer(_source, buffer);
+                        }
                     }
-                }
 
-                var state = AL.GetSource(_source, ALGetSourcei.SourceState);
-                if (state == (int)ALSourceState.Stopped)
-                {
-                    AL.SourcePlay(_source);
+                    var state = AL.GetSource(_source, ALGetSourcei.SourceState);
+                    if (state == (int)ALSourceState.Stopped)
+                    {
+                        AL.SourcePlay(_source);
+                    }
                 }
             }
             Thread.Sleep(10);
@@ -102,12 +106,28 @@ public class OpenALAudioOutput : IAudioOutput
     {
         if (_waveProvider == null) return false;
 
-        byte[] data = new byte[BUFFER_SIZE];
+        // Calculate buffer size based on wave format
+        int bytesPerSample = _waveProvider.WaveFormat.BitsPerSample / 8;
+        int channels = _waveProvider.WaveFormat.Channels;
+        int frameSize = bytesPerSample * channels;
+        
+        // Ensure buffer size is a multiple of the frame size
+        int bufferSize = (BUFFER_SIZE / frameSize) * frameSize;
+        
+        byte[] data = new byte[bufferSize];
         int bytesRead = _waveProvider.Read(data, 0, data.Length);
         
         if (bytesRead == 0) return false;
 
-        var format = _waveProvider.WaveFormat.Channels == 2 ? ALFormat.Stereo16 : ALFormat.Mono16;
+        ALFormat format;
+        if (_waveProvider.WaveFormat.Encoding == WaveFormatEncoding.IeeeFloat)
+        {
+            format = channels == 2 ? ALFormat.StereoFloat32Ext : ALFormat.MonoFloat32Ext;
+        }
+        else
+        {
+            format = channels == 2 ? ALFormat.Stereo16 : ALFormat.Mono16;
+        }
         
         unsafe
         {
@@ -122,6 +142,11 @@ public class OpenALAudioOutput : IAudioOutput
 
     public void Play()
     {
+        if (_waveProvider == null)
+        {
+            throw new InvalidOperationException("No valid audio output device initialized. Call Init() with a valid wave provider first.");
+        }
+
         if (_isPlaying && !_isPaused) return;
 
         if (_isPaused)
@@ -162,18 +187,30 @@ public class OpenALAudioOutput : IAudioOutput
     {
         if (!_isPlaying) return;
 
+        // Stop playback first
         AL.SourceStop(_source);
-        AL.SourceRewind(_source); // Rewind the source
         
-        // Clear all queued buffers
+        // Get the number of queued buffers
         int queued = AL.GetSource(_source, ALGetSourcei.BuffersQueued);
-        for (int i = 0; i < queued; i++)
+        
+        if (queued > 0)
         {
-            AL.SourceUnqueueBuffer(_source);
+            // Unqueue all buffers at once
+            int[] buffers = new int[queued];
+            AL.SourceUnqueueBuffers(_source, queued, buffers);
+            
+            // Delete all buffers in our list
+            if (_buffers.Count > 0)
+            {
+                AL.DeleteBuffers(_buffers.ToArray());
+                _buffers.Clear();
+            }
         }
-
+        
+        // Final rewind to ensure the source is in a clean state
+        AL.SourceRewind(_source);
+        
         _isPlaying = false;
-        _isPaused = false;
     }
 
     public void SetVolume(float volume)

@@ -8,6 +8,7 @@ RUN apt-get update && \
         alsa-utils \
         pulseaudio \
         pulseaudio-utils \
+        pavucontrol \
         libasound2-plugins \
         alsa-oss \
         strace \
@@ -24,7 +25,7 @@ ENV MSBuildEnableWorkloadResolver=false
 RUN mkdir -p /etc/pulse && \
     echo "load-module module-native-protocol-unix auth-anonymous=1\n\
 load-module module-native-protocol-tcp auth-anonymous=1\n\
-load-module module-null-sink sink_name=DummyOutput channels=2 channel_map=front-left,front-right rate=44100\n\
+load-module module-null-sink sink_name=DummyOutput channels=2 channel_map=front-left,front-right rate=44100 format=float32le\n\
 load-module module-always-sink\n\
 set-default-sink DummyOutput" > /etc/pulse/system.pa && \
     echo "daemonize = no\n\
@@ -34,7 +35,11 @@ allow-module-loading = no\n\
 allow-exit = no\n\
 enable-shm = yes\n\
 enable-memfd = yes\n\
-flat-volumes = no" > /etc/pulse/daemon.conf
+flat-volumes = no\n\
+default-sample-format = float32le\n\
+default-sample-rate = 44100\n\
+default-sample-channels = 2\n\
+default-channel-map = front-left,front-right" > /etc/pulse/daemon.conf
 
 # Configure OpenAL to use PulseAudio
 RUN mkdir -p /etc/openal && \
@@ -73,6 +78,8 @@ sleep 2\n\
 # Show audio debug info\n\
 echo "=== PulseAudio Status ==="\n\
 pactl info || true\n\
+echo "=== PulseAudio Sinks (Detailed) ==="\n\
+pactl list sinks || true\n\
 pactl list short || true\n\
 \n\
 echo "=== ALSA Status ==="\n\
