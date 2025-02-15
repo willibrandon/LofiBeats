@@ -33,14 +33,12 @@
 	</Target>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" />
 		<PackageReference Include="Microsoft.Extensions.Logging" />
 		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" />
 		<PackageReference Include="System.CommandLine" />
 		<PackageReference Include="System.Management" />
 		<ProjectReference Include="..\LofiBeats.Core\LofiBeats.Core.csproj" />
-		<ProjectReference Include="..\LofiBeats.Service\LofiBeats.Service.csproj" PrivateAssets="all" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -51,21 +49,15 @@
 	</ItemGroup>
 
 	<Target Name="CopyServiceSettings" BeforeTargets="Build">
-		<Copy SourceFiles="..\LofiBeats.Service\appsettings.json" 
-			  DestinationFiles="$(OutDir)service.appsettings.json" />
-		<Copy SourceFiles="..\LofiBeats.Service\appsettings.Development.json" 
-			  DestinationFiles="$(OutDir)service.appsettings.Development.json"
-			  Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')" />
+		<Copy SourceFiles="..\LofiBeats.Service\appsettings.json" DestinationFiles="$(OutDir)service.appsettings.json" />
+		<Copy SourceFiles="..\LofiBeats.Service\appsettings.Development.json" DestinationFiles="$(OutDir)service.appsettings.Development.json" Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')" />
 	</Target>
 
 	<Target Name="SetPackageFiles" BeforeTargets="GenerateNuspec">
 		<ItemGroup>
 			<None Include="$(OutDir)appsettings.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/appsettings.json" />
 			<None Include="$(OutDir)service.appsettings.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/service.appsettings.json" />
-			<None Include="$(OutDir)service.appsettings.Development.json" 
-				  Pack="true" 
-				  PackagePath="tools/$(TargetFramework)/any/service.appsettings.Development.json"
-				  Condition="Exists('$(OutDir)service.appsettings.Development.json')" />
+			<None Include="$(OutDir)service.appsettings.Development.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/service.appsettings.Development.json" Condition="Exists('$(OutDir)service.appsettings.Development.json')" />
 		</ItemGroup>
 	</Target>
 

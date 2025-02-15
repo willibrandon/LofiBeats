@@ -21,8 +21,6 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.OpenApi" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
-		<PackageReference Include="Serilog" />
-		<PackageReference Include="Serilog.Sinks.Seq" />
 	</ItemGroup>
 
 	<ItemGroup>
