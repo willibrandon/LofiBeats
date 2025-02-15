@@ -1,6 +1,32 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0-preview-bookworm-slim
 
+# Install OpenAL and ALSA utilities
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libopenal1 \
+        libopenal-data \
+        alsa-utils \
+        kmod && \
+    ldconfig && \
+    rm -rf /var/lib/apt/lists/*
+
+# Configure ALSA to use null output
+RUN mkdir -p /etc/alsa/conf.d
+COPY asound.conf /etc/asound.conf
+
+# Create a script to setup audio
+RUN echo '#!/bin/bash\n\
+mkdir -p /dev/snd\n\
+if [ ! -e /dev/snd/seq ]; then\n\
+    ln -s /dev/null /dev/snd/seq\n\
+fi\n\
+exec "$@"' > /entrypoint.sh && \
+    chmod +x /entrypoint.sh
+
 WORKDIR /app
+
+# Copy the Directory.Packages.props file
+COPY Directory.Packages.props .
 
 # Copy solution and project files first to optimize layer caching
 COPY *.sln .
@@ -15,5 +41,9 @@ RUN dotnet restore /p:TreatWarningsAsErrors=false
 # Copy the rest of the code
 COPY . .
 
-# Run tests, excluding Windows-specific tests
-ENTRYPOINT ["dotnet", "test", "--filter", "Category!=Platform_Specific"] 
+# Build the project
+RUN dotnet build --no-restore
+
+# Use our entrypoint script
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["dotnet", "test", "--filter", "Category!=Platform_Specific", "--no-build", "--verbosity:normal"] 

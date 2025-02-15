@@ -3,9 +3,6 @@ using LofiBeats.Core.Playback;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NAudio.Wave;
-using System.Runtime.InteropServices;
-using System.Threading;
-using Xunit;
 
 namespace LofiBeats.Tests.Playback;
 

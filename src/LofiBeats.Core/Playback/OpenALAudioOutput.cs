@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;
 using OpenTK.Audio.OpenAL;
-using System.Runtime.InteropServices;
 
 namespace LofiBeats.Core.Playback;
 

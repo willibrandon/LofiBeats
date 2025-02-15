@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Moq.Protected;
 using System.Net;
-using System.Runtime.InteropServices;
 
 namespace LofiBeats.Tests.Integration;
 
@@ -146,11 +145,11 @@ public class ServiceConnectionHelperTests : IDisposable
     public async Task EnsureServiceRunning_WhenServiceNotRunning_StartsNewService()
     {
         // Arrange
-        var responses = new Queue<HttpResponseMessage>(new[]
-        {
+        var responses = new Queue<HttpResponseMessage>(
+        [
             new HttpResponseMessage(HttpStatusCode.ServiceUnavailable), // First check fails
             new HttpResponseMessage(HttpStatusCode.OK)                  // Second check succeeds
-        });
+        ]);
 
         SetupHttpMockResponses(responses);
         Environment.SetEnvironmentVariable("MOCK_SERVICE_TEST", "true");
@@ -225,12 +224,12 @@ public class ServiceConnectionHelperTests : IDisposable
     public async Task SendCommand_WhenServiceNotRunning_StartsServiceBeforeSendingCommand()
     {
         // Arrange
-        var responses = new Queue<HttpResponseMessage>(new[]
-        {
+        var responses = new Queue<HttpResponseMessage>(
+        [
             new HttpResponseMessage(HttpStatusCode.ServiceUnavailable), // Initial health check fails
             new HttpResponseMessage(HttpStatusCode.OK),                 // Service starts successfully
             new HttpResponseMessage(HttpStatusCode.OK)                  // Command succeeds
-        });
+        ]);
 
         _httpHandlerMock
             .Protected()
@@ -347,11 +346,11 @@ public class ServiceConnectionHelperTests : IDisposable
     {
         // Arrange
         // First set up successful health check to pass EnsureServiceRunning
-        var responses = new Queue<HttpResponseMessage>(new[]
-        {
+        var responses = new Queue<HttpResponseMessage>(
+        [
             new HttpResponseMessage(HttpStatusCode.OK),                  // Health check succeeds
             new HttpResponseMessage(HttpStatusCode.InternalServerError)  // Command fails
-        });
+        ]);
 
         SetupHttpMockResponses(responses);
         Environment.SetEnvironmentVariable("MOCK_SERVICE_TEST", "true");
