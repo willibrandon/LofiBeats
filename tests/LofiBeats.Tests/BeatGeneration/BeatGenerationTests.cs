@@ -5,6 +5,7 @@ using Moq;
 
 namespace LofiBeats.Tests.BeatGeneration;
 
+[Collection("AI Generated Tests")]
 public class BeatGenerationTests
 {
     private readonly Mock<ILogger<BasicLofiBeatGenerator>> _loggerMock;
@@ -17,6 +18,7 @@ public class BeatGenerationTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void BasicLofiBeatGenerator_ReturnsPattern()
     {
         // Act
@@ -30,6 +32,7 @@ public class BeatGenerationTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void BasicLofiBeatGenerator_DrumSequence_HasValidLength()
     {
         // Act
@@ -40,6 +43,7 @@ public class BeatGenerationTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void BasicLofiBeatGenerator_ChordProgression_HasValidLength()
     {
         // Act
@@ -50,6 +54,7 @@ public class BeatGenerationTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void BasicLofiBeatGenerator_DrumSequence_ContainsValidElements()
     {
         // Act
@@ -61,6 +66,7 @@ public class BeatGenerationTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void BasicLofiBeatGenerator_ChordProgression_ContainsValidChords()
     {
         // Act

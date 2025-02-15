@@ -8,6 +8,7 @@ using System.Net.Http.Json;
 
 namespace LofiBeats.Tests.Integration;
 
+[Collection("AI Generated Tests")]
 public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;
@@ -32,6 +33,7 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task PlaybackLifecycle_Success()
     {
         // Start playback
@@ -68,6 +70,7 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task PauseWithoutPlaying_ReturnsBadRequest()
     {
         var response = await _client.PostAsync("/api/lofi/pause", null);
@@ -77,6 +80,7 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task ResumeWithoutPausing_ReturnsBadRequest()
     {
         // First start playback to get into a playing state
@@ -89,6 +93,7 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task ResumeAfterPlayAndPause_ShouldWork()
     {
         var testService = _factory.Services.GetRequiredService<IAudioPlaybackService>();

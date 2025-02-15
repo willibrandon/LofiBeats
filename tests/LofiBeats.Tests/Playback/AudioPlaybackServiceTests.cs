@@ -6,6 +6,7 @@ using NAudio.Wave;
 
 namespace LofiBeats.Tests.Playback;
 
+[Collection("AI Generated Tests")]
 public class AudioPlaybackServiceTests
 {
     private readonly Mock<ILogger<AudioPlaybackService>> _loggerMock;
@@ -29,6 +30,7 @@ public class AudioPlaybackServiceTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void SetSource_AddsSourceToMixer()
     {
         // Arrange
@@ -39,6 +41,7 @@ public class AudioPlaybackServiceTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void AddEffect_AddsEffectToMixer()
     {
         // Arrange
@@ -49,6 +52,7 @@ public class AudioPlaybackServiceTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void RemoveEffect_RemovesEffectFromMixer()
     {
         // Arrange
@@ -63,6 +67,7 @@ public class AudioPlaybackServiceTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void StartPlayback_WithNoSource_AddsTestTone()
     {
         // Arrange
@@ -73,6 +78,7 @@ public class AudioPlaybackServiceTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void StopPlayback_RemovesSource()
     {
         // Arrange

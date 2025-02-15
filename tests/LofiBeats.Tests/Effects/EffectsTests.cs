@@ -5,6 +5,7 @@ using NAudio.Wave;
 
 namespace LofiBeats.Tests.Effects;
 
+[Collection("AI Generated Tests")]
 public class EffectsTests
 {
     private readonly Mock<ILogger<VinylCrackleEffect>> _vinylLoggerMock;
@@ -35,6 +36,7 @@ public class EffectsTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void VinylCrackleEffect_ModifiesSampleData()
     {
         // Arrange
@@ -73,6 +75,7 @@ public class EffectsTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void VinylCrackleEffect_PreservesWaveFormat()
     {
         // Arrange
@@ -83,6 +86,7 @@ public class EffectsTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void LowPassFilter_ModifiesSampleData()
     {
         // Arrange
@@ -110,6 +114,7 @@ public class EffectsTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void LowPassFilter_PreservesWaveFormat()
     {
         // Arrange
@@ -120,6 +125,7 @@ public class EffectsTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void EffectFactory_CreatesVinylEffect()
     {
         // Arrange
@@ -137,6 +143,7 @@ public class EffectsTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void EffectFactory_CreatesLowPassEffect()
     {
         // Arrange

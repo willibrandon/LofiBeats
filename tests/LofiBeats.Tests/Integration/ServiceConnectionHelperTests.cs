@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 
 namespace LofiBeats.Tests.Integration;
 
+[Collection("AI Generated Tests")]
 public class ServiceConnectionHelperTests : IDisposable
 {
     private readonly Mock<ILogger<ServiceConnectionHelper>> _loggerMock;
@@ -120,6 +121,7 @@ public class ServiceConnectionHelperTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task IsServiceRunning_WhenHealthCheckSucceeds_ReturnsTrue()
     {
         // Arrange
@@ -140,6 +142,7 @@ public class ServiceConnectionHelperTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task EnsureServiceRunning_WhenServiceNotRunning_StartsNewService()
     {
         // Arrange
@@ -174,6 +177,7 @@ public class ServiceConnectionHelperTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task ShutdownService_WhenServiceRunning_SendsShutdownCommand()
     {
         // Arrange
@@ -194,6 +198,7 @@ public class ServiceConnectionHelperTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task SendCommand_ExecutesRequestWithCorrectEndpoint()
     {
         // Arrange
@@ -216,6 +221,7 @@ public class ServiceConnectionHelperTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task SendCommand_WhenServiceNotRunning_StartsServiceBeforeSendingCommand()
     {
         // Arrange
@@ -256,6 +262,7 @@ public class ServiceConnectionHelperTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task EnsureServiceRunning_WhenStartupFails_ThrowsException()
     {
         // Arrange
@@ -281,6 +288,7 @@ public class ServiceConnectionHelperTests : IDisposable
     }
 
     [SkippableFact]
+    [Trait("Category", "AI_Generated")]
     public async Task GetExistingServiceProcesses_WhenMockProcessTest_ReturnsCurrentProcess()
     {
         Skip.IfNot(RuntimeInformation.IsOSPlatform(OSPlatform.Windows), "Process management tests are Windows-only");
@@ -311,6 +319,7 @@ public class ServiceConnectionHelperTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task ShutdownService_WhenServiceNotRunning_LogsAndReturns()
     {
         // Arrange
@@ -332,6 +341,7 @@ public class ServiceConnectionHelperTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task SendCommand_WhenCommandFails_ThrowsException()
     {
         // Arrange
@@ -360,6 +370,7 @@ public class ServiceConnectionHelperTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task EnsureServiceRunning_WhenServiceAlreadyRunning_DoesNotStartNew()
     {
         // Arrange
