@@ -12,16 +12,17 @@ namespace LofiBeats.Tests.Playback
         private readonly Mock<ILogger<OpenALAudioOutput>> _loggerMock;
         private readonly TestWaveProvider _waveProvider;
         private readonly OpenALAudioOutput? _openAL;
-        private readonly bool _isLinux;
+        private readonly bool _isUnix;
 
         public OpenALAudioOutputTests()
         {
             _loggerMock = new Mock<ILogger<OpenALAudioOutput>>();
             _waveProvider = new TestWaveProvider();
-            _isLinux = RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+            _isUnix = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || 
+                      RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
             
-            // Only create OpenAL instance if we're on Linux
-            if (_isLinux)
+            // Only create OpenAL instance if we're on Linux or macOS
+            if (_isUnix)
             {
                 _openAL = new OpenALAudioOutput(_loggerMock.Object);
                 _openAL.Init(_waveProvider);
@@ -30,7 +31,7 @@ namespace LofiBeats.Tests.Playback
 
         public void Dispose()
         {
-            if (_isLinux)
+            if (_isUnix)
             {
                 _openAL?.Dispose();
             }
@@ -39,7 +40,7 @@ namespace LofiBeats.Tests.Playback
         [SkippableFact]
         public void Play_ProcessesAudioData()
         {
-            Skip.IfNot(_isLinux, "Test only runs on Linux");
+            Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
             Assert.NotNull(_openAL);
 
             // Arrange
@@ -65,7 +66,7 @@ namespace LofiBeats.Tests.Playback
         [SkippableFact]
         public void Pause_StopsProcessingAudio()
         {
-            Skip.IfNot(_isLinux, "Test only runs on Linux");
+            Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
             Assert.NotNull(_openAL);
 
             // Arrange
@@ -93,7 +94,7 @@ namespace LofiBeats.Tests.Playback
         [SkippableFact]
         public void Stop_ClearsBuffers()
         {
-            Skip.IfNot(_isLinux, "Test only runs on Linux");
+            Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
             Assert.NotNull(_openAL);
 
             // Arrange
@@ -151,7 +152,7 @@ namespace LofiBeats.Tests.Playback
         [SkippableFact]
         public void SetVolume_AffectsGain()
         {
-            Skip.IfNot(_isLinux, "Test only runs on Linux");
+            Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
             Assert.NotNull(_openAL);
 
             // Act
@@ -168,7 +169,7 @@ namespace LofiBeats.Tests.Playback
         [Fact]
         public void Play_WithNullDevice_ThrowsException()
         {
-            Skip.IfNot(_isLinux, "Test only runs on Linux");
+            Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
 
             // Arrange
             var logger = new Mock<ILogger<OpenALAudioOutput>>().Object;
