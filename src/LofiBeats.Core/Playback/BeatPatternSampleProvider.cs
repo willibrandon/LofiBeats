@@ -11,10 +11,10 @@ public class BeatPatternSampleProvider : ISampleProvider
     private readonly WaveFormat _waveFormat;
     private float _phase;
     private int _currentStep;
-    private readonly float[] _frequencies = new[] { 440f, 587.33f, 659.25f, 783.99f }; // A4, D5, E5, G5
+    private readonly float[] _frequencies = [440f, 587.33f, 659.25f, 783.99f]; // A4, D5, E5, G5
     private int _samplesPerStep;
     private int _currentSampleInStep;
-    private readonly Random _rand = new Random();
+    private readonly Random _rand = new();
     private float _kickPhase;
     private float _kickFreq = 150f; // Starting frequency for kick
     private readonly float[] _noiseBuffer = new float[1024]; // For noise-based sounds

@@ -11,23 +11,23 @@ public class BasicLofiBeatGenerator : BaseBeatGenerator
     {
     }
 
-    protected override string[][] DefineChordProgressions() => new[]
-    {
-        new[] { "Fmaj7", "Am7", "Dm7", "G7" },      // ii-V-I progression
-        new[] { "Am7", "Dm7", "Em7", "Am7" },       // Minor progression
-        new[] { "Cmaj7", "Am7", "Fmaj7", "G7" },    // I-vi-IV-V progression
-        new[] { "Dm7", "G7", "Cmaj7", "Am7" },      // ii-V-I-vi progression
-        new[] { "Em7", "A7", "Dm7", "G7" }          // iii-VI-ii-V progression
-    };
+    protected override string[][] DefineChordProgressions() =>
+    [
+        ["Fmaj7", "Am7", "Dm7", "G7"],      // ii-V-I progression
+        ["Am7", "Dm7", "Em7", "Am7"],       // Minor progression
+        ["Cmaj7", "Am7", "Fmaj7", "G7"],    // I-vi-IV-V progression
+        ["Dm7", "G7", "Cmaj7", "Am7"],      // ii-V-I-vi progression
+        ["Em7", "A7", "Dm7", "G7"]          // iii-VI-ii-V progression
+    ];
 
-    protected override string[][] DefineDrumPatterns() => new[]
-    {
-        new[] { "kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat" },           // Basic pattern
-        new[] { "kick", "hat", "snare", "kick", "kick", "hat", "snare", "hat" },          // Double kick
-        new[] { "kick", "hat", "snare", "hat", "kick", "kick", "snare", "hat" },          // Syncopated
-        new[] { "kick", "hat", "_", "hat", "kick", "hat", "snare", "hat" },               // With rest
-        new[] { "kick", "hat", "snare", "hat", "kick", "hat", "snare", "kick" }           // Kick end
-    };
+    protected override string[][] DefineDrumPatterns() =>
+    [
+        ["kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat"],           // Basic pattern
+        ["kick", "hat", "snare", "kick", "kick", "hat", "snare", "hat"],          // Double kick
+        ["kick", "hat", "snare", "hat", "kick", "kick", "snare", "hat"],          // Syncopated
+        ["kick", "hat", "_", "hat", "kick", "hat", "snare", "hat"],               // With rest
+        ["kick", "hat", "snare", "hat", "kick", "hat", "snare", "kick"]           // Kick end
+    ];
 
     protected override void ModifyPattern(string[] pattern)
     {
