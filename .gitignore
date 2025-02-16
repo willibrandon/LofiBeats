@@ -405,3 +405,7 @@ FodyWeavers.xsd
 .act.secrets
 .act.logs/
 act-artifacts/
+
+# Test logs and archives
+scripts/logs/
+scripts/logs_*.zip

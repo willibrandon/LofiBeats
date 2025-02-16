@@ -114,6 +114,8 @@ case $PKG_MANAGER in
             ["alsa"]="alsa-utils"
             ["gdiplus"]="libgdiplus"
             ["libc"]="libc6"
+            ["pulseaudio"]="pulseaudio"
+            ["pavucontrol"]="pavucontrol"
         )
         ;;
     "dnf")
@@ -122,6 +124,8 @@ case $PKG_MANAGER in
             ["alsa"]="alsa-utils"
             ["gdiplus"]="libgdiplus"
             ["libc"]="glibc"
+            ["pulseaudio"]="pulseaudio"
+            ["pavucontrol"]="pavucontrol"
         )
         ;;
     "pacman")
@@ -130,69 +134,72 @@ case $PKG_MANAGER in
             ["alsa"]="alsa-utils"
             ["gdiplus"]="libgdiplus"
             ["libc"]="glibc"
+            ["pulseaudio"]="pulseaudio"
+            ["pavucontrol"]="pavucontrol"
         )
         ;;
 esac
 
 # Check and install required packages
 echo -e "\n${GREEN}Checking required packages...${NC}"
+FAILED=0
+
 for pkg in "${!PACKAGES[@]}"; do
     if ! check_package "$PKG_MANAGER" "${PACKAGES[$pkg]}"; then
         install_package "$PKG_MANAGER" "${PACKAGES[$pkg]}"
+        # Verify installation
+        if ! check_package "$PKG_MANAGER" "${PACKAGES[$pkg]}"; then
+            echo -e "${RED}Failed to install ${PACKAGES[$pkg]}${NC}"
+            FAILED=1
+        fi
     fi
 done
-
-# Optional packages
-declare -A OPTIONAL_PACKAGES
-case $PKG_MANAGER in
-    "apt")
-        OPTIONAL_PACKAGES=(
-            ["pulseaudio"]="pulseaudio"
-            ["pavucontrol"]="pavucontrol"
-        )
-        ;;
-    "dnf")
-        OPTIONAL_PACKAGES=(
-            ["pulseaudio"]="pulseaudio"
-            ["pavucontrol"]="pavucontrol"
-        )
-        ;;
-    "pacman")
-        OPTIONAL_PACKAGES=(
-            ["pulseaudio"]="pulseaudio"
-            ["pavucontrol"]="pavucontrol"
-        )
-        ;;
-esac
-
-# Offer to install optional packages
-echo -e "\n${YELLOW}Would you like to install optional audio utilities? (y/N)${NC}"
-read -r response
-if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
-    for pkg in "${!OPTIONAL_PACKAGES[@]}"; do
-        check_package "$PKG_MANAGER" "${OPTIONAL_PACKAGES[$pkg]}"
-    done
-fi
 
 # Test audio setup
 echo -e "\n${GREEN}Testing audio setup...${NC}"
 echo "Available audio devices:"
-aplay -l
+if ! command -v aplay &> /dev/null; then
+    echo -e "${RED}aplay not found - ALSA installation failed${NC}"
+    FAILED=1
+else
+    aplay -l || FAILED=1
+fi
 
 # Test OpenAL
 if command -v openal-info &> /dev/null; then
     echo -e "\n${GREEN}Testing OpenAL...${NC}"
-    openal-info
+    openal-info || FAILED=1
 else
     echo -e "${YELLOW}openal-info not available. OpenAL is installed but the test utility is not.${NC}"
+    # Check for OpenAL library
+    if ! test -e /usr/lib*/libopenal.so*; then
+        echo -e "${RED}OpenAL library not found${NC}"
+        FAILED=1
+    fi
 fi
 
 # Create LofiBeats directory
 LOFI_DIR="$HOME/.local/share/LofiBeats"
-mkdir -p "$LOFI_DIR"
+mkdir -p "$LOFI_DIR" || FAILED=1
 
-echo -e "\n${GREEN}Setup complete!${NC}"
-echo "You can now run LofiBeats. If you experience audio issues:"
-echo "1. Run 'alsamixer' to check volume levels"
-echo "2. Run 'pavucontrol' to configure PulseAudio settings"
-echo "3. Ensure your user is in the 'audio' group: sudo usermod -a -G audio $USER" 
+echo -e "\n${YELLOW}IMPORTANT: .NET Runtime Requirement${NC}"
+echo "LofiBeats requires the .NET runtime to be installed. If you haven't installed it yet:"
+echo "1. Visit https://dotnet.microsoft.com/download/dotnet"
+echo "2. Follow the installation instructions for your Linux distribution"
+echo "3. Run 'dotnet --info' to verify the installation"
+echo ""
+echo "For detailed instructions, visit:"
+echo "https://learn.microsoft.com/dotnet/core/install/linux"
+echo ""
+
+if [ $FAILED -eq 0 ]; then
+    echo -e "${GREEN}Setup complete!${NC}"
+    echo "You can now run LofiBeats. If you experience audio issues:"
+    echo "1. Run 'alsamixer' to check volume levels"
+    echo "2. Run 'pavucontrol' to configure PulseAudio settings"
+    echo "3. Ensure your user is in the 'audio' group: sudo usermod -a -G audio $USER"
+    exit 0
+else
+    echo -e "${RED}Setup failed - some components could not be installed or verified${NC}"
+    exit 1
+fi 
