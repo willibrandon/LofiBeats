@@ -13,18 +13,14 @@ param(
     [switch]$Parallel
 )
 
-# Test matrix - Distribution:Tag pairs
+# Test matrix - Distribution:Tag pairs with corresponding .NET images
 $DISTROS = @{
-    "debian:12"                = "Debian Bookworm"
-    "debian:11"                = "Debian Bullseye"
-    "ubuntu:22.04"             = "Ubuntu LTS"
-    "ubuntu:23.10"             = "Ubuntu Latest"
-    "fedora:39"                = "Fedora Latest"
-    "fedora:38"                = "Fedora Previous"
-    "almalinux:9"              = "RHEL 9 Compatible"
-    "rockylinux:9"             = "RHEL 9 Compatible"
-    "archlinux:latest"         = "Arch Linux"
-    "manjarolinux/base:latest" = "Manjaro"
+    # Debian-based
+    "mcr.microsoft.com/dotnet/sdk:9.0.100-preview.2-bookworm-slim"       = "Debian 12 (Bookworm)"
+    # Ubuntu-based
+    "mcr.microsoft.com/dotnet/sdk:9.0.100-preview.2-jammy"               = "Ubuntu 22.04 LTS"
+    # RHEL-based (using CBL-Mariner)
+    "mcr.microsoft.com/dotnet/sdk:9.0.100-preview.2-cbl-mariner2.0"      = "CBL-Mariner 2.0"
 }
 
 # If specific distros were provided, filter the hashtable
@@ -83,14 +79,34 @@ function Create-Dockerfile {
     @"
 FROM ${distro}
 
-# Install basic requirements for the script
+# Install basic requirements based on the base distribution
 RUN if command -v apt-get > /dev/null; then \
-        apt-get update && apt-get install -y bash dos2unix file; \
+        apt-get update && \
+        apt-get install -y bash dos2unix file \
+            alsa-utils libasound2 libasound2-plugins \
+            pulseaudio pavucontrol \
+            libopenal1 openal-info && \
+        rm -rf /var/lib/apt/lists/*; \
     elif command -v dnf > /dev/null; then \
-        dnf install -y bash dos2unix file; \
-    elif command -v pacman > /dev/null; then \
-        pacman -Sy --noconfirm bash dos2unix file; \
+        dnf install -y bash dos2unix file \
+            alsa-utils alsa-lib alsa-plugins-pulseaudio \
+            pulseaudio pavucontrol \
+            openal-soft openal-soft-utils && \
+        dnf clean all; \
+    elif command -v microdnf > /dev/null; then \
+        microdnf install -y bash dos2unix file \
+            alsa-utils alsa-lib alsa-plugins-pulseaudio \
+            pulseaudio pavucontrol \
+            openal-soft openal-soft-utils && \
+        microdnf clean all; \
     fi
+
+# Create dummy sound device for testing
+RUN mkdir -p /etc/alsa/conf.d && \
+    echo 'pcm.dummy { type hw card 0 }' > /etc/alsa/conf.d/99-dummy.conf && \
+    echo 'ctl.dummy { type hw card 0 }' >> /etc/alsa/conf.d/99-dummy.conf && \
+    echo 'pcm.!default { type plug slave.pcm "dummy" }' >> /etc/alsa/conf.d/99-dummy.conf && \
+    echo 'ctl.!default { type plug slave.ctl "dummy" }' >> /etc/alsa/conf.d/99-dummy.conf
 
 # Create working directory
 WORKDIR /app
@@ -100,6 +116,9 @@ COPY install-linux-deps.sh .
 COPY test.sh .
 RUN chmod +x install-linux-deps.sh test.sh && \
     dos2unix install-linux-deps.sh test.sh
+
+# Verify .NET installation
+RUN dotnet --info
 
 CMD ["./test.sh"]
 "@ | Set-Content -Path $dockerfilePath -NoNewline
@@ -164,6 +183,139 @@ function Test-Distribution {
 $RESULTS = @{}
 $PASSED = 0
 $FAILED = 0
+
+# Function to validate MCR image existence
+function Test-McrImage {
+    param (
+        [string]$image
+    )
+    
+    Write-Verbose "Validating image: $image"
+    
+    try {
+        # For MCR images, we need to use a different authentication endpoint
+        $authUrl = "https://mcr.microsoft.com/v2/"
+        $auth = Invoke-RestMethod -Uri $authUrl
+        
+        # Extract repository path after mcr.microsoft.com/
+        $repoPath = ($image -split 'mcr.microsoft.com/')[1]
+        $repo, $tag = $repoPath -split ':'
+        
+        # Query MCR directly
+        $manifestUrl = "https://mcr.microsoft.com/v2/$repo/manifests/$tag"
+        $headers = @{
+            'Accept' = 'application/vnd.docker.distribution.manifest.v2+json'
+        }
+        
+        $response = Invoke-WebRequest -Uri $manifestUrl -Headers $headers -SkipHttpErrorCheck
+        
+        if ($response.StatusCode -eq 200) {
+            Write-Verbose "✅ Verified image: $image"
+            return $true
+        } else {
+            Write-Warning "❌ Image not found: $image"
+            Write-Verbose "Status code: $($response.StatusCode)"
+            return $false
+        }
+    }
+    catch {
+        Write-Warning "❌ Failed to verify image: $image"
+        Write-Verbose "Error: $_"
+        return $false
+    }
+}
+
+# Function to validate all test images
+function Test-AllImages {
+    $invalidImages = @()
+    $progress = 0
+    $total = $DISTROS.Count
+    
+    Write-Host "`nValidating .NET images..." -ForegroundColor Yellow
+    foreach ($distro in $DISTROS.Keys) {
+        $progress++
+        Write-Host "[$progress/$total] Checking $distro... " -NoNewline
+        
+        if (Test-McrImage $distro) {
+            Write-Host "✅" -ForegroundColor Green
+        } else {
+            Write-Host "❌" -ForegroundColor Red
+            $invalidImages += $distro
+        }
+    }
+    
+    if ($invalidImages.Count -gt 0) {
+        Write-Host "`nThe following images are not available:" -ForegroundColor Red
+        foreach ($img in $invalidImages) {
+            Write-Host "  - $img" -ForegroundColor Red
+        }
+        Write-Host "`nPlease verify the image tags at: https://mcr.microsoft.com/en-us/product/dotnet/sdk/tags" -ForegroundColor Yellow
+        return $false
+    }
+    
+    Write-Host "`nAll images validated successfully." -ForegroundColor Green
+    return $true
+}
+
+# Function to pull images in parallel
+function Pull-Images {
+    param (
+        [switch]$Parallel
+    )
+    
+    Write-Host "`nPulling .NET images..." -ForegroundColor Yellow
+    
+    if ($Parallel -and (Get-Command Start-ThreadJob -ErrorAction SilentlyContinue)) {
+        $jobs = @()
+        foreach ($distro in $DISTROS.Keys) {
+            $jobs += Start-ThreadJob -Name $distro -ScriptBlock {
+                param($image)
+                docker pull $image
+            } -ArgumentList $distro
+        }
+        
+        $progress = 0
+        $total = $jobs.Count
+        
+        foreach ($job in $jobs) {
+            $progress++
+            Write-Host "[$progress/$total] Pulling $($job.Name)... " -NoNewline
+            
+            $result = Receive-Job -Job $job -Wait
+            if ($?) {
+                Write-Host "✅" -ForegroundColor Green
+            } else {
+                Write-Host "❌" -ForegroundColor Red
+                Write-Warning "Failed to pull $($job.Name)"
+            }
+            Remove-Job -Job $job
+        }
+    } else {
+        $progress = 0
+        $total = $DISTROS.Count
+        
+        foreach ($distro in $DISTROS.Keys) {
+            $progress++
+            Write-Host "[$progress/$total] Pulling $distro... " -NoNewline
+            
+            if (docker pull $distro) {
+                Write-Host "✅" -ForegroundColor Green
+            } else {
+                Write-Host "❌" -ForegroundColor Red
+                Write-Warning "Failed to pull $distro"
+            }
+        }
+    }
+}
+
+# Validate and pull images before testing
+if (-not (Test-AllImages)) {
+    Write-Error "One or more .NET images are not available. Please check the image tags and try again."
+    exit 1
+}
+
+Write-Host "`nPulling required images..."
+Pull-Images -Parallel:$Parallel
 
 # Run tests for each distribution
 if ($Parallel -and (Get-Command Start-ThreadJob -ErrorAction SilentlyContinue)) {
@@ -253,4 +405,4 @@ if ($FAILED -eq 0) {
     Write-Host "`nSome tests failed. Check logs directory for details." -ForegroundColor Red
     Write-Host "Archived logs available at: $logArchive" -ForegroundColor Yellow
     exit 1
-} 
+}

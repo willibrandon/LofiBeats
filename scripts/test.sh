@@ -43,12 +43,127 @@ check_library() {
     fi
 }
 
+# Function to check audio setup
+check_audio_setup() {
+    log "=== Testing Audio Setup ==="
+    local failed=0
+    
+    # Check ALSA configuration
+    log "Checking ALSA configuration..."
+    if [ -f "/etc/alsa/conf.d/99-dummy.conf" ]; then
+        log "${GREEN}✅ ALSA dummy device config exists${NC}"
+        
+        # Verify the dummy device is properly configured
+        if grep -q "pcm.!default" "/etc/alsa/conf.d/99-dummy.conf" && \
+           grep -q "ctl.!default" "/etc/alsa/conf.d/99-dummy.conf"; then
+            log "${GREEN}✅ ALSA dummy device properly configured${NC}"
+        else
+            log "${RED}❌ ALSA dummy device configuration is incomplete${NC}"
+            failed=1
+        fi
+    else
+        log "${RED}❌ ALSA dummy device config missing${NC}"
+        failed=1
+    fi
+    
+    # Test ALSA functionality
+    log "Testing ALSA configuration..."
+    if aplay -l 2>&1 | grep -q "no soundcards found"; then
+        log "${RED}❌ ALSA cannot detect any devices (including dummy)${NC}"
+        failed=1
+    else
+        log "${GREEN}✅ ALSA device detection working${NC}"
+    fi
+    
+    # Verify ALSA libraries
+    log "Checking ALSA libraries..."
+    if ldconfig -p | grep -q "libasound.so"; then
+        log "${GREEN}✅ ALSA libraries installed${NC}"
+    else
+        log "${RED}❌ ALSA libraries missing${NC}"
+        failed=1
+    fi
+    
+    # Test OpenAL
+    log "Testing OpenAL..."
+    if ! command -v openal-info >/dev/null 2>&1; then
+        log "${RED}❌ openal-info not available${NC}"
+        failed=1
+    else
+        local openal_output
+        openal_output=$(openal-info 2>&1)
+        
+        # Check for basic OpenAL functionality
+        if echo "$openal_output" | grep -q "Available playback devices"; then
+            log "${GREEN}✅ OpenAL device enumeration working${NC}"
+        else
+            log "${RED}❌ OpenAL cannot enumerate devices${NC}"
+            failed=1
+        fi
+        
+        # Check for specific OpenAL components
+        if echo "$openal_output" | grep -q "ALC version"; then
+            log "${GREEN}✅ OpenAL ALC subsystem working${NC}"
+        else
+            log "${RED}❌ OpenAL ALC subsystem not working${NC}"
+            failed=1
+        fi
+    fi
+    
+    # Check OpenAL libraries
+    log "Checking OpenAL libraries..."
+    if ldconfig -p | grep -q "libopenal.so"; then
+        log "${GREEN}✅ OpenAL libraries installed${NC}"
+    else
+        log "${RED}❌ OpenAL libraries missing${NC}"
+        failed=1
+    fi
+    
+    # Check PulseAudio setup
+    log "Testing PulseAudio configuration..."
+    if command -v pulseaudio >/dev/null 2>&1; then
+        log "${GREEN}✅ PulseAudio installed${NC}"
+        
+        # Check for PulseAudio ALSA plugin
+        if ldconfig -p | grep -q "libasound_module_conf_pulse.so\|libpulse.so"; then
+            log "${GREEN}✅ PulseAudio ALSA integration available${NC}"
+        else
+            log "${RED}❌ PulseAudio ALSA integration missing${NC}"
+            failed=1
+        fi
+    else
+        log "${RED}❌ PulseAudio not installed${NC}"
+        failed=1
+    fi
+    
+    return $failed
+}
+
 # Log test start
 log "=== Starting Test ==="
 log "Testing installation on $(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d '"')"
 log "Working directory: $(pwd)"
 log "System information:"
 uname -a
+
+# Check .NET installation
+log "=== Checking .NET Installation ==="
+if ! command -v dotnet >/dev/null 2>&1; then
+    log "${RED}❌ .NET SDK not found${NC}"
+    FAILED=1
+else
+    dotnet_version=$(dotnet --version)
+    log "${GREEN}✅ .NET SDK version: $dotnet_version${NC}"
+    
+    # Verify .NET runtime
+    log "Checking .NET runtime..."
+    if dotnet --list-runtimes | grep -q "Microsoft.NETCore.App 9.0"; then
+        log "${GREEN}✅ .NET 9.0 runtime is installed${NC}"
+    else
+        log "${RED}❌ .NET 9.0 runtime not found${NC}"
+        FAILED=1
+    fi
+fi
 
 # Pre-installation component check
 log "=== Pre-Installation Component Check ==="
@@ -97,6 +212,9 @@ else
     log "${RED}❌ 'audio' group not found${NC}"
     FAILED=1
 fi
+
+# Test audio setup
+check_audio_setup || FAILED=1
 
 # Print test summary
 log "=== Test Summary ==="
