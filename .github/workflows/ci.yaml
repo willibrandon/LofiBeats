@@ -17,7 +17,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         configuration: [Debug, Release]
     runs-on: ${{ matrix.os }}
     
@@ -35,7 +35,15 @@ jobs:
     - name: Install Linux Audio Dependencies
       if: runner.os == 'Linux'
       run: |
+        # Install .NET SDK dependencies
         sudo apt-get update
+        sudo apt-get install -y wget apt-transport-https
+        wget https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+        sudo dpkg -i packages-microsoft-prod.deb
+        sudo apt-get update
+        sudo apt-get install -y dotnet-sdk-9.0
+        
+        # Install audio dependencies
         sudo apt-get install -y libopenal1
         sudo apt-get install -y --no-install-recommends \
           libopenal1 \
@@ -48,7 +56,7 @@ jobs:
           alsa-oss \
           dbus \
           psmisc
-
+        
         # Stop any existing PulseAudio processes
         sudo killall pulseaudio || true
         sudo killall -9 pulseaudio || true
@@ -202,9 +210,32 @@ jobs:
         else
           # Set OpenAL environment variables
           export ALSOFT_DRIVERS=pulse
-          export ALSOFT_LOGLEVEL=2
+          export ALSOFT_LOGLEVEL=4
           export ALSOFT_LOGFILE=/tmp/openal.log
-          dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --filter "Category!=Platform_Specific"
+          export XDG_RUNTIME_DIR=/run/pulse
+          export HOME=/var/run/pulse
+          
+          # Get the current PATH and .NET paths
+          CURRENT_PATH=$PATH
+          DOTNET_PATH=$(which dotnet)
+          DOTNET_ROOT=$(dirname $(readlink -f $(which dotnet)))
+          
+          # Run tests as pulse user to ensure proper audio access
+          sudo -E -u pulse \
+            PATH="$CURRENT_PATH" \
+            XDG_RUNTIME_DIR=/run/pulse \
+            HOME=/var/run/pulse \
+            ALSOFT_DRIVERS=pulse \
+            ALSOFT_LOGLEVEL=4 \
+            ALSOFT_LOGFILE=/tmp/openal.log \
+            DOTNET_ROOT="$DOTNET_ROOT" \
+            "$DOTNET_PATH" test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --filter "Category!=Platform_Specific"
+          
+          # Display OpenAL log if it exists
+          if [ -f /tmp/openal.log ]; then
+            echo "OpenAL Log:"
+            cat /tmp/openal.log
+          fi
         fi
       shell: bash
       
