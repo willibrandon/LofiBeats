@@ -180,7 +180,7 @@ jobs:
         export XDG_RUNTIME_DIR=/run/pulse
         
         # Start PulseAudio as pulse user
-        runuser -u pulse -- \
+        sudo runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           pulseaudio --system \
@@ -191,33 +191,33 @@ jobs:
         sleep 5  # Give time for PulseAudio to start
         
         # Verify PulseAudio is running and show debug info
-        runuser -u pulse -- \
+        sudo runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           pulseaudio --check || true
         
         # Show audio debug info
-        runuser -u pulse -- \
+        sudo runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           pactl info || true
-        runuser -u pulse -- \
+        sudo runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           pactl list sinks || true
-        runuser -u pulse -- \
+        sudo runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           pactl list short || true
-        runuser -u pulse -- \
+        sudo runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           aplay -l || true
-        runuser -u pulse -- \
+        sudo runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           cat /proc/asound/cards || true
-        runuser -u pulse -- \
+        sudo runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           openal-info || true
