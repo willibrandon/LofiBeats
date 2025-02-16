@@ -84,6 +84,9 @@ jobs:
       with:
         fetch-depth: 0
     
+    - name: Install dependencies
+      run: dotnet restore
+      
     - name: Build
       run: dotnet build --configuration ${{ matrix.configuration }} --no-restore
       
