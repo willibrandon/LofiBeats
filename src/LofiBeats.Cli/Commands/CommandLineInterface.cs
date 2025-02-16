@@ -60,7 +60,7 @@ public class CommandLineInterface : IDisposable
         LoggerMessage.Define(LogLevel.Information, new EventId(15, "ExecutingUpdateCommand"), "Executing update command");
 
     private static readonly string[] ValidEffects = ["vinyl", "reverb", "lowpass", "tapeflutter"];
-    private static readonly string[] ValidBeatStyles = ["basic", "jazzy", "chillhop"];
+    private static readonly string[] ValidBeatStyles = ["basic", "jazzy", "chillhop", "hiphop"];
 
     private static void ShowSpinner(string message, int durationMs)
     {
@@ -122,12 +122,13 @@ public class CommandLineInterface : IDisposable
             Description = "Creates a new beat pattern using the specified style. Each style has unique characteristics:\n" +
                          "  - basic: Standard lofi beat pattern\n" +
                          "  - jazzy: Syncopated rhythms with jazz-inspired elements\n" +
-                         "  - chillhop: Laid-back beats with hip-hop influence"
+                         "  - chillhop: Laid-back beats with hip-hop influence\n" +
+                         "  - hiphop: Classic hip-hop inspired beats with boom-bap elements"
         };
         var generateStyleOption = new Option<string>(
             "--style",
             () => "basic",
-            "Beat style (basic, jazzy, chillhop)");
+            "Beat style (basic, jazzy, chillhop, hiphop)");
         generateStyleOption.AddValidator(result =>
         {
             var value = result.GetValueOrDefault<string>();
@@ -171,7 +172,7 @@ public class CommandLineInterface : IDisposable
 
         // Add play command
         var playCommand = new Command("play", "Plays a new lofi beat");
-        var styleOption = new Option<string>("--style", () => "basic", "Beat style (basic, jazzy, chillhop)");
+        var styleOption = new Option<string>("--style", () => "basic", "Beat style (basic, jazzy, chillhop, hiphop)");
         playCommand.AddOption(styleOption);
 
         playCommand.SetHandler(async (string style) =>

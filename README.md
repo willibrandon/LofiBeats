@@ -4,7 +4,7 @@ A cross-platform command-line tool and service for generating and playing lofi b
 
 ## Features
 
-- Generate lofi beats with different styles (basic, jazzy, chillhop)
+- Generate lofi beats with different styles (basic, jazzy, chillhop, hiphop)
 - Real-time audio effects:
   - Tape Stop
   - Vinyl Simulation (Flutter and Hiss)
@@ -135,6 +135,10 @@ dotnet test --filter "Category=AI_Generated"
 1. Create a new effect class in `src/LofiBeats.Core/Effects`
 2. Implement the `IAudioEffect` interface
 3. Register the effect in `EffectFactory.cs`
+
+### Test Container
+
+For running tests in CI or containerized environments, we provide a Docker container with a pre-configured audio testing environment. See [CONTAINER.md](CONTAINER.md) for details.
 
 ## Contributing
 
