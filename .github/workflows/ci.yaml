@@ -48,20 +48,29 @@ jobs:
           openal-tools
         sudo ldconfig
 
-        # Create required directories with correct permissions
+        # Stop any existing PulseAudio processes
+        sudo killall pulseaudio || true
+        
+        # Create and set permissions for PulseAudio directories
         sudo mkdir -p /var/run/pulse
         sudo mkdir -p /var/lib/pulse
-        sudo chmod -R 777 /var/run/pulse
-        sudo chmod -R 777 /var/lib/pulse
+        sudo mkdir -p /run/pulse
+        sudo mkdir -p /root/.config/pulse
+        
+        # Set proper ownership
+        sudo chown -R pulse:pulse /var/run/pulse
+        sudo chown -R pulse:pulse /var/lib/pulse
+        sudo chown -R pulse:pulse /run/pulse
+        sudo chown -R root:root /root/.config/pulse
+        
+        # Set directory permissions
+        sudo chmod -R 755 /var/run/pulse
+        sudo chmod -R 755 /var/lib/pulse
+        sudo chmod -R 755 /run/pulse
+        sudo chmod -R 700 /root/.config/pulse
         
         # Configure PulseAudio for system mode
         sudo mkdir -p /etc/pulse
-        sudo bash -c 'echo "load-module module-native-protocol-unix auth-anonymous=1
-        load-module module-native-protocol-tcp auth-anonymous=1
-        load-module module-null-sink sink_name=DummyOutput channels=2 channel_map=front-left,front-right rate=44100 format=float32le
-        load-module module-always-sink
-        set-default-sink DummyOutput" > /etc/pulse/system.pa'
-        
         sudo bash -c 'echo "daemonize = no
         system-instance = yes
         exit-idle-time = -1
@@ -73,7 +82,33 @@ jobs:
         default-sample-format = float32le
         default-sample-rate = 44100
         default-sample-channels = 2
-        default-channel-map = front-left,front-right" > /etc/pulse/daemon.conf'
+        default-channel-map = front-left,front-right
+        
+        # Load protocols with anonymous auth
+        load-module module-native-protocol-unix auth-anonymous=1
+        load-module module-native-protocol-tcp auth-anonymous=1
+        
+        # Create null sink
+        load-module module-null-sink sink_name=DummyOutput channels=2 channel_map=front-left,front-right rate=44100 format=float32le
+        load-module module-always-sink
+        
+        # Set default sink
+        set-default-sink DummyOutput" > /etc/pulse/system.pa'
+        
+        # Create client configuration
+        sudo bash -c 'echo "# Connect to system instance
+        default-server = unix:/run/pulse/native
+        autospawn = no
+        daemon-binary = /bin/true
+        enable-shm = yes" > /etc/pulse/client.conf'
+        
+        # Create daemon configuration
+        sudo bash -c 'echo "# System mode configuration
+        daemonize = no
+        system-instance = yes
+        exit-idle-time = -1
+        allow-module-loading = yes
+        allow-exit = yes" > /etc/pulse/daemon.conf'
         
         # Configure OpenAL
         sudo mkdir -p /etc/openal
@@ -102,25 +137,19 @@ jobs:
             type pulse
         }" > /etc/asound.conf'
 
-        # Create PulseAudio socket directory
-        sudo mkdir -p /run/pulse
-        sudo chmod -R 777 /run/pulse
-        
-    # Start PulseAudio in system mode on Linux
+    # Start PulseAudio in system mode
     - name: Start PulseAudio
       if: runner.os == 'Linux'
       run: |
-        # Kill any existing PulseAudio processes
-        sudo killall pulseaudio || true
+        # Export runtime directory for root
+        export XDG_RUNTIME_DIR=/run/pulse
         
-        # Start PulseAudio with sudo
+        # Start PulseAudio with root privileges
         sudo -E pulseaudio --system --disallow-exit --exit-idle-time=-1 --log-level=4 &
-        sleep 5  # Give more time to start up
+        sleep 5  # Give time for PulseAudio to start
         
-        # Verify PulseAudio is running
-        ps aux | grep pulse
-        
-        # Show audio debug info
+        # Verify PulseAudio is running and show debug info
+        sudo -E pulseaudio --check
         sudo -E pactl info || true
         sudo -E pactl list sinks || true
         sudo -E pactl list short || true
@@ -128,6 +157,11 @@ jobs:
         sudo -E cat /proc/asound/cards || true
         sudo -E openal-info || true
         
+        # Set OpenAL environment variables
+        echo "ALSOFT_DRIVERS=pulse" >> $GITHUB_ENV
+        echo "ALSOFT_LOGLEVEL=4" >> $GITHUB_ENV
+        echo "ALSOFT_LOGFILE=/tmp/openal.log" >> $GITHUB_ENV
+
     - name: Install dependencies
       run: dotnet restore
       
