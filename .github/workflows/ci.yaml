@@ -173,51 +173,51 @@ jobs:
     - name: Start PulseAudio
       if: runner.os == 'Linux'
       run: |
-        # Create necessary directories with proper permissions
-        sudo mkdir -p /home/runner/.config/pulse
-        sudo chown -R pulse:pulse /home/runner/.config/pulse
-        sudo chmod -R 700 /home/runner/.config/pulse
+        # Get pulse user ID
+        PULSE_UID=$(id -u pulse)
         
         # Export runtime directory for pulse user
         export XDG_RUNTIME_DIR=/run/pulse
         
-        # Start PulseAudio as root for system mode
-        sudo \
+        # Start PulseAudio as pulse user
+        runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           pulseaudio --system \
           --disallow-exit \
           --disallow-module-loading \
           --exit-idle-time=-1 \
-          --log-level=4 \
-          --realtime &
+          --log-level=4 &
         sleep 5  # Give time for PulseAudio to start
         
         # Verify PulseAudio is running and show debug info
-        sudo pulseaudio --check
+        runuser -u pulse -- \
+          XDG_RUNTIME_DIR=/run/pulse \
+          HOME=/var/run/pulse \
+          pulseaudio --check || true
         
-        # Show audio debug info as pulse user
-        sudo -E -u pulse \
+        # Show audio debug info
+        runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           pactl info || true
-        sudo -E -u pulse \
+        runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           pactl list sinks || true
-        sudo -E -u pulse \
+        runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           pactl list short || true
-        sudo -E -u pulse \
+        runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           aplay -l || true
-        sudo -E -u pulse \
+        runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           cat /proc/asound/cards || true
-        sudo -E -u pulse \
+        runuser -u pulse -- \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           openal-info || true
