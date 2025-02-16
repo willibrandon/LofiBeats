@@ -62,15 +62,12 @@ jobs:
         sudo usermod -s /bin/bash pulse
         sudo passwd -u pulse || true  # Unlock the account if it's locked
         
-        # Get the pulse user's UID for later use
-        PULSE_UID=$(id -u pulse)
-        
         # Create and set permissions for PulseAudio directories
         sudo mkdir -p /var/run/pulse /var/lib/pulse /run/pulse
         sudo mkdir -p /var/run/pulse/.config/pulse
         sudo mkdir -p /etc/pulse /etc/openal
         
-        # Set proper ownership and permissions
+        # Set proper ownership and permissions for PulseAudio directories
         sudo chown -R pulse:pulse /var/run/pulse /var/lib/pulse /run/pulse
         sudo chmod -R 755 /var/run/pulse /var/lib/pulse /run/pulse
         sudo chown -R pulse:pulse /var/run/pulse/.config
@@ -171,43 +168,150 @@ jobs:
         sudo -u pulse touch /var/run/pulse/.config/pulse/cookie
         sudo chmod 600 /var/run/pulse/.config/pulse/cookie
 
-    # Set workspace permissions for pulse user
-    - name: Set Workspace Permissions
+    # Create build output directories with correct permissions
+    - name: Setup Build Directories
       if: runner.os == 'Linux'
       run: |
-        # Ensure the workspace directory exists and set permissions
-        sudo chown -R pulse:pulse $GITHUB_WORKSPACE
-        sudo chmod -R 755 $GITHUB_WORKSPACE
+        # Create build output directories
+        mkdir -p $GITHUB_WORKSPACE/src/*/bin $GITHUB_WORKSPACE/src/*/obj
+        mkdir -p $GITHUB_WORKSPACE/tests/*/bin $GITHUB_WORKSPACE/tests/*/obj
+        
+        # Set permissions for build output directories
+        sudo chown -R $(id -u):$(id -g) $GITHUB_WORKSPACE/src/*/bin $GITHUB_WORKSPACE/src/*/obj
+        sudo chown -R $(id -u):$(id -g) $GITHUB_WORKSPACE/tests/*/bin $GITHUB_WORKSPACE/tests/*/obj
+        sudo chmod -R 755 $GITHUB_WORKSPACE/src/*/bin $GITHUB_WORKSPACE/src/*/obj
+        sudo chmod -R 755 $GITHUB_WORKSPACE/tests/*/bin $GITHUB_WORKSPACE/tests/*/obj
 
-    # Start PulseAudio in system mode
+    # Start PulseAudio in user mode
     - name: Start PulseAudio
       if: runner.os == 'Linux'
       run: |
-        # Get pulse user ID
-        PULSE_UID=$(id -u pulse)
+        # Stop any existing PulseAudio processes
+        sudo killall -9 pulseaudio || true
         
-        # Export runtime directory for pulse user
+        # Clean up any existing PulseAudio files
+        sudo rm -rf /run/pulse/* /var/run/pulse/* /var/lib/pulse/*
+        
+        # Recreate PulseAudio directories with correct permissions
+        sudo mkdir -p /run/pulse /var/run/pulse /var/lib/pulse
+        sudo mkdir -p /var/run/pulse/.config/pulse
+        sudo chown -R pulse:pulse /run/pulse /var/run/pulse /var/lib/pulse
+        sudo chmod -R 755 /run/pulse /var/run/pulse /var/lib/pulse
+        sudo chmod 700 /var/run/pulse/.config
+        
+        # Find PulseAudio module directory
+        PULSE_MODULE_DIR=$(find /usr/lib/pulse-* -type d -name modules -print -quit)
+        echo "Found PulseAudio modules in: $PULSE_MODULE_DIR"
+        
+        # Verify required modules exist
+        for module in module-null-sink.so module-native-protocol-unix.so; do
+          if [ ! -f "$PULSE_MODULE_DIR/$module" ]; then
+            echo "Error: Required module $module not found in $PULSE_MODULE_DIR"
+            exit 1
+          fi
+        done
+        
+        # Create a basic client config that doesn't depend on system files
+        sudo tee /var/run/pulse/.config/pulse/client.conf > /dev/null << EOF
+        default-server = unix:/run/pulse/native
+        autospawn = no
+        daemon-binary = /bin/true
+        enable-shm = yes
+        EOF
+        sudo chown pulse:pulse /var/run/pulse/.config/pulse/client.conf
+        sudo chmod 644 /var/run/pulse/.config/pulse/client.conf
+        
+        # Create a basic daemon config
+        sudo tee /var/run/pulse/.config/pulse/daemon.conf > /dev/null << EOF
+        daemonize = no
+        allow-module-loading = yes
+        allow-exit = yes
+        exit-idle-time = -1
+        flat-volumes = no
+        default-sample-format = float32le
+        default-sample-rate = 44100
+        default-sample-channels = 2
+        default-channel-map = front-left,front-right
+        dl-search-path = ${PULSE_MODULE_DIR}
+        EOF
+        sudo chown pulse:pulse /var/run/pulse/.config/pulse/daemon.conf
+        sudo chmod 644 /var/run/pulse/.config/pulse/daemon.conf
+        
+        # Create default.pa configuration
+        sudo tee /var/run/pulse/.config/pulse/default.pa > /dev/null << EOF
+        #!/usr/bin/pulseaudio -nF
+        
+        .fail
+        
+        load-module module-native-protocol-unix auth-anonymous=1
+        load-module module-null-sink sink_name=DummyOutput channels=2 rate=44100 format=float32le
+        
+        set-default-sink DummyOutput
+        EOF
+        sudo chown pulse:pulse /var/run/pulse/.config/pulse/default.pa
+        sudo chmod 644 /var/run/pulse/.config/pulse/default.pa
+        
+        # Set environment variables
         export XDG_RUNTIME_DIR=/run/pulse
+        export HOME=/var/run/pulse
+        export PULSE_RUNTIME_PATH=/run/pulse
+        export PULSE_CONFIG_PATH=/var/run/pulse/.config/pulse
         
-        # Start PulseAudio as root to enable system mode
-        sudo XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pulseaudio --system --disallow-exit --disallow-module-loading --exit-idle-time=-1 --log-level=4 &
-        sleep 5  # Give time for PulseAudio to start
+        # Start PulseAudio with verbose logging
+        echo "Starting PulseAudio..."
+        sudo -u pulse \
+          XDG_RUNTIME_DIR=/run/pulse \
+          HOME=/var/run/pulse \
+          PULSE_RUNTIME_PATH=/run/pulse \
+          PULSE_CONFIG_PATH=/var/run/pulse/.config/pulse \
+          pulseaudio -vvv --log-level=debug --log-target=stderr --daemonize=no &
         
-        # Verify PulseAudio is running and show debug info
-        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pulseaudio --check || true
+        # Give PulseAudio time to start
+        sleep 5
+        
+        # Wait for PulseAudio to be fully running
+        for i in {1..12}; do
+          if sudo -u pulse \
+            XDG_RUNTIME_DIR=/run/pulse \
+            HOME=/var/run/pulse \
+            PULSE_RUNTIME_PATH=/run/pulse \
+            PULSE_CONFIG_PATH=/var/run/pulse/.config/pulse \
+            pactl info; then
+            echo "PulseAudio is running"
+            break
+          fi
+          echo "Waiting for PulseAudio to start (attempt $i)..."
+          sleep 5
+        done
         
         # Show audio debug info
-        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl info || true
-        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl list sinks || true
-        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl list short || true
-        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse aplay -l || true
-        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse cat /proc/asound/cards || true
-        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse openal-info || true
+        echo "PulseAudio process status:"
+        ps aux | grep pulse
         
-        # Set OpenAL environment variables
+        echo "PulseAudio socket status:"
+        ls -la /run/pulse/
+        
+        echo "Audio debug info:"
+        sudo -u pulse \
+          XDG_RUNTIME_DIR=/run/pulse \
+          HOME=/var/run/pulse \
+          PULSE_RUNTIME_PATH=/run/pulse \
+          PULSE_CONFIG_PATH=/var/run/pulse/.config/pulse \
+          pactl list sinks || true
+          
+        sudo -u pulse \
+          XDG_RUNTIME_DIR=/run/pulse \
+          HOME=/var/run/pulse \
+          PULSE_RUNTIME_PATH=/run/pulse \
+          PULSE_CONFIG_PATH=/var/run/pulse/.config/pulse \
+          pactl list short || true
+        
+        # Set environment variables for subsequent steps
         echo "ALSOFT_DRIVERS=pulse" >> $GITHUB_ENV
         echo "ALSOFT_LOGLEVEL=4" >> $GITHUB_ENV
         echo "ALSOFT_LOGFILE=/tmp/openal.log" >> $GITHUB_ENV
+        echo "PULSE_RUNTIME_PATH=/run/pulse" >> $GITHUB_ENV
+        echo "PULSE_CONFIG_PATH=/var/run/pulse/.config/pulse" >> $GITHUB_ENV
 
     - name: Install dependencies
       run: dotnet restore
@@ -220,28 +324,39 @@ jobs:
         if [ "$RUNNER_OS" == "Windows" ]; then
           dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal
         else
-          # Set OpenAL environment variables
+          # Create test output directory with correct permissions
+          mkdir -p $GITHUB_WORKSPACE/TestResults
+          sudo chown pulse:pulse $GITHUB_WORKSPACE/TestResults
+          
+          # Set environment variables
           export ALSOFT_DRIVERS=pulse
           export ALSOFT_LOGLEVEL=4
           export ALSOFT_LOGFILE=/tmp/openal.log
           export XDG_RUNTIME_DIR=/run/pulse
           export HOME=/var/run/pulse
+          export PULSE_RUNTIME_PATH=/run/pulse
           
           # Get the current PATH and .NET paths
           CURRENT_PATH=$PATH
           DOTNET_PATH=$(which dotnet)
           DOTNET_ROOT=$(dirname $(readlink -f $(which dotnet)))
           
-          # Run tests as pulse user to ensure proper audio access
+          # Run tests as pulse user
           sudo -E -u pulse \
             PATH="$CURRENT_PATH" \
             XDG_RUNTIME_DIR=/run/pulse \
             HOME=/var/run/pulse \
+            PULSE_RUNTIME_PATH=/run/pulse \
             ALSOFT_DRIVERS=pulse \
             ALSOFT_LOGLEVEL=4 \
             ALSOFT_LOGFILE=/tmp/openal.log \
             DOTNET_ROOT="$DOTNET_ROOT" \
-            "$DOTNET_PATH" test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --filter "Category!=Platform_Specific"
+            "$DOTNET_PATH" test \
+              --configuration ${{ matrix.configuration }} \
+              --no-build \
+              --verbosity normal \
+              --filter "Category!=Platform_Specific" \
+              --results-directory "$GITHUB_WORKSPACE/TestResults"
           
           # Display OpenAL log if it exists
           if [ -f /tmp/openal.log ]; then
@@ -264,7 +379,7 @@ jobs:
         name: nuget-package-${{ matrix.os }}
         path: nupkg/*.nupkg
         
-    # Upload test results (if any test runners generate them)
+    # Upload test results
     - name: Upload Test Results
       if: always()
       uses: actions/upload-artifact@v4
