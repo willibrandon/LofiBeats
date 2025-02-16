@@ -30,6 +30,85 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 9.0.x
+
+    # Install OpenAL and PulseAudio dependencies on Linux
+    - name: Install Linux Audio Dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          libopenal1 \
+          libopenal-data \
+          alsa-utils \
+          pulseaudio \
+          pulseaudio-utils \
+          pavucontrol \
+          libasound2-plugins \
+          alsa-oss \
+          openal-info
+        sudo ldconfig
+        
+        # Configure PulseAudio for system mode
+        sudo mkdir -p /etc/pulse
+        sudo bash -c 'echo "load-module module-native-protocol-unix auth-anonymous=1
+        load-module module-native-protocol-tcp auth-anonymous=1
+        load-module module-null-sink sink_name=DummyOutput channels=2 channel_map=front-left,front-right rate=44100 format=float32le
+        load-module module-always-sink
+        set-default-sink DummyOutput" > /etc/pulse/system.pa'
+        
+        sudo bash -c 'echo "daemonize = no
+        system-instance = yes
+        exit-idle-time = -1
+        allow-module-loading = no
+        allow-exit = no
+        enable-shm = yes
+        enable-memfd = yes
+        flat-volumes = no
+        default-sample-format = float32le
+        default-sample-rate = 44100
+        default-sample-channels = 2
+        default-channel-map = front-left,front-right" > /etc/pulse/daemon.conf'
+        
+        # Configure OpenAL
+        sudo mkdir -p /etc/openal
+        sudo bash -c 'echo "drivers=pulse
+        [pulse]
+        allow-moves=true
+        default=true
+        channels=stereo
+        [general]
+        channels=stereo
+        frequency=44100
+        samples=4096
+        debug-level=4
+        disable-denormals=true
+        cf_level=2
+        rt-prio=0
+        period_size=1024
+        periods=4" > /etc/openal/alsoft.conf'
+        
+        # Configure ALSA
+        sudo bash -c 'echo "pcm.!default {
+            type pulse
+        }
+        
+        ctl.!default {
+            type pulse
+        }" > /etc/asound.conf'
+        
+    # Start PulseAudio in system mode on Linux
+    - name: Start PulseAudio
+      if: runner.os == 'Linux'
+      run: |
+        pulseaudio --system --daemonize=no --exit-idle-time=-1 --disallow-module-loading -v &
+        sleep 2
+        # Show audio debug info
+        pactl info || true
+        pactl list sinks || true
+        pactl list short || true
+        aplay -l || true
+        cat /proc/asound/cards || true
+        openal-info || true
         
     - name: Install dependencies
       run: dotnet restore
@@ -42,6 +121,10 @@ jobs:
         if [ "$RUNNER_OS" == "Windows" ]; then
           dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal
         else
+          # Set OpenAL environment variables
+          export ALSOFT_DRIVERS=pulse
+          export ALSOFT_LOGLEVEL=2
+          export ALSOFT_LOGFILE=/tmp/openal.log
           dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --filter "Category!=Platform_Specific"
         fi
       shell: bash
