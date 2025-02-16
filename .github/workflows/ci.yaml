@@ -173,30 +173,30 @@ jobs:
     - name: Start PulseAudio
       if: runner.os == 'Linux'
       run: |
-        # Get the pulse user's UID
-        PULSE_UID=$(id -u pulse)
+        # Create necessary directories with proper permissions
+        sudo mkdir -p /home/runner/.config/pulse
+        sudo chown -R pulse:pulse /home/runner/.config/pulse
+        sudo chmod -R 700 /home/runner/.config/pulse
         
         # Export runtime directory for pulse user
         export XDG_RUNTIME_DIR=/run/pulse
         
-        # Start PulseAudio as pulse user
-        sudo -E -u pulse \
+        # Start PulseAudio as root for system mode
+        sudo \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
           pulseaudio --system \
           --disallow-exit \
           --disallow-module-loading \
           --exit-idle-time=-1 \
-          --log-level=4 &
+          --log-level=4 \
+          --realtime &
         sleep 5  # Give time for PulseAudio to start
         
         # Verify PulseAudio is running and show debug info
-        sudo -E -u pulse \
-          XDG_RUNTIME_DIR=/run/pulse \
-          HOME=/var/run/pulse \
-          pulseaudio --check
+        sudo pulseaudio --check
         
-        # Show audio debug info
+        # Show audio debug info as pulse user
         sudo -E -u pulse \
           XDG_RUNTIME_DIR=/run/pulse \
           HOME=/var/run/pulse \
