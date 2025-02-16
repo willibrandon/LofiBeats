@@ -47,6 +47,12 @@ jobs:
           alsa-oss \
           openal-tools
         sudo ldconfig
+
+        # Create required directories with correct permissions
+        sudo mkdir -p /var/run/pulse
+        sudo mkdir -p /var/lib/pulse
+        sudo chmod -R 777 /var/run/pulse
+        sudo chmod -R 777 /var/lib/pulse
         
         # Configure PulseAudio for system mode
         sudo mkdir -p /etc/pulse
@@ -59,8 +65,8 @@ jobs:
         sudo bash -c 'echo "daemonize = no
         system-instance = yes
         exit-idle-time = -1
-        allow-module-loading = no
-        allow-exit = no
+        allow-module-loading = yes
+        allow-exit = yes
         enable-shm = yes
         enable-memfd = yes
         flat-volumes = no
@@ -95,20 +101,32 @@ jobs:
         ctl.!default {
             type pulse
         }" > /etc/asound.conf'
+
+        # Create PulseAudio socket directory
+        sudo mkdir -p /run/pulse
+        sudo chmod -R 777 /run/pulse
         
     # Start PulseAudio in system mode on Linux
     - name: Start PulseAudio
       if: runner.os == 'Linux'
       run: |
-        pulseaudio --system --daemonize=no --exit-idle-time=-1 --disallow-module-loading -v &
-        sleep 2
+        # Kill any existing PulseAudio processes
+        sudo killall pulseaudio || true
+        
+        # Start PulseAudio with sudo
+        sudo -E pulseaudio --system --disallow-exit --exit-idle-time=-1 --log-level=4 &
+        sleep 5  # Give more time to start up
+        
+        # Verify PulseAudio is running
+        ps aux | grep pulse
+        
         # Show audio debug info
-        pactl info || true
-        pactl list sinks || true
-        pactl list short || true
-        aplay -l || true
-        cat /proc/asound/cards || true
-        openal-info || true
+        sudo -E pactl info || true
+        sudo -E pactl list sinks || true
+        sudo -E pactl list short || true
+        sudo -E aplay -l || true
+        sudo -E cat /proc/asound/cards || true
+        sudo -E openal-info || true
         
     - name: Install dependencies
       run: dotnet restore
