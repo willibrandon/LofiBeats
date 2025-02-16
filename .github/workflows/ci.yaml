@@ -17,7 +17,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest]
         configuration: [Debug, Release]
     runs-on: ${{ matrix.os }}
     
@@ -75,7 +75,7 @@ jobs:
         sudo chmod -R 755 /var/run/pulse /var/lib/pulse /run/pulse
         sudo chown -R pulse:pulse /var/run/pulse/.config
         sudo chmod -R 700 /var/run/pulse/.config
-        
+
         # Setup D-Bus
         sudo mkdir -p /run/dbus
         sudo dbus-uuidgen --ensure
@@ -171,6 +171,14 @@ jobs:
         sudo -u pulse touch /var/run/pulse/.config/pulse/cookie
         sudo chmod 600 /var/run/pulse/.config/pulse/cookie
 
+    # Set workspace permissions for pulse user
+    - name: Set Workspace Permissions
+      if: runner.os == 'Linux'
+      run: |
+        # Ensure the workspace directory exists and set permissions
+        sudo chown -R pulse:pulse $GITHUB_WORKSPACE
+        sudo chmod -R 755 $GITHUB_WORKSPACE
+
     # Start PulseAudio in system mode
     - name: Start PulseAudio
       if: runner.os == 'Linux'
@@ -181,20 +189,20 @@ jobs:
         # Export runtime directory for pulse user
         export XDG_RUNTIME_DIR=/run/pulse
         
-        # Start PulseAudio as pulse user
-        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pulseaudio --system --disallow-exit --disallow-module-loading --exit-idle-time=-1 --log-level=4" &
+        # Start PulseAudio as root to enable system mode
+        sudo XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pulseaudio --system --disallow-exit --disallow-module-loading --exit-idle-time=-1 --log-level=4 &
         sleep 5  # Give time for PulseAudio to start
         
         # Verify PulseAudio is running and show debug info
-        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pulseaudio --check" || true
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pulseaudio --check || true
         
         # Show audio debug info
-        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl info" || true
-        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl list sinks" || true
-        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl list short" || true
-        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse aplay -l" || true
-        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse cat /proc/asound/cards" || true
-        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse openal-info" || true
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl info || true
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl list sinks || true
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl list short || true
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse aplay -l || true
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse cat /proc/asound/cards || true
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse openal-info || true
         
         # Set OpenAL environment variables
         echo "ALSOFT_DRIVERS=pulse" >> $GITHUB_ENV

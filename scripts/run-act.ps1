@@ -6,8 +6,8 @@ Set-Location $repoRoot
 Write-Host "🚀 Running GitHub Actions workflow locally with Act..." -ForegroundColor Cyan
 Write-Host "Using catthehacker/ubuntu:act-latest as the runner image" -ForegroundColor Gray
 
-# Run the build job with verbose output
-act -j build -P ubuntu-latest=catthehacker/ubuntu:act-latest -v
+# Run the test job with verbose output
+act -j build -P ubuntu-latest=catthehacker/ubuntu:act-latest
 
 # Check the exit code
 if ($LASTEXITCODE -eq 0) {
