@@ -14,6 +14,7 @@ public class ServiceConnectionHelper
     private readonly string _serviceUrl;
     private readonly string _servicePath;
     private readonly AsyncRetryPolicy<bool> _healthCheckPolicy;
+    private readonly string _pidFilePath;
 
     private static readonly Action<ILogger, Exception?> _logServiceAlreadyRunning =
         LoggerMessage.Define(LogLevel.Debug, new EventId(1, "ServiceAlreadyRunning"), "LofiBeats service is already running.");
@@ -79,6 +80,15 @@ public class ServiceConnectionHelper
         LoggerMessage.Define<int, TimeSpan>(LogLevel.Debug, new EventId(22, "HealthCheckRetry"), 
             "Health check failed, retrying in {RetryNumber} with delay {Delay}...");
 
+    private static readonly Action<ILogger, int, Exception?> _logFoundPidFile =
+        LoggerMessage.Define<int>(LogLevel.Debug, new EventId(23, "FoundPidFile"), "Found PID file with process ID {ProcessId}");
+
+    private static readonly Action<ILogger, int, Exception?> _logPidFileCreated =
+        LoggerMessage.Define<int>(LogLevel.Debug, new EventId(24, "PidFileCreated"), "Created PID file for process {ProcessId}");
+
+    private static readonly Action<ILogger, Exception?> _logPidFileInvalid =
+        LoggerMessage.Define(LogLevel.Debug, new EventId(25, "PidFileInvalid"), "PID file is invalid or process is no longer running");
+
     public ServiceConnectionHelper(
         ILogger<ServiceConnectionHelper> logger, 
         string serviceUrl = "http://localhost:5000", 
@@ -89,6 +99,7 @@ public class ServiceConnectionHelper
         _httpClient = httpClient ?? new HttpClient();
         _serviceUrl = serviceUrl;
         _servicePath = servicePath ?? GetDefaultServicePath();
+        _pidFilePath = Path.Combine(Path.GetDirectoryName(_servicePath)!, "service.pid");
 
         // Configure Polly retry policy for health checks
         _healthCheckPolicy = Policy<bool>
@@ -170,118 +181,125 @@ public class ServiceConnectionHelper
         }
     }
 
-    private List<Process> GetExistingServiceProcesses()
+    private Process? GetProcessFromPidFile()
     {
-        // For test environment
-        if (Environment.GetEnvironmentVariable("MOCK_PROCESS_TEST") == "true")
+        try
         {
-            return new List<Process> { Process.GetCurrentProcess() };
-        }
+            if (!File.Exists(_pidFilePath))
+                return null;
 
-        var processes = Process.GetProcessesByName("dotnet")
-            .Where(p => p.MainWindowTitle == "")
-            .ToList();
-
-        // Platform-specific process detection
-        if (OperatingSystem.IsWindows())
-        {
-            processes = GetWindowsProcesses(processes);
-        }
-        else if (OperatingSystem.IsLinux())
-        {
-            // On Linux, check process command line through /proc
-            processes = processes.Where(p =>
+            var pidContent = File.ReadAllText(_pidFilePath).Trim();
+            if (int.TryParse(pidContent, out var pid))
             {
-                try
+                _logFoundPidFile(_logger, pid, null);
+                var process = Process.GetProcessById(pid);
+                
+                // Verify it's our service process
+                if (!process.HasExited && IsLofiBeatsServiceProcess(process))
                 {
-                    var cmdline = File.ReadAllText($"/proc/{p.Id}/cmdline");
-                    return cmdline.Contains("LofiBeats.Service.dll");
+                    return process;
                 }
-                catch (Exception ex)
-                {
-                    _logErrorCheckingProcess(_logger, p.Id, ex);
-                    return false;
-                }
-            }).ToList();
+            }
+
+            _logPidFileInvalid(_logger, null);
+            File.Delete(_pidFilePath);
         }
-        else if (OperatingSystem.IsMacOS())
+        catch
         {
-            // On macOS, use ps command
-            processes = processes.Where(p =>
-            {
-                try
-                {
-                    var psi = new ProcessStartInfo
-                    {
-                        FileName = "ps",
-                        Arguments = $"-p {p.Id} -o command",
-                        RedirectStandardOutput = true,
-                        UseShellExecute = false
-                    };
-                    var ps = Process.Start(psi);
-                    if (ps != null)
-                    {
-                        var output = ps.StandardOutput.ReadToEnd();
-                        ps.WaitForExit();
-                        return output.Contains("LofiBeats.Service.dll");
-                    }
-                    return false;
-                }
-                catch (Exception ex)
-                {
-                    _logErrorCheckingProcess(_logger, p.Id, ex);
-                    return false;
-                }
-            }).ToList();
-        }
-        else
-        {
-            _logUnsupportedOs(_logger, null);
-            processes.Clear();
+            // Process doesn't exist or access denied
+            _logPidFileInvalid(_logger, null);
+            try { File.Delete(_pidFilePath); } catch { }
         }
 
-        return processes;
+        return null;
     }
 
-    [SupportedOSPlatformGuard("windows")]
-    private static bool IsWindowsPlatform() => OperatingSystem.IsWindows();
-
-    private List<Process> GetWindowsProcesses(List<Process> processes)
+    private bool IsLofiBeatsServiceProcess(Process process)
     {
-        if (!IsWindowsPlatform())
-            return new List<Process>();
-
-        return GetWindowsProcessesInternal(processes);
-    }
-
-    [SupportedOSPlatform("windows")]
-    private List<Process> GetWindowsProcessesInternal(List<Process> processes)
-    {
-        var result = new List<Process>();
-        foreach (var process in processes)
+        try
         {
-            try
+            if (OperatingSystem.IsWindows())
             {
                 var wmiQuery = $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {process.Id}";
-                var searcher = new System.Management.ManagementObjectSearcher(wmiQuery);
-                var collection = searcher.Get();
+                using var searcher = new System.Management.ManagementObjectSearcher(wmiQuery);
+                using var collection = searcher.Get();
+
+                if (collection.Count == 0)
+                {
+                    _logErrorCheckingProcess(_logger, process.Id, new Exception("WMI query returned no results"));
+                    return false;
+                }
 
                 foreach (var item in collection)
                 {
                     var commandLine = item["CommandLine"]?.ToString();
                     if (commandLine?.Contains("LofiBeats.Service.dll") == true)
                     {
-                        result.Add(process);
-                        break;
+                        return true;
                     }
                 }
+
+                return false;
             }
-            catch (Exception ex)
+            else if (OperatingSystem.IsLinux())
             {
-                _logErrorCheckingProcess(_logger, process.Id, ex);
+                var cmdline = File.ReadAllText($"/proc/{process.Id}/cmdline");
+                return cmdline.Contains("LofiBeats.Service.dll");
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "ps",
+                    Arguments = $"-p {process.Id} -o command",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false
+                };
+                var ps = Process.Start(psi);
+                if (ps != null)
+                {
+                    var output = ps.StandardOutput.ReadToEnd();
+                    ps.WaitForExit();
+                    return output.Contains("LofiBeats.Service.dll");
+                }
             }
         }
-        return result;
+        catch (Exception ex)
+        {
+            _logErrorCheckingProcess(_logger, process.Id, ex);
+        }
+
+        return false;
+    }
+
+    private List<Process> GetExistingServiceProcesses()
+    {
+        // First check the PID file
+        var pidProcess = GetProcessFromPidFile();
+        if (pidProcess != null)
+        {
+            return new List<Process> { pidProcess };
+        }
+
+        // For test environment
+        if (Environment.GetEnvironmentVariable("MOCK_PROCESS_TEST") == "true")
+        {
+            return new List<Process> { Process.GetCurrentProcess() };
+        }
+
+        // Fall back to full process enumeration
+        var processes = Process.GetProcessesByName("dotnet")
+            .Where(p => p.MainWindowTitle == "")
+            .Where(IsLofiBeatsServiceProcess)
+            .ToList();
+
+        // Only log unsupported OS if we're not on a supported platform
+        if (processes.Count == 0 && !OperatingSystem.IsWindows() && !OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+        {
+            _logUnsupportedOs(_logger, null);
+        }
+
+        return processes;
     }
 
     private async Task<bool> IsServiceRunningAsync()
@@ -306,27 +324,10 @@ public class ServiceConnectionHelper
     {
         try
         {
-            var servicePath = GetDefaultServicePath();
-            var serviceDirectory = Path.GetDirectoryName(servicePath)!;
+            var serviceDirectory = Path.GetDirectoryName(_servicePath)!;
 
             // Copy service appsettings if they don't exist
-            var cliDirectory = AppContext.BaseDirectory;
-            var serviceSettings = Path.Combine(cliDirectory, "service.appsettings.json");
-            var serviceDevSettings = Path.Combine(cliDirectory, "service.appsettings.Development.json");
-            var targetSettings = Path.Combine(serviceDirectory, "appsettings.json");
-            var targetDevSettings = Path.Combine(serviceDirectory, "appsettings.Development.json");
-
-            await Task.Run(() =>
-            {
-                if (File.Exists(serviceSettings))
-                {
-                    File.Copy(serviceSettings, targetSettings, true);
-                }
-                if (File.Exists(serviceDevSettings))
-                {
-                    File.Copy(serviceDevSettings, targetDevSettings, true);
-                }
-            });
+            await CopyServiceSettingsAsync(serviceDirectory);
 
             // Start the service process
             var process = new Process
@@ -334,7 +335,7 @@ public class ServiceConnectionHelper
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "dotnet",
-                    Arguments = $"\"{servicePath}\"",
+                    Arguments = $"\"{_servicePath}\"",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -358,13 +359,50 @@ public class ServiceConnectionHelper
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-            _logServiceStarted(_logger, servicePath, null);
+            // Write PID file
+            File.WriteAllText(_pidFilePath, process.Id.ToString());
+            _logPidFileCreated(_logger, process.Id, null);
+
+            _logServiceStarted(_logger, _servicePath, null);
         }
         catch (Exception ex)
         {
             _logFailedToStartService(_logger, ex);
             throw new Exception($"Failed to start LofiBeats service: {ex.Message}", ex);
         }
+    }
+
+    private static async Task CopyServiceSettingsAsync(string serviceDirectory)
+    {
+        var cliDirectory = AppContext.BaseDirectory;
+        var serviceSettings = Path.Combine(cliDirectory, "service.appsettings.json");
+        var serviceDevSettings = Path.Combine(cliDirectory, "service.appsettings.Development.json");
+        var targetSettings = Path.Combine(serviceDirectory, "appsettings.json");
+        var targetDevSettings = Path.Combine(serviceDirectory, "appsettings.Development.json");
+
+        await Task.Run(() =>
+        {
+            if (File.Exists(serviceSettings) && ShouldCopySettings(serviceSettings, targetSettings))
+            {
+                File.Copy(serviceSettings, targetSettings, true);
+            }
+            if (File.Exists(serviceDevSettings) && ShouldCopySettings(serviceDevSettings, targetDevSettings))
+            {
+                File.Copy(serviceDevSettings, targetDevSettings, true);
+            }
+        });
+    }
+
+    private static bool ShouldCopySettings(string source, string destination)
+    {
+        if (!File.Exists(destination))
+            return true;
+
+        var sourceInfo = new FileInfo(source);
+        var destInfo = new FileInfo(destination);
+
+        return sourceInfo.Length != destInfo.Length ||
+               sourceInfo.LastWriteTimeUtc > destInfo.LastWriteTimeUtc;
     }
 
     private static string GetDefaultServicePath()

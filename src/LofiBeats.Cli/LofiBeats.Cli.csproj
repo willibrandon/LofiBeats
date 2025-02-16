@@ -39,6 +39,7 @@
 		<PackageReference Include="System.CommandLine" />
 		<PackageReference Include="System.Management" />
 		<PackageReference Include="Polly" />
+		<PackageReference Include="Polly.Extensions.Http" />
 		<ProjectReference Include="..\LofiBeats.Core\LofiBeats.Core.csproj" />
 	</ItemGroup>
 
