@@ -180,47 +180,19 @@ jobs:
         export XDG_RUNTIME_DIR=/run/pulse
         
         # Start PulseAudio as pulse user
-        sudo runuser -u pulse -- \
-          XDG_RUNTIME_DIR=/run/pulse \
-          HOME=/var/run/pulse \
-          pulseaudio --system \
-          --disallow-exit \
-          --disallow-module-loading \
-          --exit-idle-time=-1 \
-          --log-level=4 &
+        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pulseaudio --system --disallow-exit --disallow-module-loading --exit-idle-time=-1 --log-level=4" &
         sleep 5  # Give time for PulseAudio to start
         
         # Verify PulseAudio is running and show debug info
-        sudo runuser -u pulse -- \
-          XDG_RUNTIME_DIR=/run/pulse \
-          HOME=/var/run/pulse \
-          pulseaudio --check || true
+        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pulseaudio --check" || true
         
         # Show audio debug info
-        sudo runuser -u pulse -- \
-          XDG_RUNTIME_DIR=/run/pulse \
-          HOME=/var/run/pulse \
-          pactl info || true
-        sudo runuser -u pulse -- \
-          XDG_RUNTIME_DIR=/run/pulse \
-          HOME=/var/run/pulse \
-          pactl list sinks || true
-        sudo runuser -u pulse -- \
-          XDG_RUNTIME_DIR=/run/pulse \
-          HOME=/var/run/pulse \
-          pactl list short || true
-        sudo runuser -u pulse -- \
-          XDG_RUNTIME_DIR=/run/pulse \
-          HOME=/var/run/pulse \
-          aplay -l || true
-        sudo runuser -u pulse -- \
-          XDG_RUNTIME_DIR=/run/pulse \
-          HOME=/var/run/pulse \
-          cat /proc/asound/cards || true
-        sudo runuser -u pulse -- \
-          XDG_RUNTIME_DIR=/run/pulse \
-          HOME=/var/run/pulse \
-          openal-info || true
+        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl info" || true
+        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl list sinks" || true
+        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl list short" || true
+        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse aplay -l" || true
+        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse cat /proc/asound/cards" || true
+        sudo runuser -l pulse -c "XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse openal-info" || true
         
         # Set OpenAL environment variables
         echo "ALSOFT_DRIVERS=pulse" >> $GITHUB_ENV
