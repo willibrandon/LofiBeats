@@ -1,7 +1,9 @@
 using LofiBeats.Cli;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Moq.Protected;
 using System.Diagnostics;
+using System.Net;
 using Xunit.Abstractions;
 
 namespace LofiBeats.Tests.Integration;
@@ -10,14 +12,17 @@ public class ServiceStartupPerformanceTests : IDisposable
 {
     private readonly ITestOutputHelper _output;
     private readonly Mock<ILogger<ServiceConnectionHelper>> _loggerMock;
+    private readonly Mock<HttpMessageHandler> _httpHandlerMock;
+    private readonly HttpClient _httpClient;
+    private readonly string _testServicePath;
     private readonly ServiceConnectionHelper _helper;
-    private readonly Stopwatch _totalStopwatch = new();
-    private readonly Dictionary<string, TimeSpan> _operationTimings = new();
+    private readonly List<string> _cleanupFiles = new();
 
     public ServiceStartupPerformanceTests(ITestOutputHelper output)
     {
         _output = output;
         _loggerMock = new Mock<ILogger<ServiceConnectionHelper>>();
+        _httpHandlerMock = new Mock<HttpMessageHandler>();
         
         // Enable all log levels
         _loggerMock.Setup(x => x.IsEnabled(It.IsAny<LogLevel>())).Returns(true);
@@ -44,13 +49,56 @@ public class ServiceStartupPerformanceTests : IDisposable
             }
         }));
 
-        _helper = new ServiceConnectionHelper(_loggerMock.Object);
+        // Create a unique test directory
+        var testDir = Path.Combine(Path.GetTempPath(), "LofiBeatsTests", Guid.NewGuid().ToString());
+        Directory.CreateDirectory(testDir);
+        _cleanupFiles.Add(testDir);
+        
+        _testServicePath = Path.Combine(testDir, "LofiBeats.Service.dll");
+        File.WriteAllText(_testServicePath, "test");
+
+        // Setup HTTP mock with instant responses
+        _httpHandlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+
+        _httpClient = new HttpClient(_httpHandlerMock.Object);
+
+        _helper = new ServiceConnectionHelper(
+            _loggerMock.Object,
+            "http://localhost:5000",
+            _httpClient,
+            _testServicePath);
     }
 
     public void Dispose()
     {
-        // Ensure service is shut down after each test
         _helper.ShutdownServiceAsync().Wait();
+        _httpClient.Dispose();
+        
+        // Clean up test files
+        foreach (var path in _cleanupFiles)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+                else if (Directory.Exists(path))
+                {
+                    Directory.Delete(path, true);
+                }
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+        }
     }
 
     [Fact]
@@ -63,10 +111,29 @@ public class ServiceStartupPerformanceTests : IDisposable
         for (int i = 0; i < numberOfRuns; i++)
         {
             _output.WriteLine($"\nRun {i + 1} of {numberOfRuns}:");
+
+            // Setup HTTP responses for this run
+            var responses = new Queue<HttpResponseMessage>(
+            [
+                new HttpResponseMessage(HttpStatusCode.ServiceUnavailable), // Initial health check
+                new HttpResponseMessage(HttpStatusCode.ServiceUnavailable), // After process check
+                new HttpResponseMessage(HttpStatusCode.OK)                  // After service start
+            ]);
+
+            _httpHandlerMock
+                .Protected()
+                .Setup<Task<HttpResponseMessage>>(
+                    "SendAsync",
+                    ItExpr.IsAny<HttpRequestMessage>(),
+                    ItExpr.IsAny<CancellationToken>())
+                .Returns<HttpRequestMessage, CancellationToken>((_, _) => 
+                    Task.FromResult(responses.Count > 0 
+                        ? responses.Dequeue() 
+                        : new HttpResponseMessage(HttpStatusCode.OK)));
             
             // Ensure service is stopped before each measurement
             await _helper.ShutdownServiceAsync();
-            await Task.Delay(1000); // Give time for full shutdown
+            await Task.Delay(100); // Reduced delay since we're using mocks
             
             results.Add(await MeasureStartupOperations());
             
@@ -75,6 +142,14 @@ public class ServiceStartupPerformanceTests : IDisposable
             {
                 _output.WriteLine($"{operation}: {timing.TotalMilliseconds:F1}ms");
             }
+
+            // Verify the number of HTTP requests
+            _httpHandlerMock.Protected().Verify(
+                "SendAsync",
+                Times.AtLeast(3),
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>()
+            );
         }
 
         // Calculate and log averages
@@ -99,7 +174,10 @@ public class ServiceStartupPerformanceTests : IDisposable
 
         // Create a proxy ServiceConnectionHelper that measures individual operations
         var helper = new ServiceConnectionHelper(
-            new TimingLogger(_loggerMock.Object, operationStopwatch, timings));
+            new TimingLogger(_loggerMock.Object, operationStopwatch, timings),
+            "http://localhost:5000",
+            _httpClient,
+            _testServicePath);
 
         // Measure total startup time
         operationStopwatch.Start();

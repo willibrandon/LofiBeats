@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Polly;
+using Polly.Retry;
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Runtime.Versioning;
@@ -11,6 +13,7 @@ public class ServiceConnectionHelper
     private readonly HttpClient _httpClient;
     private readonly string _serviceUrl;
     private readonly string _servicePath;
+    private readonly AsyncRetryPolicy<bool> _healthCheckPolicy;
 
     private static readonly Action<ILogger, Exception?> _logServiceAlreadyRunning =
         LoggerMessage.Define(LogLevel.Debug, new EventId(1, "ServiceAlreadyRunning"), "LofiBeats service is already running.");
@@ -72,6 +75,10 @@ public class ServiceConnectionHelper
     private static readonly Action<ILogger, int, Exception?> _logRetryingServiceCheck =
         LoggerMessage.Define<int>(LogLevel.Debug, new EventId(21, "RetryingServiceCheck"), "Retrying service check (attempt {Attempt})");
 
+    private static readonly Action<ILogger, int, TimeSpan, Exception?> _logHealthCheckRetry =
+        LoggerMessage.Define<int, TimeSpan>(LogLevel.Debug, new EventId(22, "HealthCheckRetry"), 
+            "Health check failed, retrying in {RetryNumber} with delay {Delay}...");
+
     public ServiceConnectionHelper(
         ILogger<ServiceConnectionHelper> logger, 
         string serviceUrl = "http://localhost:5000", 
@@ -82,17 +89,30 @@ public class ServiceConnectionHelper
         _httpClient = httpClient ?? new HttpClient();
         _serviceUrl = serviceUrl;
         _servicePath = servicePath ?? GetDefaultServicePath();
+
+        // Configure Polly retry policy for health checks
+        _healthCheckPolicy = Policy<bool>
+            .Handle<HttpRequestException>()
+            .Or<TaskCanceledException>()
+            .WaitAndRetryAsync(
+                retryCount: 6, // Maximum of ~6.4 seconds total (100ms, 200ms, 400ms, 800ms, 1600ms, 3200ms)
+                sleepDurationProvider: retryAttempt => 
+                {
+                    var delay = TimeSpan.FromMilliseconds(Math.Min(100 * Math.Pow(2, retryAttempt - 1), 3200));
+                    _logHealthCheckRetry(_logger, retryAttempt, delay, null);
+                    return delay;
+                }
+            );
     }
 
     public async Task EnsureServiceRunningAsync()
     {
         const int maxStartupRetries = 3;
-        const int retryDelayMs = 500;
 
         for (int attempt = 1; attempt <= maxStartupRetries; attempt++)
         {
-            // 1. Check if service is running
-            if (await IsServiceRunningAsync())
+            // 1. Check if service is running using exponential backoff
+            if (await _healthCheckPolicy.ExecuteAsync(IsServiceRunningAsync))
             {
                 _logServiceAlreadyRunning(_logger, null);
                 return;
@@ -104,10 +124,8 @@ public class ServiceConnectionHelper
             {
                 _logFoundExistingProcesses(_logger, null);
                 
-                // Give existing process more time to start up
-                await Task.Delay(retryDelayMs);
-                
-                if (await IsServiceRunningAsync())
+                // Check if process is responding
+                if (await _healthCheckPolicy.ExecuteAsync(IsServiceRunningAsync))
                 {
                     _logConnectedToExistingService(_logger, null);
                     return;
@@ -134,7 +152,6 @@ public class ServiceConnectionHelper
             if (attempt < maxStartupRetries)
             {
                 _logRetryingServiceCheck(_logger, attempt, null);
-                await Task.Delay(retryDelayMs);
                 continue;
             }
 
@@ -142,17 +159,11 @@ public class ServiceConnectionHelper
             _logStartingService(_logger, null);
             await StartServiceAsync();
 
-            // 4. Wait until it responds or timeout
-            const int maxStartupWaitRetries = 10;
-            for (int i = 0; i < maxStartupWaitRetries; i++)
+            // 4. Wait for service to respond using exponential backoff
+            if (await _healthCheckPolicy.ExecuteAsync(IsServiceRunningAsync))
             {
-                await Task.Delay(500); // half a second
-                if (await IsServiceRunningAsync())
-                {
-                    _logServiceStartedSuccessfully(_logger, null);
-                    return;
-                }
-                _logWaitingForServiceStart(_logger, i + 1, maxStartupWaitRetries, null);
+                _logServiceStartedSuccessfully(_logger, null);
+                return;
             }
 
             throw new Exception("Unable to start LofiBeats service after multiple retries.");
@@ -281,7 +292,6 @@ public class ServiceConnectionHelper
             _logHealthCheckResponse(_logger, response.StatusCode.ToString(), (int)response.StatusCode, null);
 
             // Consider both OK and redirect responses as successful
-            // This helps in case HTTPS redirection is re-enabled in the future
             return response.IsSuccessStatusCode || 
                    (int)response.StatusCode is >= 300 and < 400;
         }

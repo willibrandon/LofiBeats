@@ -38,6 +38,7 @@
 		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" />
 		<PackageReference Include="System.CommandLine" />
 		<PackageReference Include="System.Management" />
+		<PackageReference Include="Polly" />
 		<ProjectReference Include="..\LofiBeats.Core\LofiBeats.Core.csproj" />
 	</ItemGroup>
 
