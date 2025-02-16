@@ -58,7 +58,9 @@ jobs:
         # Create pulse user and group if they don't exist
         sudo groupadd -f pulse
         sudo groupadd -f pulse-access
-        sudo useradd -g pulse -G audio,pulse-access -d /var/run/pulse pulse || true
+        sudo useradd -g pulse -G audio,pulse-access -d /var/run/pulse -s /bin/bash pulse || true
+        sudo usermod -s /bin/bash pulse
+        sudo passwd -u pulse || true  # Unlock the account if it's locked
         
         # Get the pulse user's UID for later use
         PULSE_UID=$(id -u pulse)
