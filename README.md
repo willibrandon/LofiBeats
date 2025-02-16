@@ -59,6 +59,18 @@ The script will:
 4. Test your audio setup
 5. Configure user permissions
 
+After installation, you can verify your setup using our verification script:
+```bash
+./scripts/verify-linux-setup.sh
+```
+
+The verification script will:
+- Check all required dependencies
+- Test audio system configuration
+- Verify permissions and directory structure
+- Offer to run an audio playback test
+- Provide troubleshooting tips if issues are found
+
 If you prefer manual installation, ensure you have these dependencies:
 - OpenAL (libopenal1 on Debian/Ubuntu, openal-soft on Fedora, openal on Arch)
 - ALSA utilities
