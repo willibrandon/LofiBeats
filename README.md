@@ -136,6 +136,10 @@ dotnet test --filter "Category=AI_Generated"
 2. Implement the `IAudioEffect` interface
 3. Register the effect in `EffectFactory.cs`
 
+### Test Container
+
+For running tests in CI or containerized environments, we provide a Docker container with a pre-configured audio testing environment. See [CONTAINER.md](CONTAINER.md) for details.
+
 ## Contributing
 
 1. Fork the repository
