@@ -45,7 +45,7 @@ jobs:
           pavucontrol \
           libasound2-plugins \
           alsa-oss \
-          openal-info
+          openal-tools
         sudo ldconfig
         
         # Configure PulseAudio for system mode
