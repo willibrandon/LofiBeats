@@ -3,7 +3,6 @@ using Polly;
 using Polly.Retry;
 using System.Diagnostics;
 using System.Net.Http.Json;
-using System.Runtime.Versioning;
 
 namespace LofiBeats.Cli;
 

@@ -4,7 +4,7 @@ A cross-platform command-line tool and service for generating and playing lofi b
 
 ## Features
 
-- Generate lofi beats with different styles (basic, jazzy, chillhop)
+- Generate lofi beats with different styles (basic, jazzy, chillhop, hiphop)
 - Real-time audio effects:
   - Tape Stop
   - Vinyl Simulation (Flutter and Hiss)
