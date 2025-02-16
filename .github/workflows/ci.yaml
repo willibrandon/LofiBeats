@@ -75,6 +75,7 @@ jobs:
       credentials:
          username: ${{ github.actor }}
          password: ${{ secrets.CONTAINER_REGISTRY_PAT }}
+      options: --init
     strategy:
       matrix:
         configuration: [Debug, Release]
@@ -84,6 +85,9 @@ jobs:
       with:
         fetch-depth: 0
     
+    - name: Setup Audio
+      run: /entrypoint.sh echo "Audio setup complete"
+      
     - name: Install dependencies
       run: dotnet restore
       
