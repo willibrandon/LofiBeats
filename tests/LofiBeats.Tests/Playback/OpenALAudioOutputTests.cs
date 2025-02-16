@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 
 namespace LofiBeats.Tests.Playback
 {
+    [Collection("AI Generated Tests")]
     public class OpenALAudioOutputTests : IDisposable
     {
         private readonly Mock<ILogger<OpenALAudioOutput>> _loggerMock;
@@ -38,6 +39,7 @@ namespace LofiBeats.Tests.Playback
         }
 
         [SkippableFact]
+        [Trait("Category", "AI_Generated")]
         public void Play_ProcessesAudioData()
         {
             Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
@@ -64,6 +66,7 @@ namespace LofiBeats.Tests.Playback
         }
 
         [SkippableFact]
+        [Trait("Category", "AI_Generated")]
         public void Pause_StopsProcessingAudio()
         {
             Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
@@ -92,6 +95,7 @@ namespace LofiBeats.Tests.Playback
         }
 
         [SkippableFact]
+        [Trait("Category", "AI_Generated")]
         public void Stop_ClearsBuffers()
         {
             Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
@@ -150,6 +154,7 @@ namespace LofiBeats.Tests.Playback
         }
 
         [SkippableFact]
+        [Trait("Category", "AI_Generated")]
         public void SetVolume_AffectsGain()
         {
             Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
@@ -167,6 +172,7 @@ namespace LofiBeats.Tests.Playback
         }
 
         [SkippableFact]
+        [Trait("Category", "AI_Generated")]
         public void Play_WithNullDevice_ThrowsException()
         {
             Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
