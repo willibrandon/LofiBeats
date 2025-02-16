@@ -17,7 +17,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest]
         configuration: [Debug, Release]
     runs-on: ${{ matrix.os }}
     
@@ -36,6 +36,7 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
+        sudo apt-get install -y libopenal1
         sudo apt-get install -y --no-install-recommends \
           libopenal1 \
           libopenal-data \
@@ -45,33 +46,69 @@ jobs:
           pavucontrol \
           libasound2-plugins \
           alsa-oss \
-          openal-tools
-        sudo ldconfig
+          dbus \
+          psmisc
 
         # Stop any existing PulseAudio processes
         sudo killall pulseaudio || true
+        sudo killall -9 pulseaudio || true
+        
+        # Create pulse user and group if they don't exist
+        sudo groupadd -f pulse
+        sudo groupadd -f pulse-access
+        sudo useradd -g pulse -G audio,pulse-access -d /var/run/pulse pulse || true
         
         # Create and set permissions for PulseAudio directories
-        sudo mkdir -p /var/run/pulse
-        sudo mkdir -p /var/lib/pulse
-        sudo mkdir -p /run/pulse
-        sudo mkdir -p /root/.config/pulse
+        sudo mkdir -p /var/run/pulse /var/lib/pulse /run/pulse
+        sudo mkdir -p /var/run/pulse/.config/pulse
+        sudo mkdir -p /etc/pulse /etc/openal
         
-        # Set proper ownership
-        sudo chown -R pulse:pulse /var/run/pulse
-        sudo chown -R pulse:pulse /var/lib/pulse
-        sudo chown -R pulse:pulse /run/pulse
-        sudo chown -R root:root /root/.config/pulse
+        # Set proper ownership and permissions
+        sudo chown -R pulse:pulse /var/run/pulse /var/lib/pulse /run/pulse
+        sudo chmod -R 755 /var/run/pulse /var/lib/pulse /run/pulse
+        sudo chown -R pulse:pulse /var/run/pulse/.config
+        sudo chmod -R 700 /var/run/pulse/.config
         
-        # Set directory permissions
-        sudo chmod -R 755 /var/run/pulse
-        sudo chmod -R 755 /var/lib/pulse
-        sudo chmod -R 755 /run/pulse
-        sudo chmod -R 700 /root/.config/pulse
+        # Setup D-Bus
+        sudo mkdir -p /run/dbus
+        sudo dbus-uuidgen --ensure
+        sudo dbus-daemon --system --fork
         
-        # Configure PulseAudio for system mode
-        sudo mkdir -p /etc/pulse
-        sudo bash -c 'echo "daemonize = no
+        # Set runtime directory
+        export XDG_RUNTIME_DIR=/run/pulse
+        sudo -u pulse mkdir -p $XDG_RUNTIME_DIR
+        sudo chmod 700 $XDG_RUNTIME_DIR
+        sudo chown pulse:pulse $XDG_RUNTIME_DIR
+        
+        # Create PulseAudio configuration files as root first
+        sudo tee /etc/pulse/system.pa > /dev/null << 'EOFPA'
+        .fail
+        .nofail
+        
+        load-module module-device-restore
+        load-module module-stream-restore
+        load-module module-card-restore
+        
+        load-module module-augment-properties
+        load-module module-switch-on-port-available
+        
+        load-module module-native-protocol-unix auth-anonymous=1
+        
+        load-module module-null-sink sink_name=DummyOutput channels=2 channel_map=front-left,front-right rate=44100 format=float32le
+        load-module module-always-sink
+        
+        set-default-sink DummyOutput
+        EOFPA
+        
+        sudo tee /etc/pulse/client.conf > /dev/null << 'EOFCLIENT'
+        default-server = unix:/run/pulse/native
+        autospawn = no
+        daemon-binary = /bin/true
+        enable-shm = yes
+        EOFCLIENT
+        
+        sudo tee /etc/pulse/daemon.conf > /dev/null << 'EOFDAEMON'
+        daemonize = no
         system-instance = yes
         exit-idle-time = -1
         allow-module-loading = yes
@@ -83,36 +120,10 @@ jobs:
         default-sample-rate = 44100
         default-sample-channels = 2
         default-channel-map = front-left,front-right
+        EOFDAEMON
         
-        # Load protocols with anonymous auth
-        load-module module-native-protocol-unix auth-anonymous=1
-        load-module module-native-protocol-tcp auth-anonymous=1
-        
-        # Create null sink
-        load-module module-null-sink sink_name=DummyOutput channels=2 channel_map=front-left,front-right rate=44100 format=float32le
-        load-module module-always-sink
-        
-        # Set default sink
-        set-default-sink DummyOutput" > /etc/pulse/system.pa'
-        
-        # Create client configuration
-        sudo bash -c 'echo "# Connect to system instance
-        default-server = unix:/run/pulse/native
-        autospawn = no
-        daemon-binary = /bin/true
-        enable-shm = yes" > /etc/pulse/client.conf'
-        
-        # Create daemon configuration
-        sudo bash -c 'echo "# System mode configuration
-        daemonize = no
-        system-instance = yes
-        exit-idle-time = -1
-        allow-module-loading = yes
-        allow-exit = yes" > /etc/pulse/daemon.conf'
-        
-        # Configure OpenAL
-        sudo mkdir -p /etc/openal
-        sudo bash -c 'echo "drivers=pulse
+        sudo tee /etc/openal/alsoft.conf > /dev/null << 'EOFAL'
+        drivers=pulse
         [pulse]
         allow-moves=true
         default=true
@@ -126,36 +137,52 @@ jobs:
         cf_level=2
         rt-prio=0
         period_size=1024
-        periods=4" > /etc/openal/alsoft.conf'
+        periods=4
+        EOFAL
         
-        # Configure ALSA
-        sudo bash -c 'echo "pcm.!default {
+        sudo tee /etc/asound.conf > /dev/null << 'EOFALSA'
+        pcm.!default {
             type pulse
         }
         
         ctl.!default {
             type pulse
-        }" > /etc/asound.conf'
+        }
+        EOFALSA
+
+        # Fix permissions on all config files
+        sudo chown -R pulse:pulse /etc/pulse
+        sudo chmod 755 /etc/pulse
+        sudo chmod 644 /etc/pulse/*
+        sudo chown -R pulse:pulse /etc/openal
+        sudo chmod 755 /etc/openal
+        sudo chmod 644 /etc/openal/*
+        sudo chown pulse:pulse /etc/asound.conf
+        sudo chmod 644 /etc/asound.conf
+        
+        # Create cookie file
+        sudo -u pulse touch /var/run/pulse/.config/pulse/cookie
+        sudo chmod 600 /var/run/pulse/.config/pulse/cookie
 
     # Start PulseAudio in system mode
     - name: Start PulseAudio
       if: runner.os == 'Linux'
       run: |
-        # Export runtime directory for root
+        # Export runtime directory for pulse user
         export XDG_RUNTIME_DIR=/run/pulse
         
-        # Start PulseAudio with root privileges
-        sudo -E pulseaudio --system --disallow-exit --exit-idle-time=-1 --log-level=4 &
+        # Start PulseAudio as pulse user
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pulseaudio --system --disallow-exit --disallow-module-loading --exit-idle-time=-1 --log-level=4 &
         sleep 5  # Give time for PulseAudio to start
         
         # Verify PulseAudio is running and show debug info
-        sudo -E pulseaudio --check
-        sudo -E pactl info || true
-        sudo -E pactl list sinks || true
-        sudo -E pactl list short || true
-        sudo -E aplay -l || true
-        sudo -E cat /proc/asound/cards || true
-        sudo -E openal-info || true
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pulseaudio --check
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl info || true
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl list sinks || true
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse pactl list short || true
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse aplay -l || true
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse cat /proc/asound/cards || true
+        sudo -u pulse XDG_RUNTIME_DIR=/run/pulse HOME=/var/run/pulse openal-info || true
         
         # Set OpenAL environment variables
         echo "ALSOFT_DRIVERS=pulse" >> $GITHUB_ENV

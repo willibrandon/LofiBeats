@@ -398,3 +398,10 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Act - Local GitHub Actions Testing
+.act
+.actrc
+.act.secrets
+.act.logs/
+act-artifacts/
