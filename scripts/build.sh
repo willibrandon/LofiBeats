@@ -1,17 +1,21 @@
 #!/bin/bash
 
+# Exit immediately if a command exits with a non-zero status
+set -e
+
 # Color codes
 CYAN='\033[0;36m'
+GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 GRAY='\033[0;37m'
 RED='\033[0;31m'
-GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
 # Script arguments
 RELEASE=0
 NO_BUILD=0
 NO_TEST=0
+TEST_FILTER=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -26,6 +30,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-test)
             NO_TEST=1
+            shift
+            ;;
+        --test-filter)
+            TEST_FILTER="$2"
+            shift
             shift
             ;;
         *)
@@ -49,8 +58,8 @@ else
 fi
 
 # Force kill any remaining dotnet processes that might be our service
-# Note: This is more targeted on Linux/macOS to avoid killing unrelated processes
-ps aux | grep "LofiBeats.Service" | grep -v grep | awk '{print $2}' | while read -r pid ; do
+# This matches the PowerShell approach of finding dotnet processes without a window title
+ps aux | grep "dotnet" | grep "LofiBeats.Service" | grep -v grep | awk '{print $2}' | while read -r pid ; do
     if kill -9 "$pid" 2>/dev/null; then
         echo -e "${GRAY}Cleaned up process $pid${NC}"
     else
@@ -85,9 +94,17 @@ fi
 if [ $NO_TEST -eq 0 ]; then
     # Run tests
     echo -e "${YELLOW}Running tests...${NC}"
-    if ! dotnet test "$ROOT_DIR/LofiBeats.sln" --no-build; then
-        echo -e "${RED}Tests failed${NC}"
-        exit 1
+    if [ -n "$TEST_FILTER" ]; then
+        echo -e "${GRAY}Using test filter: $TEST_FILTER${NC}"
+        if ! dotnet test "$ROOT_DIR/LofiBeats.sln" --no-build --filter "$TEST_FILTER"; then
+            echo -e "${RED}Tests failed${NC}"
+            exit 1
+        fi
+    else
+        if ! dotnet test "$ROOT_DIR/LofiBeats.sln" --no-build; then
+            echo -e "${RED}Tests failed${NC}"
+            exit 1
+        fi
     fi
 fi
 

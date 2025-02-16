@@ -21,6 +21,7 @@ public class OpenALAudioOutput : IAudioOutput
     private const int BUFFER_SIZE = 8192;
     private Thread? _updateThread;
     private readonly CancellationTokenSource _cancellationTokenSource;
+    private readonly object _lock = new object();
 
     /// <summary>
     /// Gets the OpenAL source ID. Used for testing.
@@ -46,17 +47,21 @@ public class OpenALAudioOutput : IAudioOutput
 
     private void InitializeOpenAL()
     {
-        var device = ALC.OpenDevice(string.Empty);
-        if (device == IntPtr.Zero)
+        lock (_lock)
         {
-            throw new Exception("Failed to open OpenAL device");
+            var device = ALC.OpenDevice(string.Empty);
+            if (device == IntPtr.Zero)
+            {
+                throw new Exception("Failed to open OpenAL device");
+            }
+
+            _context = ALC.CreateContext(device, Array.Empty<int>());
+            ALC.MakeContextCurrent(_context.Value);
+
+            AL.GenSource(out _source);
+            AL.Source(_source, ALSourcef.Gain, _volume);
+            AL.GetError(); // Clear any error from initialization
         }
-
-        _context = ALC.CreateContext(device, Array.Empty<int>());
-        ALC.MakeContextCurrent(_context.Value);
-
-        AL.GenSource(out _source);
-        AL.Source(_source, ALSourcef.Gain, _volume);
     }
 
     public void Init(IWaveProvider waveProvider)
@@ -77,24 +82,33 @@ public class OpenALAudioOutput : IAudioOutput
         {
             if (_isPlaying && !_isPaused && _waveProvider != null)
             {
-                int processed = AL.GetSource(_source, ALGetSourcei.BuffersProcessed);
-                
-                // Only process buffers if we're not paused
-                if (!_isPaused)
+                lock (_lock)
                 {
-                    for (int i = 0; i < processed; i++)
+                    int processed = AL.GetSource(_source, ALGetSourcei.BuffersProcessed);
+                    AL.GetError(); // Clear any error
+                    
+                    if (!_isPaused)
                     {
-                        int buffer = AL.SourceUnqueueBuffer(_source);
-                        if (QueueBuffer(buffer))
+                        for (int i = 0; i < processed; i++)
                         {
-                            AL.SourceQueueBuffer(_source, buffer);
+                            int buffer = AL.SourceUnqueueBuffer(_source);
+                            AL.GetError(); // Clear any error
+                            
+                            if (QueueBuffer(buffer))
+                            {
+                                AL.SourceQueueBuffer(_source, buffer);
+                                AL.GetError(); // Clear any error
+                            }
                         }
-                    }
 
-                    var state = AL.GetSource(_source, ALGetSourcei.SourceState);
-                    if (state == (int)ALSourceState.Stopped)
-                    {
-                        AL.SourcePlay(_source);
+                        var state = AL.GetSource(_source, ALGetSourcei.SourceState);
+                        AL.GetError(); // Clear any error
+                        
+                        if (state == (int)ALSourceState.Stopped)
+                        {
+                            AL.SourcePlay(_source);
+                            AL.GetError(); // Clear any error
+                        }
                     }
                 }
             }
@@ -187,36 +201,45 @@ public class OpenALAudioOutput : IAudioOutput
     {
         if (!_isPlaying) return;
 
-        // Stop playback first
-        AL.SourceStop(_source);
-        
-        // Get the number of queued buffers
-        int queued = AL.GetSource(_source, ALGetSourcei.BuffersQueued);
-        
-        if (queued > 0)
+        lock (_lock)
         {
-            // Unqueue all buffers at once
-            int[] buffers = new int[queued];
-            AL.SourceUnqueueBuffers(_source, queued, buffers);
+            // Stop playback first
+            AL.SourceStop(_source);
+            AL.GetError(); // Clear any error from stopping
             
-            // Delete all buffers in our list
-            if (_buffers.Count > 0)
+            // Get the number of queued buffers
+            int queued = AL.GetSource(_source, ALGetSourcei.BuffersQueued);
+            AL.GetError(); // Clear any error from getting queued count
+            
+            if (queued > 0)
             {
-                AL.DeleteBuffers(_buffers.ToArray());
+                // Unqueue all buffers at once
+                int[] unqueuedBuffers = new int[queued];
+                AL.SourceUnqueueBuffers(_source, queued, unqueuedBuffers);
+                AL.GetError(); // Clear any error from unqueuing
+                
+                // Delete the unqueued buffers and clear our buffer list
+                AL.DeleteBuffers(unqueuedBuffers);
+                AL.GetError(); // Clear any error from deleting
                 _buffers.Clear();
             }
+            
+            // Final rewind to ensure the source is in a clean state
+            AL.SourceRewind(_source);
+            AL.GetError(); // Clear any error from rewinding
+            
+            _isPlaying = false;
         }
-        
-        // Final rewind to ensure the source is in a clean state
-        AL.SourceRewind(_source);
-        
-        _isPlaying = false;
     }
 
     public void SetVolume(float volume)
     {
-        _volume = Math.Clamp(volume, 0.0f, 1.0f);
-        AL.Source(_source, ALSourcef.Gain, _volume);
+        lock (_lock)
+        {
+            _volume = Math.Clamp(volume, 0.0f, 1.0f);
+            AL.Source(_source, ALSourcef.Gain, _volume);
+            AL.GetError(); // Clear any error
+        }
     }
 
     protected virtual void Dispose(bool disposing)
@@ -226,22 +249,25 @@ public class OpenALAudioOutput : IAudioOutput
             if (disposing)
             {
                 _cancellationTokenSource.Cancel();
-                _updateThread?.Join();
+                _updateThread?.Join(); // Wait for update thread to finish
 
-                if (_buffers.Count > 0)
+                lock (_lock)
                 {
-                    AL.DeleteBuffers(_buffers.ToArray());
-                    _buffers.Clear();
-                }
+                    if (_buffers.Count > 0)
+                    {
+                        AL.DeleteBuffers(_buffers.ToArray());
+                        _buffers.Clear();
+                    }
 
-                AL.DeleteSource(_source);
+                    AL.DeleteSource(_source);
 
-                if (_context.HasValue)
-                {
-                    var device = ALC.GetContextsDevice(_context.Value);
-                    ALC.MakeContextCurrent(ALContext.Null);
-                    ALC.DestroyContext(_context.Value);
-                    ALC.CloseDevice(device);
+                    if (_context.HasValue)
+                    {
+                        var device = ALC.GetContextsDevice(_context.Value);
+                        ALC.MakeContextCurrent(ALContext.Null);
+                        ALC.DestroyContext(_context.Value);
+                        ALC.CloseDevice(device);
+                    }
                 }
             }
             _isDisposed = true;
