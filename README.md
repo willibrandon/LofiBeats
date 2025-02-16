@@ -47,6 +47,9 @@ curl -sSL https://raw.githubusercontent.com/willibrandon/LofiBeats/main/scripts/
 
 # Or if you've cloned the repository:
 sudo ./scripts/install-linux-deps.sh
+
+# Verify dependencies are installed correctly
+curl -sSL https://raw.githubusercontent.com/willibrandon/LofiBeats/main/scripts/verify-linux-setup.sh | bash
 ```
 
 The script will:

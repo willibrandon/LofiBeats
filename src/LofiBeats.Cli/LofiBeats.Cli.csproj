@@ -7,6 +7,7 @@
 		<Nullable>enable</Nullable>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+		<RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;osx-x64</RuntimeIdentifiers>
 		
 		<!-- .NET Tool Configuration -->
 		<PackAsTool>true</PackAsTool>
@@ -21,7 +22,14 @@
 		<PackageTags>music;audio;lofi;beats;cli</PackageTags>
 	</PropertyGroup>
 
-	<!-- Pre-build cleanup for Visual Studio (SAFE VERSION - NO RECURSION!) -->
+	<PropertyGroup Condition="'$(PublishConfiguration)' == 'true'">
+		<PublishSingleFile>true</PublishSingleFile>
+		<SelfContained>true</SelfContained>
+		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+		<EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+	</PropertyGroup>
+
+	<!-- Pre-build cleanup for Visual Studio -->
 	<Target Name="CleanupService" BeforeTargets="PreBuildEvent" Condition="'$(OS)' == 'Windows_NT'">
 		<Message Text="🧹 Cleaning up any running services..." Importance="high" />
 		<Exec Command="pwsh -NoProfile -NonInteractive -Command &quot;&amp; { Get-Process -Name dotnet | Where-Object {$_.MainWindowTitle -eq '' -and $_.CommandLine -like '*LofiBeats.Service.dll*'} | Stop-Process -Force }&quot;" IgnoreExitCode="true" />

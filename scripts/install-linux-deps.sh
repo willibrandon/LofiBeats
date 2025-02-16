@@ -170,9 +170,7 @@ echo -e "\n${YELLOW}Would you like to install optional audio utilities? (y/N)${N
 read -r response
 if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
     for pkg in "${!OPTIONAL_PACKAGES[@]}"; do
-        if ! check_package "$PKG_MANAGER" "${OPTIONAL_PACKAGES[$pkg]}"; then
-            install_package "$PKG_MANAGER" "${OPTIONAL_PACKAGES[$pkg]}"
-        fi
+        check_package "$PKG_MANAGER" "${OPTIONAL_PACKAGES[$pkg]}"
     done
 fi
 
