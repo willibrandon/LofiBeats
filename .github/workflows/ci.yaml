@@ -14,12 +14,12 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  build:
+  windows:
+    name: Windows Build
+    runs-on: windows-latest
     strategy:
       matrix:
-        os: [ubuntu-latest]
         configuration: [Debug, Release]
-    runs-on: ${{ matrix.os }}
     
     steps:
     - uses: actions/checkout@v4
@@ -31,288 +31,6 @@ jobs:
       with:
         dotnet-version: 9.0.x
 
-    # Install OpenAL and PulseAudio dependencies on Linux
-    - name: Install Linux Audio Dependencies
-      if: runner.os == 'Linux'
-      run: |
-        # Install audio dependencies
-        sudo apt-get update
-        # Install audio dependencies
-        sudo apt-get install -y libopenal1
-        sudo apt-get install -y --no-install-recommends \
-          libopenal1 \
-          libopenal-data \
-          alsa-utils \
-          pulseaudio \
-          pulseaudio-utils \
-          pavucontrol \
-          libasound2-plugins \
-          alsa-oss \
-          dbus \
-          psmisc
-        
-        # Stop any existing PulseAudio processes
-        sudo killall pulseaudio || true
-        sudo killall -9 pulseaudio || true
-        
-        # Create pulse user and group if they don't exist
-        sudo groupadd -f pulse
-        sudo groupadd -f pulse-access
-        sudo useradd -g pulse -G audio,pulse-access -d /var/run/pulse -s /bin/bash pulse || true
-        sudo usermod -s /bin/bash pulse
-        sudo passwd -u pulse || true  # Unlock the account if it's locked
-        
-        # Create and set permissions for PulseAudio directories
-        sudo mkdir -p /var/run/pulse /var/lib/pulse /run/pulse
-        sudo mkdir -p /var/run/pulse/.config/pulse
-        sudo mkdir -p /etc/pulse /etc/openal
-        
-        # Set proper ownership and permissions for PulseAudio directories
-        sudo chown -R pulse:pulse /var/run/pulse /var/lib/pulse /run/pulse
-        sudo chmod -R 755 /var/run/pulse /var/lib/pulse /run/pulse
-        sudo chown -R pulse:pulse /var/run/pulse/.config
-        sudo chmod -R 700 /var/run/pulse/.config
-
-        # Setup D-Bus
-        sudo mkdir -p /run/dbus
-        sudo dbus-uuidgen --ensure
-        sudo dbus-daemon --system --fork
-        
-        # Set runtime directory
-        export XDG_RUNTIME_DIR=/run/pulse
-        sudo -u pulse mkdir -p $XDG_RUNTIME_DIR
-        sudo chmod 700 $XDG_RUNTIME_DIR
-        sudo chown pulse:pulse $XDG_RUNTIME_DIR
-        
-        # Create PulseAudio configuration files as root first
-        sudo tee /etc/pulse/system.pa > /dev/null << 'EOFPA'
-        .fail
-        .nofail
-        
-        load-module module-device-restore
-        load-module module-stream-restore
-        load-module module-card-restore
-        
-        load-module module-augment-properties
-        load-module module-switch-on-port-available
-        
-        load-module module-native-protocol-unix auth-anonymous=1
-        
-        load-module module-null-sink sink_name=DummyOutput channels=2 channel_map=front-left,front-right rate=44100 format=float32le
-        load-module module-always-sink
-        
-        set-default-sink DummyOutput
-        EOFPA
-        
-        sudo tee /etc/pulse/client.conf > /dev/null << 'EOFCLIENT'
-        default-server = unix:/run/pulse/native
-        autospawn = no
-        daemon-binary = /bin/true
-        enable-shm = yes
-        EOFCLIENT
-        
-        sudo tee /etc/pulse/daemon.conf > /dev/null << 'EOFDAEMON'
-        daemonize = no
-        system-instance = yes
-        exit-idle-time = -1
-        allow-module-loading = yes
-        allow-exit = yes
-        enable-shm = yes
-        enable-memfd = yes
-        flat-volumes = no
-        default-sample-format = float32le
-        default-sample-rate = 44100
-        default-sample-channels = 2
-        default-channel-map = front-left,front-right
-        EOFDAEMON
-        
-        sudo tee /etc/openal/alsoft.conf > /dev/null << 'EOFAL'
-        drivers=pulse
-        [pulse]
-        allow-moves=true
-        default=true
-        channels=stereo
-        [general]
-        channels=stereo
-        frequency=44100
-        samples=4096
-        debug-level=4
-        disable-denormals=true
-        cf_level=2
-        rt-prio=0
-        period_size=1024
-        periods=4
-        EOFAL
-        
-        sudo tee /etc/asound.conf > /dev/null << 'EOFALSA'
-        pcm.!default {
-            type pulse
-        }
-        
-        ctl.!default {
-            type pulse
-        }
-        EOFALSA
-
-        # Fix permissions on all config files
-        sudo chown -R pulse:pulse /etc/pulse
-        sudo chmod 755 /etc/pulse
-        sudo chmod 644 /etc/pulse/*
-        sudo chown -R pulse:pulse /etc/openal
-        sudo chmod 755 /etc/openal
-        sudo chmod 644 /etc/openal/*
-        sudo chown pulse:pulse /etc/asound.conf
-        sudo chmod 644 /etc/asound.conf
-        
-        # Create cookie file
-        sudo -u pulse touch /var/run/pulse/.config/pulse/cookie
-        sudo chmod 600 /var/run/pulse/.config/pulse/cookie
-
-    # Create build output directories with correct permissions
-    - name: Setup Build Directories
-      if: runner.os == 'Linux'
-      run: |
-        # Create build output directories
-        mkdir -p $GITHUB_WORKSPACE/src/*/bin $GITHUB_WORKSPACE/src/*/obj
-        mkdir -p $GITHUB_WORKSPACE/tests/*/bin $GITHUB_WORKSPACE/tests/*/obj
-        
-        # Set permissions for build output directories
-        sudo chown -R $(id -u):$(id -g) $GITHUB_WORKSPACE/src/*/bin $GITHUB_WORKSPACE/src/*/obj
-        sudo chown -R $(id -u):$(id -g) $GITHUB_WORKSPACE/tests/*/bin $GITHUB_WORKSPACE/tests/*/obj
-        sudo chmod -R 755 $GITHUB_WORKSPACE/src/*/bin $GITHUB_WORKSPACE/src/*/obj
-        sudo chmod -R 755 $GITHUB_WORKSPACE/tests/*/bin $GITHUB_WORKSPACE/tests/*/obj
-
-    # Start PulseAudio in user mode
-    - name: Start PulseAudio
-      if: runner.os == 'Linux'
-      run: |
-        # Stop any existing PulseAudio processes
-        sudo killall -9 pulseaudio || true
-        
-        # Clean up any existing PulseAudio files
-        sudo rm -rf /run/pulse/* /var/run/pulse/* /var/lib/pulse/*
-        
-        # Recreate PulseAudio directories with correct permissions
-        sudo mkdir -p /run/pulse /var/run/pulse /var/lib/pulse
-        sudo mkdir -p /var/run/pulse/.config/pulse
-        sudo chown -R pulse:pulse /run/pulse /var/run/pulse /var/lib/pulse
-        sudo chmod -R 755 /run/pulse /var/run/pulse /var/lib/pulse
-        sudo chmod 700 /var/run/pulse/.config
-        
-        # Find PulseAudio module directory
-        PULSE_MODULE_DIR=$(find /usr/lib/pulse-* -type d -name modules -print -quit)
-        echo "Found PulseAudio modules in: $PULSE_MODULE_DIR"
-        
-        # Verify required modules exist
-        for module in module-null-sink.so module-native-protocol-unix.so; do
-          if [ ! -f "$PULSE_MODULE_DIR/$module" ]; then
-            echo "Error: Required module $module not found in $PULSE_MODULE_DIR"
-            exit 1
-          fi
-        done
-        
-        # Create a basic client config that doesn't depend on system files
-        sudo tee /var/run/pulse/.config/pulse/client.conf > /dev/null << EOF
-        default-server = unix:/run/pulse/native
-        autospawn = no
-        daemon-binary = /bin/true
-        enable-shm = yes
-        EOF
-        sudo chown pulse:pulse /var/run/pulse/.config/pulse/client.conf
-        sudo chmod 644 /var/run/pulse/.config/pulse/client.conf
-        
-        # Create a basic daemon config
-        sudo tee /var/run/pulse/.config/pulse/daemon.conf > /dev/null << EOF
-        daemonize = no
-        allow-module-loading = yes
-        allow-exit = yes
-        exit-idle-time = -1
-        flat-volumes = no
-        default-sample-format = float32le
-        default-sample-rate = 44100
-        default-sample-channels = 2
-        default-channel-map = front-left,front-right
-        dl-search-path = ${PULSE_MODULE_DIR}
-        EOF
-        sudo chown pulse:pulse /var/run/pulse/.config/pulse/daemon.conf
-        sudo chmod 644 /var/run/pulse/.config/pulse/daemon.conf
-        
-        # Create default.pa configuration
-        sudo tee /var/run/pulse/.config/pulse/default.pa > /dev/null << EOF
-        #!/usr/bin/pulseaudio -nF
-        
-        .fail
-        
-        load-module module-native-protocol-unix auth-anonymous=1
-        load-module module-null-sink sink_name=DummyOutput channels=2 rate=44100 format=float32le
-        
-        set-default-sink DummyOutput
-        EOF
-        sudo chown pulse:pulse /var/run/pulse/.config/pulse/default.pa
-        sudo chmod 644 /var/run/pulse/.config/pulse/default.pa
-        
-        # Set environment variables
-        export XDG_RUNTIME_DIR=/run/pulse
-        export HOME=/var/run/pulse
-        export PULSE_RUNTIME_PATH=/run/pulse
-        export PULSE_CONFIG_PATH=/var/run/pulse/.config/pulse
-        
-        # Start PulseAudio with verbose logging
-        echo "Starting PulseAudio..."
-        sudo -u pulse \
-          XDG_RUNTIME_DIR=/run/pulse \
-          HOME=/var/run/pulse \
-          PULSE_RUNTIME_PATH=/run/pulse \
-          PULSE_CONFIG_PATH=/var/run/pulse/.config/pulse \
-          pulseaudio -vvv --log-level=debug --log-target=stderr --daemonize=no &
-        
-        # Give PulseAudio time to start
-        sleep 5
-        
-        # Wait for PulseAudio to be fully running
-        for i in {1..12}; do
-          if sudo -u pulse \
-            XDG_RUNTIME_DIR=/run/pulse \
-            HOME=/var/run/pulse \
-            PULSE_RUNTIME_PATH=/run/pulse \
-            PULSE_CONFIG_PATH=/var/run/pulse/.config/pulse \
-            pactl info; then
-            echo "PulseAudio is running"
-            break
-          fi
-          echo "Waiting for PulseAudio to start (attempt $i)..."
-          sleep 5
-        done
-        
-        # Show audio debug info
-        echo "PulseAudio process status:"
-        ps aux | grep pulse
-        
-        echo "PulseAudio socket status:"
-        ls -la /run/pulse/
-        
-        echo "Audio debug info:"
-        sudo -u pulse \
-          XDG_RUNTIME_DIR=/run/pulse \
-          HOME=/var/run/pulse \
-          PULSE_RUNTIME_PATH=/run/pulse \
-          PULSE_CONFIG_PATH=/var/run/pulse/.config/pulse \
-          pactl list sinks || true
-          
-        sudo -u pulse \
-          XDG_RUNTIME_DIR=/run/pulse \
-          HOME=/var/run/pulse \
-          PULSE_RUNTIME_PATH=/run/pulse \
-          PULSE_CONFIG_PATH=/var/run/pulse/.config/pulse \
-          pactl list short || true
-        
-        # Set environment variables for subsequent steps
-        echo "ALSOFT_DRIVERS=pulse" >> $GITHUB_ENV
-        echo "ALSOFT_LOGLEVEL=4" >> $GITHUB_ENV
-        echo "ALSOFT_LOGFILE=/tmp/openal.log" >> $GITHUB_ENV
-        echo "PULSE_RUNTIME_PATH=/run/pulse" >> $GITHUB_ENV
-        echo "PULSE_CONFIG_PATH=/var/run/pulse/.config/pulse" >> $GITHUB_ENV
-
     - name: Install dependencies
       run: dotnet restore
       
@@ -320,77 +38,87 @@ jobs:
       run: dotnet build --configuration ${{ matrix.configuration }} --no-restore
       
     - name: Test
-      run: |
-        if [ "$RUNNER_OS" == "Windows" ]; then
-          dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal
-        else
-          # Create test output directory with correct permissions
-          mkdir -p $GITHUB_WORKSPACE/TestResults
-          sudo chown pulse:pulse $GITHUB_WORKSPACE/TestResults
-          
-          # Set environment variables
-          export ALSOFT_DRIVERS=pulse
-          export ALSOFT_LOGLEVEL=4
-          export ALSOFT_LOGFILE=/tmp/openal.log
-          export XDG_RUNTIME_DIR=/run/pulse
-          export HOME=/var/run/pulse
-          export PULSE_RUNTIME_PATH=/run/pulse
-          
-          # Get the current PATH and .NET paths
-          CURRENT_PATH=$PATH
-          DOTNET_PATH=$(which dotnet)
-          DOTNET_ROOT=$(dirname $(readlink -f $(which dotnet)))
-          
-          # Run tests as pulse user
-          sudo -E -u pulse \
-            PATH="$CURRENT_PATH" \
-            XDG_RUNTIME_DIR=/run/pulse \
-            HOME=/var/run/pulse \
-            PULSE_RUNTIME_PATH=/run/pulse \
-            ALSOFT_DRIVERS=pulse \
-            ALSOFT_LOGLEVEL=4 \
-            ALSOFT_LOGFILE=/tmp/openal.log \
-            DOTNET_ROOT="$DOTNET_ROOT" \
-            "$DOTNET_PATH" test \
-              --configuration ${{ matrix.configuration }} \
-              --no-build \
-              --verbosity normal \
-              --filter "Category!=Platform_Specific" \
-              --results-directory "$GITHUB_WORKSPACE/TestResults"
-          
-          # Display OpenAL log if it exists
-          if [ -f /tmp/openal.log ]; then
-            echo "OpenAL Log:"
-            cat /tmp/openal.log
-          fi
-        fi
-      shell: bash
+      run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --results-directory "${{ github.workspace }}/TestResults"
       
-    # Package CLI tool (only on Release configuration)
     - name: Package CLI Tool
       if: matrix.configuration == 'Release'
       run: dotnet pack src/LofiBeats.Cli/LofiBeats.Cli.csproj --configuration Release --no-build --output nupkg
       
-    # Upload artifacts
     - name: Upload NuGet Package
       if: matrix.configuration == 'Release'
       uses: actions/upload-artifact@v4
       with:
-        name: nuget-package-${{ matrix.os }}
+        name: nuget-package-windows-${{ matrix.configuration }}
         path: nupkg/*.nupkg
         
-    # Upload test results
     - name: Upload Test Results
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: test-results-${{ matrix.os }}-${{ matrix.configuration }}
+        name: test-results-windows-${{ matrix.configuration }}
         path: |
           **/TestResults/*.trx
           **/TestResults/*.xml
 
+  linux:
+    name: Linux Build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/willibrandon/lofibeats/audiotest:latest
+      credentials:
+         username: ${{ github.actor }}
+         password: ${{ secrets.GITHUB_TOKEN }}
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Build
+      run: dotnet build --configuration ${{ matrix.configuration }} --no-restore
+      
+    - name: Test
+      run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --filter "Category!=Platform_Specific" --results-directory "${{ github.workspace }}/TestResults"
+      
+    - name: Package CLI Tool
+      if: matrix.configuration == 'Release'
+      run: dotnet pack src/LofiBeats.Cli/LofiBeats.Cli.csproj --configuration Release --no-build --output nupkg
+      
+    - name: Upload NuGet Package
+      if: matrix.configuration == 'Release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: nuget-package-linux-${{ matrix.configuration }}
+        path: nupkg/*.nupkg
+        
+    - name: Upload Test Results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-linux-${{ matrix.configuration }}
+        path: |
+          **/TestResults/*.trx
+          **/TestResults/*.xml
+
+  # TODO: macOS support
+  # macos:
+  #   name: macOS Build
+  #   runs-on: macos-latest
+  #   strategy:
+  #     matrix:
+  #       configuration: [Debug, Release]
+  #   steps:
+  #   # TODO: Implement macOS-specific audio setup
+  #   # Considerations:
+  #   # 1. CoreAudio vs PulseAudio approach
+  #   # 2. OpenAL configuration
+  #   # 3. Test filtering for unsupported features
+
   publish:
-    needs: build
+    needs: [windows, linux] # Will add macos here when implemented
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     
