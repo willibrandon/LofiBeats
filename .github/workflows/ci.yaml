@@ -74,7 +74,7 @@ jobs:
       image: ghcr.io/willibrandon/lofibeats/audiotest:latest
       credentials:
          username: ${{ github.actor }}
-         password: ${{ secrets.GITHUB_TOKEN }}
+         password: ${{ secrets.CONTAINER_REGISTRY_PAT }}
     strategy:
       matrix:
         configuration: [Debug, Release]
