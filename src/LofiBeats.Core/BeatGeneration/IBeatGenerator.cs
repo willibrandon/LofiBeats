@@ -5,8 +5,9 @@ namespace LofiBeats.Core.BeatGeneration;
 public interface IBeatGenerator
 {
     BeatPattern GeneratePattern();
+    BeatPattern GeneratePattern(int? bpm);
     string Style { get; }
-    (int MinTempo, int MaxTempo) TempoRange { get; }
+    (int MinBpm, int MaxBpm) BpmRange { get; }
 }
 
 public interface IBeatGeneratorFactory

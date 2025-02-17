@@ -141,7 +141,20 @@ public class CommandLineInterface : IDisposable
         });
         generateCommand.AddOption(generateStyleOption);
 
-        generateCommand.SetHandler(async (string style) =>
+        var generateBpmOption = new Option<int?>(
+            "--bpm",
+            "Tempo in beats per minute (BPM). Default is style-dependent.");
+        generateBpmOption.AddValidator(result =>
+        {
+            var value = result.GetValueOrDefault<int?>();
+            if (value.HasValue && (value < 60 || value > 140))
+            {
+                result.ErrorMessage = "BPM must be between 60 and 140";
+            }
+        });
+        generateCommand.AddOption(generateBpmOption);
+
+        generateCommand.SetHandler(async (string style, int? bpm) =>
         {
             _logExecutingGenerateCommand(_logger, null);
             try
@@ -149,7 +162,7 @@ public class CommandLineInterface : IDisposable
                 Console.Write("Generating beat pattern... ");
                 ShowSpinner("Generating beat pattern", 1500); // Show progress for 1.5 seconds
 
-                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"generate?style={Uri.EscapeDataString(style)}");
+                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"generate?style={Uri.EscapeDataString(style)}&bpm={bpm}");
                 if (!response.IsSuccessStatusCode)
                 {
                     var error = await response.Content.ReadFromJsonAsync<ApiResponse>();
@@ -169,15 +182,27 @@ public class CommandLineInterface : IDisposable
                 Console.WriteLine($"Error generating beat pattern: {ex.Message}");
                 Console.WriteLine("Please ensure the LofiBeats service is running and try again.");
             }
-        }, generateStyleOption);
+        }, generateStyleOption, generateBpmOption);
         _rootCommand.AddCommand(generateCommand);
 
         // Add play command
         var playCommand = new Command("play", "Plays a new lofi beat");
         var styleOption = new Option<string>("--style", () => "basic", "Beat style (basic, jazzy, chillhop, hiphop)");
+        var bpmOption = new Option<int?>(
+            "--bpm",
+            "Tempo in beats per minute (BPM). Default is style-dependent.");
+        bpmOption.AddValidator(result =>
+        {
+            var value = result.GetValueOrDefault<int?>();
+            if (value.HasValue && (value < 60 || value > 140))
+            {
+                result.ErrorMessage = "BPM must be between 60 and 140";
+            }
+        });
         playCommand.AddOption(styleOption);
+        playCommand.AddOption(bpmOption);
 
-        playCommand.SetHandler(async (string style) =>
+        playCommand.SetHandler(async (string style, int? bpm) =>
         {
             _logExecutingPlayCommand(_logger, null);
             try
@@ -185,7 +210,7 @@ public class CommandLineInterface : IDisposable
                 Console.Write("Starting playback... ");
                 ShowSpinner("Starting playback", 1000);
 
-                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"play?style={Uri.EscapeDataString(style)}");
+                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"play?style={Uri.EscapeDataString(style)}&bpm={bpm}");
                 var result = await response.Content.ReadFromJsonAsync<PlayResponse>();
                 if (result?.Pattern != null)
                 {
@@ -196,7 +221,7 @@ public class CommandLineInterface : IDisposable
             {
                 Console.WriteLine($"Error: {ex.Message}");
             }
-        }, styleOption);
+        }, styleOption, bpmOption);
         _rootCommand.AddCommand(playCommand);
 
         // Add stop command
@@ -488,17 +513,17 @@ public class CommandLineInterface : IDisposable
                 {
                     // Show available commands
                     Console.WriteLine("\nAvailable commands:");
-                    Console.WriteLine("  generate [--style=<style>] - Generate a new beat pattern");
-                    Console.WriteLine("  play [--style=<style>]    - Play a new lofi beat");
-                    Console.WriteLine("  stop [--tapestop]         - Stop audio playback");
-                    Console.WriteLine("  pause                     - Pause audio playback");
-                    Console.WriteLine("  resume                    - Resume audio playback");
-                    Console.WriteLine("  effect <name> [--enable=true|false] - Manage effects");
-                    Console.WriteLine("  volume --level=<0.0-1.0>  - Adjust master volume");
-                    Console.WriteLine("  version                   - Display version information");
-                    Console.WriteLine("  update                    - Update to latest version");
-                    Console.WriteLine("  help                      - Show this help message");
-                    Console.WriteLine("  exit                      - Exit interactive mode\n");
+                    Console.WriteLine("  generate [--style=<style>] [--bpm=<60-140>] - Generate a new beat pattern");
+                    Console.WriteLine("  play [--style=<style>] [--bpm=<60-140>]    - Play a new lofi beat");
+                    Console.WriteLine("  stop [--tapestop]                          - Stop audio playback");
+                    Console.WriteLine("  pause                                      - Pause audio playback");
+                    Console.WriteLine("  resume                                     - Resume audio playback");
+                    Console.WriteLine("  effect <name> [--enable=true|false]       - Manage effects");
+                    Console.WriteLine("  volume --level=<0.0-1.0>                  - Adjust master volume");
+                    Console.WriteLine("  version                                   - Display version information");
+                    Console.WriteLine("  update                                    - Update to latest version");
+                    Console.WriteLine("  help                                      - Show this help message");
+                    Console.WriteLine("  exit                                      - Exit interactive mode\n");
                     continue;
                 }
 
@@ -526,7 +551,9 @@ public class CommandLineInterface : IDisposable
         _rootCommand.Description = "A command-line application for generating and playing lofi beats\n\n" +
             "Examples:\n" +
             "  Generate a jazzy beat:        lofi generate --style=jazzy\n" +
+            "  Generate with custom BPM:     lofi generate --style=chillhop --bpm=85\n" +
             "  Play with a specific style:   lofi play --style=chillhop\n" +
+            "  Play with custom BPM:         lofi play --style=basic --bpm=75\n" +
             "  Enable vinyl effect:          lofi effect vinyl\n" +
             "  Adjust volume:                lofi volume --level=0.8\n" +
             "  Interactive mode:             lofi interactive\n" +

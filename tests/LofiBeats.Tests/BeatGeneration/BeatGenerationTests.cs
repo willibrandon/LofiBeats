@@ -26,7 +26,7 @@ public class BeatGenerationTests
 
         // Assert
         Assert.NotNull(pattern);
-        Assert.True(pattern.Tempo >= 70 && pattern.Tempo <= 90);
+        Assert.True(pattern.BPM >= 70 && pattern.BPM <= 90);
         Assert.NotNull(pattern.DrumSequence);
         Assert.NotNull(pattern.ChordProgression);
     }

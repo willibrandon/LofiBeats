@@ -5,7 +5,7 @@ namespace LofiBeats.Core.BeatGeneration;
 public class ChillhopBeatGenerator : BaseBeatGenerator
 {
     public override string Style => "chillhop";
-    public override (int MinTempo, int MaxTempo) TempoRange => (65, 85);
+    public override (int MinBpm, int MaxBpm) BpmRange => (65, 85);
 
     public ChillhopBeatGenerator(ILogger<ChillhopBeatGenerator> logger) : base(logger)
     {

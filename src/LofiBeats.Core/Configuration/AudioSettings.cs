@@ -2,7 +2,7 @@ namespace LofiBeats.Core.Configuration;
 
 public class AudioSettings
 {
-    public int DefaultTempo { get; set; } = 80;
+    public int DefaultBPM { get; set; } = 80;
     public int SampleRate { get; set; } = 44100;
     public int Channels { get; set; } = 2;
     public EffectSettings Effects { get; set; } = new();

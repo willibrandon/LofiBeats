@@ -5,7 +5,7 @@ namespace LofiBeats.Core.BeatGeneration;
 public class BasicLofiBeatGenerator : BaseBeatGenerator
 {
     public override string Style => "basic";
-    public override (int MinTempo, int MaxTempo) TempoRange => (70, 90);
+    public override (int MinBpm, int MaxBpm) BpmRange => (70, 90);
 
     public BasicLofiBeatGenerator(ILogger<BasicLofiBeatGenerator> logger) : base(logger)
     {

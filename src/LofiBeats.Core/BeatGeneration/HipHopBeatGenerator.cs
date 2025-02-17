@@ -5,7 +5,7 @@ namespace LofiBeats.Core.BeatGeneration;
 public class HipHopBeatGenerator : BaseBeatGenerator
 {
     public override string Style => "hiphop";
-    public override (int MinTempo, int MaxTempo) TempoRange => (80, 100);
+    public override (int MinBpm, int MaxBpm) BpmRange => (80, 100);
 
     public HipHopBeatGenerator(ILogger<HipHopBeatGenerator> logger) : base(logger)
     {

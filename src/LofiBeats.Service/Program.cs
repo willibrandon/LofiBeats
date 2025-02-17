@@ -86,28 +86,30 @@ public partial class Program
         var api = app.MapGroup("/api/lofi");
 
         // Generate endpoint
-        api.MapPost("/generate", (IBeatGeneratorFactory factory, string style = "basic") =>
+        api.MapPost("/generate", (IBeatGeneratorFactory factory, string style = "basic", int? bpm = null) =>
         {
             telemetryTracker.TrackEvent(TelemetryConstants.Events.BeatGenerated, new Dictionary<string, string>
             {
-                { TelemetryConstants.Properties.BeatStyle, style }
+                { TelemetryConstants.Properties.BeatStyle, style },
+                { TelemetryConstants.Properties.BeatTempo, bpm?.ToString() ?? "default" }
             });
 
             var generator = factory.GetGenerator(style);
-            var pattern = generator.GeneratePattern();
+            var pattern = generator.GeneratePattern(bpm);
             return Results.Text(JsonSerializer.Serialize(new { message = "Pattern generated", pattern = pattern }), "application/json");
         });
 
         // Play endpoint
-        api.MapPost("/play", (IAudioPlaybackService playback, IBeatGeneratorFactory factory, string style = "basic") =>
+        api.MapPost("/play", (IAudioPlaybackService playback, IBeatGeneratorFactory factory, string style = "basic", int? bpm = null) =>
         {
             telemetryTracker.TrackEvent(TelemetryConstants.Events.PlaybackStarted, new Dictionary<string, string>
             {
-                { TelemetryConstants.Properties.BeatStyle, style }
+                { TelemetryConstants.Properties.BeatStyle, style },
+                { TelemetryConstants.Properties.BeatTempo, bpm?.ToString() ?? "default" }
             });
 
             var generator = factory.GetGenerator(style);
-            var pattern = generator.GeneratePattern();
+            var pattern = generator.GeneratePattern(bpm);
             var beatSource = new BeatPatternSampleProvider(pattern, app.Logger);
             playback.SetSource(beatSource);
             playback.StartPlayback();

@@ -11,7 +11,7 @@ public abstract class BaseBeatGenerator : IBeatGenerator
     protected readonly string[][] _drumPatterns;
 
     public abstract string Style { get; }
-    public abstract (int MinTempo, int MaxTempo) TempoRange { get; }
+    public abstract (int MinBpm, int MaxBpm) BpmRange { get; }
 
     protected BaseBeatGenerator(ILogger logger)
     {
@@ -24,8 +24,20 @@ public abstract class BaseBeatGenerator : IBeatGenerator
 
     public BeatPattern GeneratePattern()
     {
-        var (minTempo, maxTempo) = TempoRange;
-        int tempo = _rnd.Next(minTempo, maxTempo + 1);
+        return GeneratePattern(null);
+    }
+
+    public BeatPattern GeneratePattern(int? bpm)
+    {
+        var (minBpm, maxBpm) = BpmRange;
+        int actualBpm = bpm ?? _rnd.Next(minBpm, maxBpm + 1);
+
+        // Clamp BPM to valid range if provided
+        if (bpm.HasValue)
+        {
+            actualBpm = Math.Clamp(actualBpm, minBpm, maxBpm);
+            _logger.LogInformation("Using custom BPM {Bpm} (clamped to range {Min}-{Max})", actualBpm, minBpm, maxBpm);
+        }
 
         // Select random progression and pattern
         var chords = _chordProgressions[_rnd.Next(_chordProgressions.Length)].ToArray();
@@ -37,7 +49,7 @@ public abstract class BaseBeatGenerator : IBeatGenerator
 
         var pattern = new BeatPattern
         {
-            Tempo = tempo,
+            BPM = actualBpm,
             DrumSequence = basePattern,
             ChordProgression = chords
         };

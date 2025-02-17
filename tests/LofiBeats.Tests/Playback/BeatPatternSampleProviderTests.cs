@@ -16,7 +16,7 @@ public class BeatPatternSampleProviderTests
         _loggerMock = new Mock<ILogger>();
         _testPattern = new BeatPattern
         {
-            Tempo = 80,
+            BPM = 80,
             DrumSequence = ["kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat"],
             ChordProgression = ["Dm7", "G7", "Cmaj7", "Am7"]
         };
@@ -66,7 +66,7 @@ public class BeatPatternSampleProviderTests
         // Arrange
         var kickOnlyPattern = new BeatPattern
         {
-            Tempo = 80,
+            BPM = 80,
             DrumSequence = ["kick", "_", "_", "_", "kick", "_", "_", "_"],
             ChordProgression = ["Dm7"]
         };
@@ -143,7 +143,7 @@ public class BeatPatternSampleProviderTests
         // Arrange
         var singleDrumPattern = new BeatPattern
         {
-            Tempo = 80,
+            BPM = 80,
             DrumSequence = ["snare", "snare", "snare", "snare"],
             ChordProgression = ["Dm7"]
         };

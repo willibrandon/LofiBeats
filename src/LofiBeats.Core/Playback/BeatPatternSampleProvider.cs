@@ -43,7 +43,7 @@ public class BeatPatternSampleProvider : ISampleProvider
         _waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
 
         // Calculate samples per step based on tempo
-        float secondsPerBeat = 60f / pattern.Tempo;
+        float secondsPerBeat = 60f / pattern.BPM;
         _samplesPerStep = (int)(secondsPerBeat * _waveFormat.SampleRate);
 
         // Initialize humanization
@@ -57,7 +57,7 @@ public class BeatPatternSampleProvider : ISampleProvider
             _noiseBuffer[i] = (float)(_rand.NextDouble() * 2 - 1);
         }
 
-        _logger.LogInformation("BeatPatternSampleProvider initialized with tempo {Tempo} BPM", pattern.Tempo);
+        _logger.LogInformation("BeatPatternSampleProvider initialized with tempo {Tempo} BPM", pattern.BPM);
     }
 
     private void RandomizeOffsets()
