@@ -9,7 +9,7 @@ namespace LofiBeats.Core.Scheduling;
 public class PlaybackScheduler : IDisposable
 {
     private readonly ILogger<PlaybackScheduler> _logger;
-    private readonly ConcurrentDictionary<Guid, Timer> _timers = new();
+    private readonly ConcurrentDictionary<Guid, (Timer Timer, string Description)> _timers = new();
     private bool _disposed;
 
     private static readonly Action<ILogger, Guid, int, Exception?> _logSchedulingAction =
@@ -40,11 +40,12 @@ public class PlaybackScheduler : IDisposable
     /// </summary>
     /// <param name="delay">Delay in milliseconds before executing</param>
     /// <param name="callback">Action to invoke when the timer fires</param>
+    /// <param name="description">Optional description of the scheduled action</param>
     /// <returns>A Guid that can be used to cancel or reference this schedule later</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when delay is negative</exception>
     /// <exception cref="ArgumentNullException">Thrown when callback is null</exception>
     /// <exception cref="ObjectDisposedException">Thrown when the scheduler has been disposed</exception>
-    public Guid ScheduleAction(int delay, Action callback)
+    public Guid ScheduleAction(int delay, Action callback, string? description = null)
     {
         if (delay < 0) throw new ArgumentOutOfRangeException(nameof(delay), "Delay must be non-negative");
         if (callback == null) throw new ArgumentNullException(nameof(callback));
@@ -71,8 +72,18 @@ public class PlaybackScheduler : IDisposable
             }
         }, null, delay, Timeout.Infinite);
 
-        _timers[id] = timer;
+        _timers[id] = (timer, description ?? $"Scheduled action {id}");
         return id;
+    }
+
+    /// <summary>
+    /// Gets a list of all currently scheduled actions.
+    /// </summary>
+    /// <returns>A list of tuples containing the action ID and its description</returns>
+    public IReadOnlyList<(Guid Id, string Description)> GetScheduledActions()
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(PlaybackScheduler));
+        return _timers.Select(kvp => (kvp.Key, kvp.Value.Description)).ToList();
     }
 
     /// <summary>
@@ -85,10 +96,10 @@ public class PlaybackScheduler : IDisposable
     {
         if (_disposed) throw new ObjectDisposedException(nameof(PlaybackScheduler));
 
-        if (_timers.TryRemove(id, out var timer))
+        if (_timers.TryRemove(id, out var timerInfo))
         {
             _logCancellingAction(_logger, id, null);
-            timer.Dispose();
+            timerInfo.Timer.Dispose();
             return true;
         }
         return false;
@@ -106,7 +117,7 @@ public class PlaybackScheduler : IDisposable
             if (disposing)
             {
                 // Cancel and dispose all timers
-                foreach (var timer in _timers.Values)
+                foreach (var (timer, _) in _timers.Values)
                 {
                     timer.Dispose();
                 }

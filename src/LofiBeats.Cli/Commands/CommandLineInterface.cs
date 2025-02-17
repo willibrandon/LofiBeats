@@ -593,6 +593,58 @@ public class CommandLineInterface : IDisposable
         });
         _rootCommand.AddCommand(interactiveCommand);
 
+        // Add schedule command
+        var scheduleCommand = new Command("schedule", "Manage scheduled actions");
+        scheduleCommand.Description = "List or cancel scheduled playback actions.\n\n" +
+                                    "Subcommands:\n" +
+                                    "  list     List all scheduled actions\n" +
+                                    "  cancel   Cancel a scheduled action by ID\n\n" +
+                                    "Examples:\n" +
+                                    "  schedule list              Show all scheduled actions\n" +
+                                    "  schedule cancel <id>       Cancel a specific scheduled action";
+
+        var listCommand = new Command("list", "List all scheduled actions");
+        listCommand.SetHandler(() =>
+        {
+            var actions = _scheduler.GetScheduledActions();
+            if (actions.Count == 0)
+            {
+                Console.WriteLine("No scheduled actions.");
+                return;
+            }
+
+            Console.WriteLine("Scheduled actions:");
+            foreach (var (id, description) in actions)
+            {
+                Console.WriteLine($"  {id}: {description}");
+            }
+        });
+        scheduleCommand.AddCommand(listCommand);
+
+        var cancelCommand = new Command("cancel", "Cancel a scheduled action");
+        var idArg = new Argument<string>("action-id", "The ID of the action to cancel");
+        cancelCommand.AddArgument(idArg);
+        cancelCommand.SetHandler((string actionId) =>
+        {
+            if (!Guid.TryParse(actionId, out var id))
+            {
+                Console.WriteLine($"Invalid action ID format: {actionId}");
+                return;
+            }
+
+            if (_scheduler.CancelAction(id))
+            {
+                Console.WriteLine($"Cancelled action {id}");
+            }
+            else
+            {
+                Console.WriteLine($"No action found with ID {id}");
+            }
+        }, idArg);
+        scheduleCommand.AddCommand(cancelCommand);
+
+        _rootCommand.AddCommand(scheduleCommand);
+
         // Add help examples to the root command
         _rootCommand.Description = "A command-line application for generating and playing lofi beats\n\n" +
             "Examples:\n" +
@@ -648,10 +700,12 @@ public class CommandLineInterface : IDisposable
             });
         });
 
-        // Schedule the actual stop call
-        actionId = _scheduler.ScheduleAction(totalMs, callback);
+        // Schedule the actual stop call with a descriptive name
+        var description = $"Stop playback{(tapeStop ? " with tape effect" : "")} at {DateTime.Now + delay:HH:mm:ss}";
+        actionId = _scheduler.ScheduleAction(totalMs, callback, description);
 
         Console.WriteLine($"Playback will stop{(tapeStop ? " with tape effect" : "")} in {delay.TotalSeconds:F1} seconds.");
+        Console.WriteLine($"Action ID: {actionId}");
         
         // Show a progress indicator while waiting
         var startTime = DateTime.Now;
@@ -720,10 +774,12 @@ public class CommandLineInterface : IDisposable
             });
         });
 
-        // Schedule the actual play call
-        actionId = _scheduler.ScheduleAction(totalMs, callback);
+        // Schedule the actual play call with a descriptive name
+        var description = $"Play {style} style{(bpm.HasValue ? $" at {bpm} BPM" : "")} at {DateTime.Now + delay:HH:mm:ss}";
+        actionId = _scheduler.ScheduleAction(totalMs, callback, description);
 
         Console.WriteLine($"Playback will start in {delay.TotalSeconds:F1} seconds.");
+        Console.WriteLine($"Action ID: {actionId}");
         
         // Show a progress indicator while waiting
         var startTime = DateTime.Now;
