@@ -130,6 +130,36 @@ public partial class Program
             return Results.Ok(new { message = $"Scheduled stop in {timespan.Value.TotalSeconds:F1} seconds", actionId = id });
         });
 
+        // Schedule play endpoint
+        api.MapPost("/schedule-play", (IBeatGeneratorFactory factory, IAudioPlaybackService playback,
+                                     PlaybackScheduler scheduler, ILogger<Program> logger, string style = "basic", string delay = "0s") =>
+        {
+            telemetryTracker.TrackEvent(TelemetryConstants.Events.PlaybackScheduled, new Dictionary<string, string>
+            {
+                { TelemetryConstants.Properties.BeatStyle, style },
+                { TelemetryConstants.Properties.StopDelay, delay }
+            });
+
+            var timespan = DelayParser.ParseDelay(delay);
+            if (timespan == null)
+            {
+                return Results.BadRequest(new { error = $"Invalid delay format: {delay}" });
+            }
+
+            // Schedule the play action
+            var totalMs = (int)timespan.Value.TotalMilliseconds;
+            var id = scheduler.ScheduleAction(totalMs, () =>
+            {
+                var generator = factory.GetGenerator(style);
+                var pattern = generator.GeneratePattern();
+                var beatSource = new BeatPatternSampleProvider(pattern, logger);
+                playback.SetSource(beatSource);
+                playback.StartPlayback();
+            });
+
+            return Results.Ok(new { message = $"Scheduled {style} beat to play in {timespan.Value.TotalSeconds:F1} seconds", actionId = id });
+        });
+
         // Generate endpoint
         api.MapPost("/generate", (IBeatGeneratorFactory factory, string style = "basic", int? bpm = null) =>
         {

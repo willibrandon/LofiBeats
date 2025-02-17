@@ -196,6 +196,18 @@ public class CommandLineInterface : IDisposable
 
         // Add play command
         var playCommand = new Command("play", "Plays a new lofi beat");
+        playCommand.Description = "Plays a new lofi beat with the specified style.\n\n" +
+                                "Options:\n" +
+                                "  --style    Beat style (basic, jazzy, chillhop, hiphop)\n" +
+                                "  --bpm      Tempo in beats per minute (BPM)\n" +
+                                "  --after    Specify a delay (e.g. '10m' or '30s') before starting\n\n" +
+                                "Examples:\n" +
+                                "  play                     Play with default style\n" +
+                                "  play --style=chillhop    Play chillhop style\n" +
+                                "  play --style=jazzy --bpm=85  Play jazzy style at 85 BPM\n" +
+                                "  play --after 5m          Start playing in 5 minutes\n" +
+                                "  play --style=hiphop --after 30s  Play hiphop style in 30 seconds";
+
         var styleOption = new Option<string>("--style", () => "basic", "Beat style (basic, jazzy, chillhop, hiphop)");
         var bpmOption = new Option<int?>(
             "--bpm",
@@ -208,29 +220,45 @@ public class CommandLineInterface : IDisposable
                 result.ErrorMessage = "BPM must be between 60 and 140";
             }
         });
+
+        var afterOption = new Option<string?>(
+            "--after",
+            description: "Specify a delay (e.g. '10m' or '30s') before starting");
+
         playCommand.AddOption(styleOption);
         playCommand.AddOption(bpmOption);
+        playCommand.AddOption(afterOption);
 
-        playCommand.SetHandler(async (string style, int? bpm) =>
+        playCommand.SetHandler(async (string style, int? bpm, string? afterValue) =>
         {
             _logExecutingPlayCommand(_logger, null);
             try
             {
-                Console.Write("Starting playback... ");
-                ShowSpinner("Starting playback", 1000);
-
-                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"play?style={Uri.EscapeDataString(style)}&bpm={bpm}");
-                var result = await response.Content.ReadFromJsonAsync<PlayResponse>();
-                if (result?.Pattern != null)
+                // If --after is specified, schedule the play instead of immediate
+                if (!string.IsNullOrEmpty(afterValue))
                 {
-                    Console.WriteLine($"Playing new {style} beat pattern: {result.Pattern}");
+                    var delay = DelayParser.ParseDelay(afterValue);
+                    if (delay == null)
+                    {
+                        Console.WriteLine($"Invalid delay format: {afterValue}");
+                        Console.WriteLine("Use formats like '10m' for minutes, '30s' for seconds, or '2h' for hours.");
+                        return;
+                    }
+
+                    // Schedule the play call
+                    await SchedulePlay(style, bpm, delay.Value);
+                }
+                else
+                {
+                    // immediate play
+                    await StartPlayback(style, bpm);
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error: {ex.Message}");
             }
-        }, styleOption, bpmOption);
+        }, styleOption, bpmOption, afterOption);
         _rootCommand.AddCommand(playCommand);
 
         // Add stop command
@@ -662,6 +690,67 @@ public class CommandLineInterface : IDisposable
         if (result?.Message != null)
         {
             Console.WriteLine(result.Message);
+        }
+    }
+
+    private async Task SchedulePlay(string style, int? bpm, TimeSpan delay)
+    {
+        _logSchedulingStop(_logger, $"play {style} at {bpm} BPM in {delay.TotalSeconds} seconds", delay, null);
+        var totalMs = (int)delay.TotalMilliseconds;
+
+        // Create a TaskCompletionSource to wait for the action to complete
+        var tcs = new TaskCompletionSource();
+
+        // Create a closure to capture the action ID
+        Guid actionId = Guid.Empty;
+        var callback = new Action(() =>
+        {
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await StartPlayback(style, bpm);
+                    tcs.SetResult(); // Signal completion
+                }
+                catch (Exception ex)
+                {
+                    _logScheduledStopError(_logger, actionId, ex);
+                    tcs.SetException(ex); // Signal error
+                }
+            });
+        });
+
+        // Schedule the actual play call
+        actionId = _scheduler.ScheduleAction(totalMs, callback);
+
+        Console.WriteLine($"Playback will start in {delay.TotalSeconds:F1} seconds.");
+        
+        // Show a progress indicator while waiting
+        var startTime = DateTime.Now;
+        var endTime = startTime + delay;
+        
+        while (DateTime.Now < endTime && !tcs.Task.IsCompleted)
+        {
+            var remaining = endTime - DateTime.Now;
+            Console.Write($"\rTime remaining: {remaining.TotalSeconds:F1}s    ");
+            await Task.Delay(100); // Update every 100ms
+        }
+        Console.WriteLine(); // Clear the progress line
+
+        // Wait for the action to complete
+        await tcs.Task;
+    }
+
+    private async Task StartPlayback(string style, int? bpm)
+    {
+        Console.Write($"Starting playback with {style} style and {bpm} BPM... ");
+        ShowSpinner("Starting playback", 1000);
+
+        var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"play?style={Uri.EscapeDataString(style)}&bpm={bpm}");
+        var result = await response.Content.ReadFromJsonAsync<PlayResponse>();
+        if (result?.Pattern != null)
+        {
+            Console.WriteLine($"Playing new {style} beat pattern: {result.Pattern}");
         }
     }
 }
