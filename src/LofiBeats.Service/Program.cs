@@ -326,8 +326,8 @@ public partial class Program
             return Results.Text(JsonSerializer.Serialize(new { message = "Service shutting down..." }), "application/json");
         });
 
-        // Configure to run on port 5000
-        app.Urls.Add("http://localhost:5000");
+        // Configure to run on port 5001 since 5000 is used by ControlCenter
+        app.Urls.Add("http://localhost:5001");
 
         app.Run();
     }
