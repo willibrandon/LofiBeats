@@ -50,7 +50,7 @@ if (-not $NoBuild) {
 if (-not $NoTest) {
     # Run tests
     Write-Host "Running tests..." -ForegroundColor Yellow
-    & dotnet test "$root/LofiBeats.sln" --no-build
+    & dotnet test "$root/LofiBeats.sln" --configuration $configuration --no-build
     if ($LASTEXITCODE -ne 0) { throw "Tests failed" }
 }
 

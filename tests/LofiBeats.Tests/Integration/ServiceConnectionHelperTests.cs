@@ -1,7 +1,9 @@
 using LofiBeats.Cli;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Moq.Protected;
+using System.Diagnostics;
 using System.Net;
 
 namespace LofiBeats.Tests.Integration;
@@ -38,21 +40,102 @@ public class ServiceConnectionHelperTests : IDisposable
         Directory.CreateDirectory(testDir);
         _cleanupFiles.Add(testDir);
         
+        // Copy the actual service files instead of creating an empty one
+        var sourceServicePath = Path.Combine(
+            AppContext.BaseDirectory,
+            "LofiBeats.Service.dll");
+        
         _testServicePath = Path.Combine(testDir, "LofiBeats.Service.dll");
-        File.WriteAllText(_testServicePath, "test");
+        
+        // Copy service and its dependencies
+        if (File.Exists(sourceServicePath))
+        {
+            var serviceTestDir = Path.GetDirectoryName(_testServicePath)!;
+            
+            // Copy all DLL files from the source directory
+            foreach (var file in Directory.GetFiles(Path.GetDirectoryName(sourceServicePath)!, "*.dll"))
+            {
+                var fileName = Path.GetFileName(file);
+                File.Copy(file, Path.Combine(serviceTestDir, fileName), true);
+            }
+            
+            // Copy runtime config
+            var runtimeConfig = Path.ChangeExtension(sourceServicePath, ".runtimeconfig.json");
+            if (File.Exists(runtimeConfig))
+            {
+                File.Copy(runtimeConfig, Path.ChangeExtension(_testServicePath, ".runtimeconfig.json"));
+            }
+            
+            // Copy deps file
+            var depsFile = Path.ChangeExtension(sourceServicePath, ".deps.json");
+            if (File.Exists(depsFile))
+            {
+                File.Copy(depsFile, Path.ChangeExtension(_testServicePath, ".deps.json"));
+            }
+        }
+        else
+        {
+            // Fallback for when running tests without build
+            File.WriteAllText(_testServicePath, "test");
+        }
+
+        // Create mock configuration
+        var configurationMock = new Mock<IConfiguration>();
+        configurationMock.Setup(c => c["ServiceUrl"]).Returns(_testServiceUrl);
 
         _helper = new ServiceConnectionHelper(
             _loggerMock.Object,
-            _testServiceUrl,
+            configurationMock.Object,
+            null,
             _httpClient,
             _testServicePath);
     }
 
     public void Dispose()
     {
+        try
+        {
+            // Try graceful shutdown first
+            _helper.ShutdownServiceAsync().Wait(TimeSpan.FromSeconds(5));
+        }
+        catch
+        {
+            // Ignore shutdown errors
+        }
+
         _httpClient.Dispose();
         
-        // Clean up all test files and directories
+        // Find and kill any remaining service processes
+        try
+        {
+            var serviceName = Path.GetFileNameWithoutExtension(_testServicePath);
+            foreach (var proc in Process.GetProcessesByName("dotnet")
+                .Where(p => p.MainWindowTitle == "" && IsLofiBeatsServiceProcess(p)))
+            {
+                try
+                {
+                    if (!proc.HasExited)
+                    {
+                        proc.Kill(true);
+                        proc.WaitForExit(1000);
+                    }
+                }
+                catch
+                {
+                    // Ignore process cleanup errors
+                }
+                finally
+                {
+                    proc.Dispose();
+                }
+            }
+        }
+        catch
+        {
+            // Ignore process enumeration errors
+        }
+        
+        // Clean up test files
         foreach (var path in _cleanupFiles)
         {
             try
@@ -71,6 +154,55 @@ public class ServiceConnectionHelperTests : IDisposable
                 // Ignore cleanup errors
             }
         }
+    }
+
+    private bool IsLofiBeatsServiceProcess(Process process)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                var wmiQuery = $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {process.Id}";
+                using var searcher = new System.Management.ManagementObjectSearcher(wmiQuery);
+                using var collection = searcher.Get();
+
+                foreach (var item in collection)
+                {
+                    var commandLine = item["CommandLine"]?.ToString();
+                    if (commandLine?.Contains(_testServicePath) == true)
+                    {
+                        return true;
+                    }
+                }
+            }
+            else if (OperatingSystem.IsLinux())
+            {
+                var cmdline = File.ReadAllText($"/proc/{process.Id}/cmdline");
+                return cmdline.Contains(_testServicePath);
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "ps",
+                    Arguments = $"-p {process.Id} -o command",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false
+                };
+                var ps = Process.Start(psi);
+                if (ps != null)
+                {
+                    var output = ps.StandardOutput.ReadToEnd();
+                    ps.WaitForExit();
+                    return output.Contains(_testServicePath);
+                }
+            }
+        }
+        catch
+        {
+            // Ignore process check errors
+        }
+        return false;
     }
 
     private void SetupHttpMockResponse(HttpStatusCode statusCode, string? content = null, string? endpoint = null)

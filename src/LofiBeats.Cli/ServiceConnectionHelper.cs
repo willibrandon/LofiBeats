@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
@@ -88,15 +89,36 @@ public class ServiceConnectionHelper
     private static readonly Action<ILogger, Exception?> _logPidFileInvalid =
         LoggerMessage.Define(LogLevel.Debug, new EventId(25, "PidFileInvalid"), "PID file is invalid or process is no longer running");
 
+    private static readonly Action<ILogger, string, string, Exception?> _logStartingServiceDetails =
+        LoggerMessage.Define<string, string>(LogLevel.Debug, new EventId(26, "StartingServiceDetails"), 
+            "Starting service with path: '{ServicePath}' in directory: '{ServiceDirectory}'");
+
+    private static readonly Action<ILogger, string, Exception?> _logExecutingCommand =
+        LoggerMessage.Define<string>(LogLevel.Debug, new EventId(27, "ExecutingCommand"), 
+            "Executing command: dotnet {Arguments}");
+
+    private static readonly Action<ILogger, string, string, string, string, Exception?> _logServiceStartupDetails =
+        LoggerMessage.Define<string, string, string, string>(LogLevel.Debug, new EventId(28, "ServiceStartupDetails"), 
+            "[DEBUG] About to start service:\n[DEBUG]   FileName: {FileName}\n[DEBUG]   Arguments: {Arguments}\n[DEBUG]   WorkingDirectory: {WorkingDirectory}\n[DEBUG]   ServicePath: {ServicePath}");
+
+    private static readonly Action<ILogger, Exception> _logChmodError =
+        LoggerMessage.Define(LogLevel.Warning, new EventId(29, "ChmodError"), "Failed to set executable permissions");
+
     public ServiceConnectionHelper(
-        ILogger<ServiceConnectionHelper> logger, 
-        string serviceUrl = "http://localhost:5000", 
+        ILogger<ServiceConnectionHelper> logger,
+        IConfiguration configuration,
+        string? serviceUrl = null,
         HttpClient? httpClient = null,
         string? servicePath = null)
     {
         _logger = logger;
         _httpClient = httpClient ?? new HttpClient();
-        _serviceUrl = serviceUrl;
+        
+        // Read service URL from configuration, falling back to parameter, then default
+        _serviceUrl = configuration["ServiceUrl"] ?? 
+                     serviceUrl ?? 
+                     "http://localhost:5000";
+
         _servicePath = servicePath ?? GetDefaultServicePath();
         _pidFilePath = Path.Combine(Path.GetDirectoryName(_servicePath)!, "service.pid");
 
@@ -105,7 +127,7 @@ public class ServiceConnectionHelper
             .Handle<HttpRequestException>()
             .Or<TaskCanceledException>()
             .WaitAndRetryAsync(
-                retryCount: 6, // Maximum of ~6.4 seconds total (100ms, 200ms, 400ms, 800ms, 1600ms, 3200ms)
+                retryCount: 6,
                 sleepDurationProvider: retryAttempt => 
                 {
                     var delay = TimeSpan.FromMilliseconds(Math.Min(100 * Math.Pow(2, retryAttempt - 1), 3200));
@@ -277,13 +299,13 @@ public class ServiceConnectionHelper
         var pidProcess = GetProcessFromPidFile();
         if (pidProcess != null)
         {
-            return new List<Process> { pidProcess };
+            return [pidProcess];
         }
 
         // For test environment
         if (Environment.GetEnvironmentVariable("MOCK_PROCESS_TEST") == "true")
         {
-            return new List<Process> { Process.GetCurrentProcess() };
+            return [Process.GetCurrentProcess()];
         }
 
         // Fall back to full process enumeration
@@ -324,17 +346,20 @@ public class ServiceConnectionHelper
         try
         {
             var serviceDirectory = Path.GetDirectoryName(_servicePath)!;
+            var serviceFileName = Path.GetFileName(_servicePath);
 
             // Copy service appsettings if they don't exist
             await CopyServiceSettingsAsync(serviceDirectory);
+
+            // Log the service path and directory for debugging
+            _logStartingServiceDetails(_logger, _servicePath, serviceDirectory, null);
 
             // Start the service process
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = "dotnet",
-                    Arguments = $"\"{_servicePath}\"",
+                    FileName = _servicePath,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -342,6 +367,34 @@ public class ServiceConnectionHelper
                     WorkingDirectory = serviceDirectory
                 }
             };
+
+            // Make sure the file is executable on Linux
+            if (OperatingSystem.IsLinux())
+            {
+                try
+                {
+                    var chmodPsi = new ProcessStartInfo
+                    {
+                        FileName = "chmod",
+                        Arguments = $"+x \"{_servicePath}\"",
+                        UseShellExecute = false,
+                        RedirectStandardError = true
+                    };
+                    using var chmod = Process.Start(chmodPsi);
+                    chmod?.WaitForExit();
+                }
+                catch (Exception ex)
+                {
+                    _logChmodError(_logger, ex);
+                }
+            }
+
+            _logServiceStartupDetails(_logger, 
+                process.StartInfo.FileName,
+                process.StartInfo.Arguments,
+                serviceDirectory,
+                _servicePath,
+                null);
 
             process.OutputDataReceived += (sender, e) => 
             {
@@ -354,9 +407,24 @@ public class ServiceConnectionHelper
                     _logServiceError(_logger, e.Data, null);
             };
 
+            // Log the final command that will be executed
+            _logExecutingCommand(_logger, string.Join(" ", process.StartInfo.ArgumentList), null);
+
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
+
+            bool exitedQuickly = process.WaitForExit(2000);
+            if (exitedQuickly)
+            {
+                // Child died almost instantly; log the exit code
+                Console.WriteLine($"[DEBUG] Service exited with code {process.ExitCode}.");
+                throw new Exception($"Service process exited immediately with code {process.ExitCode}.");
+            }
+            else
+            {
+                Console.WriteLine("[DEBUG] Service is still running after 2s...");
+            }
 
             // Write PID file
             File.WriteAllText(_pidFilePath, process.Id.ToString());
@@ -409,8 +477,10 @@ public class ServiceConnectionHelper
         // Get the directory where the CLI is running
         var cliDirectory = AppContext.BaseDirectory;
         
-        // Service DLL should be in the same directory
-        var servicePath = Path.Combine(cliDirectory, "LofiBeats.Service.dll");
+        // Service executable/DLL should be in the same directory
+        var servicePath = OperatingSystem.IsLinux() 
+            ? Path.Combine(cliDirectory, "LofiBeats.Service")
+            : Path.Combine(cliDirectory, "LofiBeats.Service.dll");
 
         if (!File.Exists(servicePath))
         {
@@ -420,7 +490,7 @@ public class ServiceConnectionHelper
                 "..", "..", "..", // back to src/LofiBeats.Cli
                 "..", "LofiBeats.Service", // to src/LofiBeats.Service
                 "bin", "Debug", "net9.0",
-                "LofiBeats.Service.dll"
+                OperatingSystem.IsLinux() ? "LofiBeats.Service" : "LofiBeats.Service.dll"
             ));
 
             if (File.Exists(serviceDevPath))

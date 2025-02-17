@@ -1,7 +1,8 @@
-using System.CommandLine;
-using System.Net.Http.Json;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System.CommandLine;
 using System.CommandLine.Invocation;
+using System.Net.Http.Json;
 
 namespace LofiBeats.Cli.Commands;
 
@@ -83,11 +84,12 @@ public class CommandLineInterface : IDisposable
         Console.SetCursorPosition(originalLeft, originalTop);
     }
 
-    public CommandLineInterface(ILogger<CommandLineInterface> logger, ILoggerFactory loggerFactory)
+    public CommandLineInterface(ILogger<CommandLineInterface> logger, ILoggerFactory loggerFactory, IConfiguration configuration)
     {
         _logger = logger;
         _serviceHelper = new ServiceConnectionHelper(
-            loggerFactory.CreateLogger<ServiceConnectionHelper>());
+            loggerFactory.CreateLogger<ServiceConnectionHelper>(),
+            configuration);
 
         _rootCommand = new RootCommand("Lofi Beats Generator & Player CLI")
         {
