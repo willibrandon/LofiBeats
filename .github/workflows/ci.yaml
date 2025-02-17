@@ -44,12 +44,20 @@ jobs:
     - name: Test with Coverage
       run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --results-directory "${{ github.workspace }}/TestResults" --logger "trx;LogFileName=test_results.trx" --logger "html;LogFileName=test_results.html" --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
       
+    - name: Prepare Coverage Report
+      if: matrix.configuration == 'Release'
+      shell: pwsh
+      run: |
+        $coverageFile = Get-ChildItem -Path "${{ github.workspace }}/TestResults" -Recurse -Filter "coverage.opencover.xml" | Select-Object -First 1
+        Write-Host "Coverage file found at: $($coverageFile.FullName)"
+        echo "COVERAGE_FILE=$($coverageFile.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+      
     - name: Upload Coverage to Codecov
       if: matrix.configuration == 'Release'
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: ${{ github.workspace }}/TestResults/**/coverage.opencover.xml
+        files: ${{ env.COVERAGE_FILE }}
         flags: windows
         fail_ci_if_error: true
       
@@ -106,12 +114,25 @@ jobs:
     - name: Test with Coverage
       run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --filter "Category!=Platform_Specific" --results-directory "${{ github.workspace }}/TestResults" --logger "trx;LogFileName=test_results.trx" --logger "html;LogFileName=test_results.html" --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
       
+    - name: Install gpg
+      if: matrix.configuration == 'Release'
+      run: |
+        apt-get update
+        apt-get install -y gpg
+      
+    - name: Prepare Coverage Report
+      if: matrix.configuration == 'Release'
+      run: |
+        coverage_file=$(find "${{ github.workspace }}/TestResults" -name "coverage.opencover.xml" | head -n 1)
+        echo "Coverage file found at: $coverage_file"
+        echo "COVERAGE_FILE=$coverage_file" >> $GITHUB_ENV
+      
     - name: Upload Coverage to Codecov
       if: matrix.configuration == 'Release'
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: ${{ github.workspace }}/TestResults/**/coverage.opencover.xml
+        files: ${{ env.COVERAGE_FILE }}
         flags: linux
         fail_ci_if_error: true
       
