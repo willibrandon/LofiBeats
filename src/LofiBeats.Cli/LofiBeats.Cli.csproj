@@ -14,12 +14,12 @@
 		<ToolCommandName>lofi</ToolCommandName>
 		<PackageOutputPath>./nupkg</PackageOutputPath>
 		<Version>0.1.0</Version>
-		<Authors>LofiBeats Team</Authors>
+		<Authors>willibrandon</Authors>
 		<Description>A CLI tool for generating and playing lofi beats with real-time effects.</Description>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<PackageProjectUrl>https://github.com/yourusername/LofiBeats</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/yourusername/LofiBeats</RepositoryUrl>
-		<PackageTags>music;audio;lofi;beats;cli</PackageTags>
+		<PackageProjectUrl>https://github.com/willibrandon/LofiBeats</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/willibrandon/LofiBeats</RepositoryUrl>
+		<PackageTags>music;audio;lofi;beats;cli;cross-platform;dotnet;dsp;effects</PackageTags>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(PublishConfiguration)' == 'true'">
