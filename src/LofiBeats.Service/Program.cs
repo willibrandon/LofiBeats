@@ -105,7 +105,8 @@ public partial class Program
 
             // Schedule the stop
             var totalMs = (int)timespan.Value.TotalMilliseconds;
-            var id = scheduler.ScheduleAction(totalMs, () =>
+            var description = $"Stop playback{(tapeStop ? " with tape effect" : "")} at {DateTime.Now + timespan.Value:HH:mm:ss}";
+            var id = scheduler.ScheduleStopAction(totalMs, () =>
             {
                 // In callback: call the service's stop logic
                 if (tapeStop)
@@ -125,7 +126,7 @@ public partial class Program
                 {
                     playback.StopPlayback();
                 }
-            });
+            }, description);
 
             return Results.Ok(new { message = $"Scheduled stop in {timespan.Value.TotalSeconds:F1} seconds", actionId = id });
         });

@@ -102,14 +102,14 @@ public class ScheduledPlaybackTests : IClassFixture<ServiceTestFixture>
         var stopCount = 0;
 
         // Schedule two stops close together
-        var id1 = scheduler.ScheduleAction(100, () => Interlocked.Increment(ref stopCount));
-        var id2 = scheduler.ScheduleAction(150, () => Interlocked.Increment(ref stopCount));
+        var id1 = scheduler.ScheduleStopAction(100, () => Interlocked.Increment(ref stopCount), "First stop");
+        var id2 = scheduler.ScheduleStopAction(150, () => Interlocked.Increment(ref stopCount), "Second stop");
 
         // Act
         await Task.Delay(300); // Wait for both actions to complete
 
         // Assert
-        Assert.Equal(2, stopCount); // Both actions should execute
+        Assert.Equal(1, stopCount); // Only the first stop should execute
         Assert.Equal(0, scheduler.ScheduledActionCount); // All actions should be cleaned up
     }
 

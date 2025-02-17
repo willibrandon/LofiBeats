@@ -36,10 +36,16 @@ public class PlaybackScheduler : IDisposable
     }
 
     /// <summary>
+    /// Gets the number of currently scheduled actions.
+    /// </summary>
+    public int ScheduledActionCount => _timers.Count;
+
+    /// <summary>
     /// Schedules an action to be executed after a given delay.
+    /// Returns a Guid you can use to reference this schedule later.
     /// </summary>
     /// <param name="delay">Delay in milliseconds before executing</param>
-    /// <param name="callback">Action to invoke when the timer fires</param>
+    /// <param name="callback">Action to invoke</param>
     /// <param name="description">Optional description of the scheduled action</param>
     /// <returns>A Guid that can be used to cancel or reference this schedule later</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when delay is negative</exception>
@@ -47,7 +53,7 @@ public class PlaybackScheduler : IDisposable
     /// <exception cref="ObjectDisposedException">Thrown when the scheduler has been disposed</exception>
     public Guid ScheduleAction(int delay, Action callback, string? description = null)
     {
-        if (delay < 0) throw new ArgumentOutOfRangeException(nameof(delay), "Delay must be non-negative");
+        if (delay < 0) throw new ArgumentOutOfRangeException(nameof(delay));
         if (callback == null) throw new ArgumentNullException(nameof(callback));
         if (_disposed) throw new ObjectDisposedException(nameof(PlaybackScheduler));
 
@@ -72,8 +78,33 @@ public class PlaybackScheduler : IDisposable
             }
         }, null, delay, Timeout.Infinite);
 
-        _timers[id] = (timer, description ?? $"Scheduled action {id}");
+        _timers[id] = (timer, description ?? string.Empty);
         return id;
+    }
+
+    /// <summary>
+    /// Schedules a stop action to be executed after a given delay.
+    /// If there are any existing stop actions, they will be cancelled.
+    /// Returns a Guid you can use to reference this schedule later.
+    /// </summary>
+    public Guid ScheduleStopAction(int delay, Action callback, string? description = null)
+    {
+        if (delay < 0) throw new ArgumentOutOfRangeException(nameof(delay));
+        if (callback == null) throw new ArgumentNullException(nameof(callback));
+        if (_disposed) throw new ObjectDisposedException(nameof(PlaybackScheduler));
+
+        // Cancel any existing stop actions
+        var existingStopActions = _timers
+            .Where(t => t.Value.Description.Contains("stop", StringComparison.OrdinalIgnoreCase))
+            .Select(t => t.Key)
+            .ToList();
+
+        foreach (var existingId in existingStopActions)
+        {
+            CancelAction(existingId);
+        }
+
+        return ScheduleAction(delay, callback, description);
     }
 
     /// <summary>
@@ -94,7 +125,7 @@ public class PlaybackScheduler : IDisposable
     /// <exception cref="ObjectDisposedException">Thrown when the scheduler has been disposed</exception>
     public bool CancelAction(Guid id)
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(PlaybackScheduler));
+        if (_disposed) return false;
 
         if (_timers.TryRemove(id, out var timerInfo))
         {
@@ -104,11 +135,6 @@ public class PlaybackScheduler : IDisposable
         }
         return false;
     }
-
-    /// <summary>
-    /// Gets the number of currently scheduled actions.
-    /// </summary>
-    public int ScheduledActionCount => _timers.Count;
 
     protected virtual void Dispose(bool disposing)
     {
