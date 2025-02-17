@@ -4,6 +4,7 @@ using Moq;
 
 namespace LofiBeats.Tests.Scheduling;
 
+[Collection("AI Generated Tests")]
 public class PlaybackSchedulerTests
 {
     private readonly Mock<ILogger<PlaybackScheduler>> _loggerMock;
@@ -16,6 +17,7 @@ public class PlaybackSchedulerTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task ScheduleAction_ExecutesAfterDelay()
     {
         // Arrange
@@ -38,6 +40,7 @@ public class PlaybackSchedulerTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void CancelAction_CancelsScheduledAction()
     {
         // Arrange
@@ -54,6 +57,7 @@ public class PlaybackSchedulerTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void ScheduleAction_ThrowsOnNegativeDelay()
     {
         // Act & Assert
@@ -62,6 +66,7 @@ public class PlaybackSchedulerTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void ScheduleAction_ThrowsOnNullCallback()
     {
         // Act & Assert
@@ -70,6 +75,7 @@ public class PlaybackSchedulerTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void Dispose_CancelsAllScheduledActions()
     {
         // Arrange
