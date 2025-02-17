@@ -100,8 +100,18 @@ public partial class Program
         });
 
         // Play endpoint
-        api.MapPost("/play", (IAudioPlaybackService playback, IBeatGeneratorFactory factory, string style = "basic", int? bpm = null) =>
+        api.MapPost("/play", (HttpContext context, IAudioPlaybackService playback, IBeatGeneratorFactory factory) =>
         {
+            var style = context.Request.Query["style"].FirstOrDefault() ?? "basic";
+            int? bpm = null;
+            if (context.Request.Query.TryGetValue("bpm", out var bpmValue) && !string.IsNullOrEmpty(bpmValue))
+            {
+                if (int.TryParse(bpmValue, out var parsedBpm))
+                {
+                    bpm = parsedBpm;
+                }
+            }
+
             telemetryTracker.TrackEvent(TelemetryConstants.Events.PlaybackStarted, new Dictionary<string, string>
             {
                 { TelemetryConstants.Properties.BeatStyle, style },
