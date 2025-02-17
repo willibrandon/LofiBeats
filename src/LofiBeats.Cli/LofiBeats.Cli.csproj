@@ -13,7 +13,7 @@
 		<PackAsTool>true</PackAsTool>
 		<ToolCommandName>lofi</ToolCommandName>
 		<PackageOutputPath>./nupkg</PackageOutputPath>
-		<Version>1.0.0</Version>
+		<Version>0.1.0</Version>
 		<Authors>LofiBeats Team</Authors>
 		<Description>A CLI tool for generating and playing lofi beats with real-time effects.</Description>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
