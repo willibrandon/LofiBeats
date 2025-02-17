@@ -1,6 +1,7 @@
 using LofiBeats.Core.BeatGeneration;
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.Playback;
+using LofiBeats.Core.Scheduling;
 using LofiBeats.Core.Telemetry;
 using System.Text.Json;
 
@@ -67,6 +68,7 @@ public partial class Program
         builder.Services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
         builder.Services.AddSingleton<IBeatGeneratorFactory, BeatGeneratorFactory>();
         builder.Services.AddSingleton<IEffectFactory, EffectFactory>();
+        builder.Services.AddSingleton<PlaybackScheduler>();
 
         var app = builder.Build();
 
@@ -84,6 +86,49 @@ public partial class Program
 
         // Define our API endpoints
         var api = app.MapGroup("/api/lofi");
+
+        // Schedule stop endpoint
+        api.MapPost("/schedule-stop", (IAudioPlaybackService playback, IEffectFactory effectFactory, 
+                                     PlaybackScheduler scheduler, bool tapeStop, string delay) =>
+        {
+            telemetryTracker.TrackEvent(TelemetryConstants.Events.PlaybackScheduled, new Dictionary<string, string>
+            {
+                { TelemetryConstants.Properties.StopDelay, delay },
+                { TelemetryConstants.Properties.UseEffect, tapeStop.ToString() }
+            });
+
+            var timespan = DelayParser.ParseDelay(delay);
+            if (timespan == null)
+            {
+                return Results.BadRequest(new { error = $"Invalid delay format: {delay}" });
+            }
+
+            // Schedule the stop
+            var totalMs = (int)timespan.Value.TotalMilliseconds;
+            var id = scheduler.ScheduleAction(totalMs, () =>
+            {
+                // In callback: call the service's stop logic
+                if (tapeStop)
+                {
+                    var currentSource = playback.CurrentSource;
+                    if (currentSource != null)
+                    {
+                        var effect = effectFactory.CreateEffect("tapestop", currentSource);
+                        playback.StopWithEffect(effect);
+                    }
+                    else
+                    {
+                        playback.StopPlayback();
+                    }
+                }
+                else
+                {
+                    playback.StopPlayback();
+                }
+            });
+
+            return Results.Ok(new { message = $"Scheduled stop in {timespan.Value.TotalSeconds:F1} seconds", actionId = id });
+        });
 
         // Generate endpoint
         api.MapPost("/generate", (IBeatGeneratorFactory factory, string style = "basic", int? bpm = null) =>

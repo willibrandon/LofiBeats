@@ -13,6 +13,7 @@ public static class TelemetryConstants
         public const string PlaybackStopped = "PlaybackStopped";
         public const string PlaybackPaused = "PlaybackPaused";
         public const string PlaybackResumed = "PlaybackResumed";
+        public const string PlaybackScheduled = "PlaybackScheduled";
         
         // Effect Events
         public const string EffectAdded = "EffectAdded";
@@ -112,5 +113,9 @@ public static class TelemetryConstants
         public const string UserTimeZone = "UserTimeZone";
         public const string PreferredBeatStyle = "PreferredBeatStyle";
         public const string PreferredEffects = "PreferredEffects";
+        
+        // Playback Properties
+        public const string StopDelay = "StopDelay";
+        public const string UseEffect = "UseEffect";
     }
 } 
