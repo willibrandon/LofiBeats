@@ -25,6 +25,12 @@ dotnet tool install --global LofiBeats.Cli
 # Start playing some beats
 lofi play --style jazzy
 
+# Play with custom BPM
+lofi play --style chillhop --bpm 82
+
+# Generate a pattern with specific BPM
+lofi generate --style hiphop --bpm 95
+
 # Add some effects
 lofi effect --name reverb
 lofi effect --name tapeflutter
