@@ -91,7 +91,7 @@
 	<!-- Custom target to copy config files -->
 	<Target Name="CopyConfigFiles" BeforeTargets="Build">
 		<Copy SourceFiles="appsettings.json" 
-			  DestinationFolder="$(OutDir)" />
+			  DestinationFiles="$(OutDir)cli.appsettings.json" />
 		<Copy SourceFiles="..\LofiBeats.Service\appsettings.json" 
 			  DestinationFiles="$(OutDir)service.appsettings.json" />
 		<Copy SourceFiles="..\LofiBeats.Service\appsettings.Development.json" 
