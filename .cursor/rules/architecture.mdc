@@ -1,28 +1,64 @@
 ---
-description: 
-globs: 
+description:
+globs:
 ---
 # Architecture Rules
 
 1. Layer Dependencies:
    - Cli -> Core <- Service
    - No circular dependencies
-   - Core has no external dependencies
+   - Core has no external dependencies except NAudio
+   - Service and Cli communicate via HTTP REST API
 
-2. Domain Rules:
+2. Service Architecture:
+   - RESTful Web API on port 5001
+   - Health check endpoint at /healthz
+   - API endpoints under /api/lofi/
+   - OpenAPI/Swagger support in development
+   - Dependency injection for all services
+   - Singleton lifetime for core services
+
+3. Core Components:
+   - Audio Playback Service (IAudioPlaybackService)
+   - Beat Generation (IBeatGeneratorFactory)
+   - Effects System (IEffectFactory)
+   - Playback Scheduler
+   - Telemetry System
+
+4. Domain Rules:
    - Keep domain models immutable
    - Use rich domain models over anemic ones
    - Validate domain invariants
    - Use value objects for complex values
 
-3. Interface Design:
+5. Interface Design:
    - Interface segregation principle
    - Dependency inversion principle
    - Command Query Separation (CQS)
    - Favor composition over inheritance
 
-4. Cross-Cutting Concerns:
-   - Centralized error handling
-   - Consistent logging patterns
-   - Performance monitoring hooks
-   - Proper resource disposal 
+6. Cross-Cutting Concerns:
+   - Centralized error handling with global exception handler
+   - Structured logging with console and debug providers
+   - Telemetry tracking (local file and optional Seq)
+   - Proper resource disposal
+   - Configuration via appsettings.json
+
+7. Service Communication:
+   - HTTP-based service discovery
+   - Health check-based service status
+   - Graceful shutdown support
+   - Retry policies for service connections
+   - Background job scheduling
+
+8. Audio Processing:
+   - Sample-based audio processing
+   - Effect chain architecture
+   - Real-time audio manipulation
+   - Thread-safe playback control
+
+9. Configuration Management:
+   - Environment-based configuration
+   - Strongly-typed configuration objects
+   - Default fallback values
+   - Validation of configuration values
