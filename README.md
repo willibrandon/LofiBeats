@@ -152,5 +152,76 @@ dotnet test
 
 The application uses two configuration files:
 
-1. `appsettings.json` - CLI configuration
-2. `service.appsettings.json`
+1. `cli.appsettings.json` - CLI configuration
+2. `service.appsettings.json` - Service configuration
+
+Key configuration options:
+
+```json
+{
+  "Telemetry": {
+    "IsEnabled": true,
+    "EnableSeq": false,
+    "SeqServerUrl": "http://localhost:5341",
+    "EnableLocalFile": true
+  }
+}
+```
+
+## API Endpoints
+
+The service exposes the following REST API endpoints:
+
+- `POST /api/lofi/generate` - Generate a new beat pattern
+- `POST /api/lofi/play` - Start playback
+- `POST /api/lofi/stop` - Stop playback
+- `POST /api/lofi/pause` - Pause playback
+- `POST /api/lofi/resume` - Resume playback
+- `POST /api/lofi/volume` - Set volume level
+- `POST /api/lofi/effect` - Add/remove effects
+- `GET /healthz` - Health check endpoint
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+dotnet test
+
+# Run specific test categories
+dotnet test --filter "Category!=Platform_Specific"
+dotnet test --filter "Category=AI_Generated"
+```
+
+### Adding New Effects
+
+1. Create a new effect class in `src/LofiBeats.Core/Effects`
+2. Implement the `IAudioEffect` interface
+3. Register the effect in `EffectFactory.cs`
+
+### Test Container
+
+For running tests in CI or containerized environments, we provide a Docker container with a pre-configured audio testing environment. See [CONTAINER.md](CONTAINER.md) for details.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## Telemetry
+
+The application collects anonymous usage telemetry to improve the user experience. Data is stored in:
+
+- Windows: `%LOCALAPPDATA%\LofiBeats\Telemetry`
+- macOS: `~/Library/Application Support/LofiBeats/Telemetry`
+- Linux: `~/.local/share/LofiBeats/Telemetry`
+
+Telemetry can be disabled in the configuration file.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
