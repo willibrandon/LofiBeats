@@ -42,7 +42,7 @@ jobs:
       run: dotnet build --configuration ${{ matrix.configuration }} --no-restore
       
     - name: Test
-      run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --results-directory "${{ github.workspace }}/TestResults"
+      run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --results-directory "${{ github.workspace }}/TestResults" --logger "trx;LogFileName=test_results.trx" --logger "html;LogFileName=test_results.html"
       
     - name: Package CLI Tool
       if: matrix.configuration == 'Release'
@@ -95,7 +95,7 @@ jobs:
       run: dotnet build --configuration ${{ matrix.configuration }} --no-restore
       
     - name: Test
-      run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --filter "Category!=Platform_Specific" --results-directory "${{ github.workspace }}/TestResults"
+      run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --filter "Category!=Platform_Specific" --results-directory "${{ github.workspace }}/TestResults" --logger "trx;LogFileName=test_results.trx" --logger "html;LogFileName=test_results.html"
       
     - name: Package CLI Tool
       if: matrix.configuration == 'Release'
