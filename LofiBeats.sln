@@ -11,6 +11,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{DAD93E08-5
 	ProjectSection(SolutionItems) = preProject
 		CONTAINER.md = CONTAINER.md
 		docs\INSTALL.md = docs\INSTALL.md
+		docs\LINUX-DEPS.md = docs\LINUX-DEPS.md
 		README.md = README.md
 	EndProjectSection
 EndProject
