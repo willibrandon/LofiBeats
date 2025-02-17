@@ -114,8 +114,8 @@ jobs:
       with:
         name: test-results-linux-${{ matrix.configuration }}
         path: |
-          **/TestResults/*.trx
-          **/TestResults/*.xml
+          ${{ github.workspace }}/TestResults/test_results.trx
+          ${{ github.workspace }}/TestResults/test_results.html
 
   # TODO: macOS support
   # macos:
