@@ -67,9 +67,10 @@
 	<!-- Package content -->
 	<ItemGroup>
 		<None Include="../../README.md" Pack="true" PackagePath="\" />
-		<None Include="appsettings.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/appsettings.json" />
-		<None Include="..\LofiBeats.Service\appsettings.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/service.appsettings.json" />
+		<None Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="tools/$(TargetFramework)/any/appsettings.json" />
+		<None Include="..\LofiBeats.Service\appsettings.json" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="tools/$(TargetFramework)/any/service.appsettings.json" />
 		<None Include="..\LofiBeats.Service\appsettings.Development.json" 
+			  CopyToOutputDirectory="PreserveNewest"
 			  Pack="true"
 			  PackagePath="tools/$(TargetFramework)/any/service.appsettings.Development.json" 
 			  Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')" />
