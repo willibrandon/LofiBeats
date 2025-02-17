@@ -6,11 +6,11 @@ A cross-platform command-line tool and service for generating and playing lofi b
 
 - Generate lofi beats with different styles (basic, jazzy, chillhop, hiphop)
 - Real-time audio effects:
-  - Tape Stop (that classic "slowing down to a stop" effect)
-  - Tape Flutter (makes it sound like an old cassette tape)
-  - Vinyl Feel (adds record player warmth and crackle)
-  - Reverb (adds space and atmosphere)
-  - Low Pass Filter (makes it sound warmer and mellower)
+  - Tape Stop (gradually slow down the audio like a tape machine powering off)
+  - Tape Flutter (adds wow/flutter pitch drift and tape hiss for vintage vibes)
+  - Vinyl (adds vinyl record crackle and noise for that authentic feel)
+  - Reverb (adds space and atmosphere to create depth)
+  - Low Pass Filter (reduces high frequencies for that warm, mellow sound)
 - Interactive mode for live control
 - RESTful API service for remote control
 - Cross-platform support (Windows, macOS, Linux)
