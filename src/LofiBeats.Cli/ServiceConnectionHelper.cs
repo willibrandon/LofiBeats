@@ -254,7 +254,11 @@ public class ServiceConnectionHelper
                 foreach (var item in collection)
                 {
                     var commandLine = item["CommandLine"]?.ToString();
-                    if (commandLine?.Contains("LofiBeats.Service.dll") == true)
+                    if (commandLine == null) continue;
+                    
+                    // Check for both DLL and executable
+                    if (commandLine.Contains("LofiBeats.Service.dll") || 
+                        commandLine.Contains("LofiBeats.Service.exe"))
                     {
                         return true;
                     }
@@ -265,7 +269,9 @@ public class ServiceConnectionHelper
             else if (OperatingSystem.IsLinux())
             {
                 var cmdline = File.ReadAllText($"/proc/{process.Id}/cmdline");
-                return cmdline.Contains("LofiBeats.Service.dll");
+                // Check for both DLL and executable
+                return cmdline.Contains("LofiBeats.Service.dll") || 
+                       cmdline.Contains("LofiBeats.Service");
             }
             else if (OperatingSystem.IsMacOS())
             {
@@ -281,7 +287,9 @@ public class ServiceConnectionHelper
                 {
                     var output = ps.StandardOutput.ReadToEnd();
                     ps.WaitForExit();
-                    return output.Contains("LofiBeats.Service.dll");
+                    // Check for both DLL and executable
+                    return output.Contains("LofiBeats.Service.dll") || 
+                           output.Contains("LofiBeats.Service");
                 }
             }
         }
@@ -354,12 +362,15 @@ public class ServiceConnectionHelper
             // Log the service path and directory for debugging
             _logStartingServiceDetails(_logger, _servicePath, serviceDirectory, null);
 
+            // Determine if we're running a published single-file executable
+            bool isPublishedExecutable = !_servicePath.EndsWith(".dll");
+
             // Start the service process
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = _servicePath,
+                    FileName = isPublishedExecutable ? _servicePath : "dotnet",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -368,8 +379,14 @@ public class ServiceConnectionHelper
                 }
             };
 
-            // Make sure the file is executable on Linux
-            if (OperatingSystem.IsLinux())
+            // Only add the DLL path as an argument when using dotnet
+            if (!isPublishedExecutable)
+            {
+                process.StartInfo.Arguments = _servicePath;
+            }
+
+            // Make sure the file is executable on Linux/macOS for published single-file
+            if (isPublishedExecutable && !OperatingSystem.IsWindows())
             {
                 try
                 {
@@ -408,7 +425,7 @@ public class ServiceConnectionHelper
             };
 
             // Log the final command that will be executed
-            _logExecutingCommand(_logger, string.Join(" ", process.StartInfo.ArgumentList), null);
+            _logExecutingCommand(_logger, $"{process.StartInfo.FileName} {process.StartInfo.Arguments}", null);
 
             process.Start();
             process.BeginOutputReadLine();
@@ -477,29 +494,32 @@ public class ServiceConnectionHelper
         // Get the directory where the CLI is running
         var cliDirectory = AppContext.BaseDirectory;
         
-        // Service executable/DLL should be in the same directory
-        var servicePath = OperatingSystem.IsLinux() 
-            ? Path.Combine(cliDirectory, "LofiBeats.Service")
-            : Path.Combine(cliDirectory, "LofiBeats.Service.dll");
+        // For development, try looking in the service's output directory first
+        var serviceDevPath = Path.GetFullPath(Path.Combine(
+            cliDirectory, // bin/Debug/net9.0
+            "..", "..", "..", // back to src/LofiBeats.Cli
+            "..", "LofiBeats.Service", // to src/LofiBeats.Service
+            "bin", "Debug", "net9.0",
+            "LofiBeats.Service.dll"
+        ));
 
-        if (!File.Exists(servicePath))
+        if (File.Exists(serviceDevPath))
         {
-            // For development, try looking in the service's output directory
-            var serviceDevPath = Path.GetFullPath(Path.Combine(
-                cliDirectory, // bin/Debug/net9.0
-                "..", "..", "..", // back to src/LofiBeats.Cli
-                "..", "LofiBeats.Service", // to src/LofiBeats.Service
-                "bin", "Debug", "net9.0",
-                OperatingSystem.IsLinux() ? "LofiBeats.Service" : "LofiBeats.Service.dll"
-            ));
-
-            if (File.Exists(serviceDevPath))
-            {
-                return serviceDevPath;
-            }
+            return serviceDevPath;
         }
 
-        return servicePath;
+        // For published mode, check both executable and DLL
+        var publishedExe = Path.Combine(cliDirectory, 
+            OperatingSystem.IsWindows() ? "LofiBeats.Service.exe" : "LofiBeats.Service");
+        var publishedDll = Path.Combine(cliDirectory, "LofiBeats.Service.dll");
+
+        // Prefer the executable if it exists (single-file publish)
+        if (File.Exists(publishedExe))
+        {
+            return publishedExe;
+        }
+
+        return publishedDll;
     }
 
     public async Task<HttpResponseMessage> SendCommandAsync(HttpMethod method, string endpoint, object? content = null)
