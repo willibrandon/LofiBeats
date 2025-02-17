@@ -1,7 +1,7 @@
-using System.Collections.Concurrent;
-using System.Text.Json;
 using LofiBeats.Core.Telemetry.Models;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Text.Json;
 
 namespace LofiBeats.Core.Telemetry;
 

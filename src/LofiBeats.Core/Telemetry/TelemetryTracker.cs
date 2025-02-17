@@ -1,6 +1,6 @@
+using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using Microsoft.Extensions.Logging;
 
 namespace LofiBeats.Core.Telemetry;
 
