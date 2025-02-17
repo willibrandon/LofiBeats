@@ -48,9 +48,23 @@ jobs:
       if: matrix.configuration == 'Release'
       shell: pwsh
       run: |
+        Write-Host "Searching for coverage files..."
+        Get-ChildItem -Path "${{ github.workspace }}/TestResults" -Recurse | ForEach-Object { Write-Host $_.FullName }
+        
         $coverageFile = Get-ChildItem -Path "${{ github.workspace }}/TestResults" -Recurse -Filter "coverage.opencover.xml" | Select-Object -First 1
+        if ($null -eq $coverageFile) {
+            Write-Error "No coverage file found!"
+            exit 1
+        }
         Write-Host "Coverage file found at: $($coverageFile.FullName)"
-        echo "COVERAGE_FILE=$($coverageFile.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+        Write-Host "Verifying file exists and is readable..."
+        if (Test-Path $coverageFile.FullName) {
+            Write-Host "File exists and is readable"
+            echo "COVERAGE_FILE=$($coverageFile.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+        } else {
+            Write-Error "Coverage file not accessible!"
+            exit 1
+        }
       
     - name: Upload Coverage to Codecov
       if: matrix.configuration == 'Release'
@@ -123,9 +137,23 @@ jobs:
     - name: Prepare Coverage Report
       if: matrix.configuration == 'Release'
       run: |
+        echo "Searching for coverage files..."
+        find "${{ github.workspace }}/TestResults" -type f -ls
+        
         coverage_file=$(find "${{ github.workspace }}/TestResults" -name "coverage.opencover.xml" | head -n 1)
+        if [ -z "$coverage_file" ]; then
+            echo "Error: No coverage file found!"
+            exit 1
+        fi
         echo "Coverage file found at: $coverage_file"
-        echo "COVERAGE_FILE=$coverage_file" >> $GITHUB_ENV
+        echo "Verifying file exists and is readable..."
+        if [ -f "$coverage_file" ] && [ -r "$coverage_file" ]; then
+            echo "File exists and is readable"
+            echo "COVERAGE_FILE=$coverage_file" >> $GITHUB_ENV
+        else
+            echo "Error: Coverage file not accessible!"
+            exit 1
+        fi
       
     - name: Upload Coverage to Codecov
       if: matrix.configuration == 'Release'
