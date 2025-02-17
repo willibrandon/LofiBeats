@@ -9,6 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LofiBeats.Tests", "tests\Lo
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{DAD93E08-5AEF-49CE-A8CB-56DD1464C985}"
 	ProjectSection(SolutionItems) = preProject
+		CONTAINER.md = CONTAINER.md
 		docs\INSTALL.md = docs\INSTALL.md
 		README.md = README.md
 	EndProjectSection

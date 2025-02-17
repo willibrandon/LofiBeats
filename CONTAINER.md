@@ -92,9 +92,3 @@ Improvements to the audio configuration or container setup are welcome! Please t
 ## License
 
 Same as the main project - MIT License
-
-## Acknowledgments
-
-- OpenAL Soft project
-- PulseAudio project
-- Docker community 
