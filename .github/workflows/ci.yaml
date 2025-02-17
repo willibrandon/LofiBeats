@@ -140,18 +140,26 @@ jobs:
         echo "Searching for coverage files..."
         find "${{ github.workspace }}/TestResults" -type f -ls
         
+        # Create a directory for the consolidated report
+        mkdir -p coverage
+        
+        # Find and copy the coverage file
         coverage_file=$(find "${{ github.workspace }}/TestResults" -name "coverage.opencover.xml" | head -n 1)
         if [ -z "$coverage_file" ]; then
             echo "Error: No coverage file found!"
             exit 1
         fi
+        
         echo "Coverage file found at: $coverage_file"
-        echo "Verifying file exists and is readable..."
-        if [ -f "$coverage_file" ] && [ -r "$coverage_file" ]; then
-            echo "File exists and is readable"
-            echo "COVERAGE_FILE=$coverage_file" >> $GITHUB_ENV
+        echo "Copying to known location..."
+        cp "$coverage_file" coverage/coverage.opencover.xml
+        
+        if [ -f "coverage/coverage.opencover.xml" ] && [ -r "coverage/coverage.opencover.xml" ]; then
+            echo "Coverage file successfully copied and is readable"
+            echo "COVERAGE_FILE=${{ github.workspace }}/coverage/coverage.opencover.xml" >> $GITHUB_ENV
+            ls -la coverage/
         else
-            echo "Error: Coverage file not accessible!"
+            echo "Error: Coverage file not accessible after copy!"
             exit 1
         fi
       
@@ -160,7 +168,7 @@ jobs:
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: ${{ env.COVERAGE_FILE }}
+        directory: coverage
         flags: linux
         fail_ci_if_error: true
       
