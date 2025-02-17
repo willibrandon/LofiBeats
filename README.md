@@ -15,6 +15,7 @@ A cross-platform command-line tool and service for generating and playing lofi b
 - Cross-platform support (Windows, macOS, Linux)
 - Telemetry support with local file and Seq logging
 - Plugin system for custom effects
+- Scheduled playback and stop commands
 
 ## Quick Start
 
@@ -28,6 +29,10 @@ lofi play --style jazzy
 # Play with custom BPM
 lofi play --style chillhop --bpm 82
 
+# Schedule playback to start later
+lofi play --style hiphop --after 5m
+lofi play --style chillhop --bpm 85 --after 30s
+
 # Generate a pattern with specific BPM
 lofi generate --style hiphop --bpm 95
 
@@ -39,8 +44,15 @@ lofi effect --name vinyl
 # Control volume
 lofi volume 0.8
 
-# Stop playback with tapestop effect
+# Stop playback
+lofi stop
+
+# Stop with tapestop effect
 lofi stop --tapestop
+
+# Schedule playback to stop later
+lofi stop --after 10m
+lofi stop --tapestop --after 30s
 ```
 
 ## Linux Installation
