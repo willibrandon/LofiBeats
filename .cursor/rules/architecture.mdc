@@ -1,7 +1,11 @@
+---
+description: 
+globs: 
+---
 # Architecture Rules
 
 1. Layer Dependencies:
-   - Cli -> Core <- Infrastructure
+   - Cli -> Core <- Service
    - No circular dependencies
    - Core has no external dependencies
 
