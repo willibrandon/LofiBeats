@@ -41,8 +41,17 @@ jobs:
     - name: Build
       run: dotnet build --configuration ${{ matrix.configuration }} --no-restore
       
-    - name: Test
-      run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --results-directory "${{ github.workspace }}/TestResults" --logger "trx;LogFileName=test_results.trx" --logger "html;LogFileName=test_results.html"
+    - name: Test with Coverage
+      run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --results-directory "${{ github.workspace }}/TestResults" --logger "trx;LogFileName=test_results.trx" --logger "html;LogFileName=test_results.html" --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+      
+    - name: Upload Coverage to Codecov
+      if: matrix.configuration == 'Release'
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ${{ github.workspace }}/TestResults/**/coverage.opencover.xml
+        flags: windows
+        fail_ci_if_error: true
       
     - name: Package CLI Tool
       if: matrix.configuration == 'Release'
@@ -94,8 +103,17 @@ jobs:
     - name: Build
       run: dotnet build --configuration ${{ matrix.configuration }} --no-restore
       
-    - name: Test
-      run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --filter "Category!=Platform_Specific" --results-directory "${{ github.workspace }}/TestResults" --logger "trx;LogFileName=test_results.trx" --logger "html;LogFileName=test_results.html"
+    - name: Test with Coverage
+      run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --filter "Category!=Platform_Specific" --results-directory "${{ github.workspace }}/TestResults" --logger "trx;LogFileName=test_results.trx" --logger "html;LogFileName=test_results.html" --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+      
+    - name: Upload Coverage to Codecov
+      if: matrix.configuration == 'Release'
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ${{ github.workspace }}/TestResults/**/coverage.opencover.xml
+        flags: linux
+        fail_ci_if_error: true
       
     - name: Package CLI Tool
       if: matrix.configuration == 'Release'
