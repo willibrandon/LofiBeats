@@ -22,6 +22,11 @@
 		<PackageProjectUrl>https://github.com/willibrandon/LofiBeats</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/willibrandon/LofiBeats</RepositoryUrl>
 		<PackageTags>music;audio;lofi;beats;cli;cross-platform;dotnet;dsp;effects</PackageTags>
+		
+		<!-- Content handling -->
+		<EnableDefaultItems>false</EnableDefaultItems>
+		<EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+		<EnableDefaultCompileItems>true</EnableDefaultCompileItems>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(PublishConfiguration)' == 'true'">
@@ -54,29 +59,42 @@
 		<ProjectReference Include="..\LofiBeats.Core\LofiBeats.Core.csproj" />
 	</ItemGroup>
 
+	<!-- Explicitly include source files -->
 	<ItemGroup>
-		<None Include="appsettings.json">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-			<Pack>true</Pack>
-			<PackagePath Condition="'$(PackAsTool)' == 'true'">tools/$(TargetFramework)/any/appsettings.json</PackagePath>
-		</None>
+		<Compile Include="**/*.cs" Exclude="obj/**/*.cs" />
 	</ItemGroup>
 
-	<Target Name="CopyServiceSettings" BeforeTargets="Build">
-		<Copy SourceFiles="..\LofiBeats.Service\appsettings.json" DestinationFiles="$(OutDir)service.appsettings.json" />
-		<Copy SourceFiles="..\LofiBeats.Service\appsettings.Development.json" DestinationFiles="$(OutDir)service.appsettings.Development.json" Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')" />
-	</Target>
+	<!-- Package content -->
+	<ItemGroup>
+		<None Include="../../README.md" Pack="true" PackagePath="\" />
+		<None Include="appsettings.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/appsettings.json" />
+		<None Include="..\LofiBeats.Service\appsettings.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/service.appsettings.json" />
+		<None Include="..\LofiBeats.Service\appsettings.Development.json" 
+			  Pack="true"
+			  PackagePath="tools/$(TargetFramework)/any/service.appsettings.Development.json" 
+			  Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')" />
+	</ItemGroup>
 
-	<Target Name="SetPackageFiles" BeforeTargets="GenerateNuspec">
+	<!-- Exclude default items -->
+	<ItemGroup>
+		<None Remove="Properties\launchSettings.json" />
+		<Content Remove="Properties\launchSettings.json" />
+	</ItemGroup>
+
+	<Target Name="SetToolContent" BeforeTargets="GenerateNuspec">
 		<ItemGroup>
-			<_PackageFiles Include="$(OutDir)service.appsettings.json">
+			<_ToolContent Include="$(OutDir)appsettings.json">
+				<PackagePath>tools/$(TargetFramework)/any/appsettings.json</PackagePath>
+			</_ToolContent>
+			<_ToolContent Include="$(OutDir)service.appsettings.json">
 				<PackagePath>tools/$(TargetFramework)/any/service.appsettings.json</PackagePath>
-				<BuildAction>None</BuildAction>
-			</_PackageFiles>
-			<_PackageFiles Include="$(OutDir)service.appsettings.Development.json" Condition="Exists('$(OutDir)service.appsettings.Development.json')">
+			</_ToolContent>
+			<_ToolContent Include="$(OutDir)service.appsettings.Development.json" 
+						 Condition="Exists('$(OutDir)service.appsettings.Development.json')">
 				<PackagePath>tools/$(TargetFramework)/any/service.appsettings.Development.json</PackagePath>
-				<BuildAction>None</BuildAction>
-			</_PackageFiles>
+			</_ToolContent>
+			
+			<None Include="@(_ToolContent)" Pack="true" />
 		</ItemGroup>
 	</Target>
 
