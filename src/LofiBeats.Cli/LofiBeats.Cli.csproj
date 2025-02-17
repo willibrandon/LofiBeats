@@ -8,6 +8,8 @@
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 		<RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;osx-x64</RuntimeIdentifiers>
+		<PublishSingleFile>false</PublishSingleFile>
+		<SelfContained>false</SelfContained>
 		
 		<!-- .NET Tool Configuration -->
 		<PackAsTool>true</PackAsTool>
@@ -27,6 +29,7 @@
 		<SelfContained>true</SelfContained>
 		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
 		<EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+		<PublishReadyToRun>true</PublishReadyToRun>
 	</PropertyGroup>
 
 	<!-- Pre-build cleanup for Visual Studio -->
@@ -54,7 +57,8 @@
 	<ItemGroup>
 		<None Include="appsettings.json">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-			<Pack>false</Pack>
+			<Pack>true</Pack>
+			<PackagePath Condition="'$(PackAsTool)' == 'true'">tools/$(TargetFramework)/any/appsettings.json</PackagePath>
 		</None>
 	</ItemGroup>
 
@@ -65,9 +69,14 @@
 
 	<Target Name="SetPackageFiles" BeforeTargets="GenerateNuspec">
 		<ItemGroup>
-			<None Include="$(OutDir)appsettings.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/appsettings.json" />
-			<None Include="$(OutDir)service.appsettings.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/service.appsettings.json" />
-			<None Include="$(OutDir)service.appsettings.Development.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/service.appsettings.Development.json" Condition="Exists('$(OutDir)service.appsettings.Development.json')" />
+			<_PackageFiles Include="$(OutDir)service.appsettings.json">
+				<PackagePath>tools/$(TargetFramework)/any/service.appsettings.json</PackagePath>
+				<BuildAction>None</BuildAction>
+			</_PackageFiles>
+			<_PackageFiles Include="$(OutDir)service.appsettings.Development.json" Condition="Exists('$(OutDir)service.appsettings.Development.json')">
+				<PackagePath>tools/$(TargetFramework)/any/service.appsettings.Development.json</PackagePath>
+				<BuildAction>None</BuildAction>
+			</_PackageFiles>
 		</ItemGroup>
 	</Target>
 

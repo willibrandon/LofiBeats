@@ -15,7 +15,7 @@ public static class Startup
             {
                 var env = hostingContext.HostingEnvironment;
                 
-                config.SetBasePath(Directory.GetCurrentDirectory())
+                config.SetBasePath(AppContext.BaseDirectory)
                     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                     .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true, reloadOnChange: true)
                     .AddEnvironmentVariables()
