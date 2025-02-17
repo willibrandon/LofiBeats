@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Net.Http.Json;
+using LofiBeats.Core.Scheduling;
 
 namespace LofiBeats.Cli.Commands;
 
@@ -11,6 +12,7 @@ public class CommandLineInterface : IDisposable
     private readonly RootCommand _rootCommand;
     private readonly ILogger<CommandLineInterface> _logger;
     private readonly ServiceConnectionHelper _serviceHelper;
+    private readonly PlaybackScheduler _scheduler;
 
     private static readonly Action<ILogger, Exception?> _logCommandLineInterfaceInitialized =
         LoggerMessage.Define(LogLevel.Information, new EventId(0, nameof(CommandLineInterface)), "CommandLineInterface initialized");
@@ -60,6 +62,12 @@ public class CommandLineInterface : IDisposable
     private static readonly Action<ILogger, Exception?> _logExecutingUpdateCommand =
         LoggerMessage.Define(LogLevel.Information, new EventId(15, "ExecutingUpdateCommand"), "Executing update command");
 
+    private static readonly Action<ILogger, string, TimeSpan, Exception?> _logSchedulingStop =
+        LoggerMessage.Define<string, TimeSpan>(LogLevel.Information, new EventId(16, "SchedulingStop"), "Scheduling stop with {Effect} in {Delay}");
+
+    private static readonly Action<ILogger, Guid, Exception> _logScheduledStopError =
+        LoggerMessage.Define<Guid>(LogLevel.Error, new EventId(17, "ScheduledStopError"), "Error executing scheduled stop {ActionId}");
+
     private static readonly string[] ValidEffects = ["vinyl", "reverb", "lowpass", "tapeflutter"];
     private static readonly string[] ValidBeatStyles = ["basic", "jazzy", "chillhop", "hiphop"];
 
@@ -90,6 +98,7 @@ public class CommandLineInterface : IDisposable
         _serviceHelper = new ServiceConnectionHelper(
             loggerFactory.CreateLogger<ServiceConnectionHelper>(),
             configuration);
+        _scheduler = new PlaybackScheduler(loggerFactory.CreateLogger<PlaybackScheduler>());
 
         _rootCommand = new RootCommand("Lofi Beats Generator & Player CLI")
         {
@@ -228,46 +237,55 @@ public class CommandLineInterface : IDisposable
         var stopCommand = new Command("stop", "Stops audio playback");
         stopCommand.Description = "Stops the currently playing audio.\n\n" +
                                 "Options:\n" +
-                                "  --tapestop    Gradually slow down the audio like a tape machine powering off\n\n" +
+                                "  --tapestop    Gradually slow down the audio like a tape machine powering off\n" +
+                                "  --after       Specify a delay (e.g. '10m' or '30s') before stopping\n\n" +
                                 "Examples:\n" +
                                 "  stop              Stop playback immediately\n" +
-                                "  stop --tapestop   Stop with tape slow-down effect";
+                                "  stop --tapestop   Stop with tape slow-down effect\n" +
+                                "  stop --after 10m  Stop after 10 minutes\n" +
+                                "  stop --after 30s --tapestop  Stop with tape effect after 30 seconds";
+
         var tapeStopOpt = new Option<bool>(
             name: "--tapestop",
             getDefaultValue: () => false,
             description: "Gradually slow pitch to zero before stopping");
         stopCommand.AddOption(tapeStopOpt);
 
-        stopCommand.SetHandler(async (bool tapeStop) =>
+        var afterOpt = new Option<string?>(
+            name: "--after",
+            description: "Specify a delay (e.g. '10m' or '30s') before stopping");
+        stopCommand.AddOption(afterOpt);
+
+        stopCommand.SetHandler(async (bool tapeStop, string? afterValue) =>
         {
             _logExecutingStopCommand(_logger, null);
             try
             {
-                if (tapeStop)
+                // If --after is specified, schedule the stop instead of immediate
+                if (!string.IsNullOrEmpty(afterValue))
                 {
-                    Console.Write("Applying tape stop effect... ");
-                    ShowSpinner("Applying tape stop effect", 2000);
+                    var delay = ParseDelay(afterValue);
+                    if (delay == null)
+                    {
+                        Console.WriteLine($"Invalid delay format: {afterValue}");
+                        Console.WriteLine("Use formats like '10m' for minutes, '30s' for seconds, or '2h' for hours.");
+                        return;
+                    }
+
+                    // Schedule the stop call
+                    await ScheduleStop(tapeStop, delay.Value);
                 }
                 else
                 {
-                    Console.Write("Stopping playback... ");
-                    ShowSpinner("Stopping playback", 500);
-                }
-
-                var response = await _serviceHelper.SendCommandAsync(
-                    HttpMethod.Post,
-                    $"stop?tapestop={tapeStop}");
-                var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
-                if (result?.Message != null)
-                {
-                    Console.WriteLine(result.Message);
+                    // immediate stop
+                    await StopPlayback(tapeStop);
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error: {ex.Message}");
             }
-        }, tapeStopOpt);
+        }, tapeStopOpt, afterOpt);
         _rootCommand.AddCommand(stopCommand);
 
         // Add pause command
@@ -572,5 +590,107 @@ public class CommandLineInterface : IDisposable
     public void Dispose()
     {
         (_serviceHelper as IDisposable)?.Dispose();
+        _scheduler.Dispose();
+    }
+
+    private static TimeSpan? ParseDelay(string input)
+    {
+        // Parse delay strings like "10m", "30s", "5h"
+        input = input.Trim().ToLowerInvariant();
+        if (input.EndsWith('m'))
+        {
+            if (int.TryParse(input.TrimEnd('m'), out var minutes))
+            {
+                return TimeSpan.FromMinutes(minutes);
+            }
+        }
+        else if (input.EndsWith('s'))
+        {
+            if (int.TryParse(input.TrimEnd('s'), out var seconds))
+            {
+                return TimeSpan.FromSeconds(seconds);
+            }
+        }
+        else if (input.EndsWith('h'))
+        {
+            if (int.TryParse(input.TrimEnd('h'), out var hours))
+            {
+                return TimeSpan.FromHours(hours);
+            }
+        }
+
+        return null;
+    }
+
+    private async Task ScheduleStop(bool tapeStop, TimeSpan delay)
+    {
+        _logSchedulingStop(_logger, tapeStop ? "tape stop" : "immediate stop", delay, null);
+        var totalMs = (int)delay.TotalMilliseconds;
+
+        // Create a TaskCompletionSource to wait for the action to complete
+        var tcs = new TaskCompletionSource();
+
+        // Create a closure to capture the action ID
+        Guid actionId = Guid.Empty;
+        var callback = new Action(() =>
+        {
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await StopPlayback(tapeStop);
+                    tcs.SetResult(); // Signal completion
+                }
+                catch (Exception ex)
+                {
+                    _logScheduledStopError(_logger, actionId, ex);
+                    tcs.SetException(ex); // Signal error
+                }
+            });
+        });
+
+        // Schedule the actual stop call
+        actionId = _scheduler.ScheduleAction(totalMs, callback);
+
+        Console.WriteLine($"Playback will stop{(tapeStop ? " with tape effect" : "")} in {delay.TotalSeconds:F1} seconds.");
+        
+        // Show a progress indicator while waiting
+        var startTime = DateTime.Now;
+        var endTime = startTime + delay;
+        
+        while (DateTime.Now < endTime && !tcs.Task.IsCompleted)
+        {
+            var remaining = endTime - DateTime.Now;
+            Console.Write($"\rTime remaining: {remaining.TotalSeconds:F1}s    ");
+            await Task.Delay(100); // Update every 100ms
+        }
+        Console.WriteLine(); // Clear the progress line
+
+        // Wait for the action to complete
+        await tcs.Task;
+    }
+
+    private async Task StopPlayback(bool tapeStop)
+    {
+        if (tapeStop)
+        {
+            Console.Write("Applying tape stop effect... ");
+            ShowSpinner("Applying tape stop effect", 2000);
+        }
+        else
+        {
+            Console.Write("Stopping playback... ");
+            ShowSpinner("Stopping playback", 500);
+        }
+
+        var response = await _serviceHelper.SendCommandAsync(
+            HttpMethod.Post,
+            $"stop?tapestop={tapeStop}");
+
+        var result = await response.Content.ReadFromJsonAsync<ApiResponse>();
+        if (result?.Message != null)
+        {
+            Console.WriteLine(result.Message);
+        }
     }
 }
