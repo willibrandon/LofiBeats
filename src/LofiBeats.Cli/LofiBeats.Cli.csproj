@@ -67,13 +67,31 @@
 	<!-- Package content -->
 	<ItemGroup>
 		<None Include="../../README.md" Pack="true" PackagePath="\" />
-		<None Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="tools/$(TargetFramework)/any/appsettings.json" />
-		<None Include="..\LofiBeats.Service\appsettings.json" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="tools/$(TargetFramework)/any/service.appsettings.json" />
+		
+		<!-- CLI settings -->
+		<None Include="appsettings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<Link>cli.appsettings.json</Link>
+			<Pack>true</Pack>
+			<PackagePath>tools/$(TargetFramework)/any/cli.appsettings.json</PackagePath>
+		</None>
+		
+		<!-- Service settings -->
+		<None Include="..\LofiBeats.Service\appsettings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<Link>service.appsettings.json</Link>
+			<Pack>true</Pack>
+			<PackagePath>tools/$(TargetFramework)/any/service.appsettings.json</PackagePath>
+		</None>
+		
+		<!-- Service development settings -->
 		<None Include="..\LofiBeats.Service\appsettings.Development.json" 
-			  CopyToOutputDirectory="PreserveNewest"
-			  Pack="true"
-			  PackagePath="tools/$(TargetFramework)/any/service.appsettings.Development.json" 
-			  Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')" />
+			  Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<Link>service.appsettings.Development.json</Link>
+			<Pack>true</Pack>
+			<PackagePath>tools/$(TargetFramework)/any/service.appsettings.Development.json</PackagePath>
+		</None>
 	</ItemGroup>
 
 	<!-- Exclude default items -->
@@ -81,22 +99,5 @@
 		<None Remove="Properties\launchSettings.json" />
 		<Content Remove="Properties\launchSettings.json" />
 	</ItemGroup>
-
-	<Target Name="SetToolContent" BeforeTargets="GenerateNuspec">
-		<ItemGroup>
-			<_ToolContent Include="$(OutDir)appsettings.json">
-				<PackagePath>tools/$(TargetFramework)/any/appsettings.json</PackagePath>
-			</_ToolContent>
-			<_ToolContent Include="$(OutDir)service.appsettings.json">
-				<PackagePath>tools/$(TargetFramework)/any/service.appsettings.json</PackagePath>
-			</_ToolContent>
-			<_ToolContent Include="$(OutDir)service.appsettings.Development.json" 
-						 Condition="Exists('$(OutDir)service.appsettings.Development.json')">
-				<PackagePath>tools/$(TargetFramework)/any/service.appsettings.Development.json</PackagePath>
-			</_ToolContent>
-			
-			<None Include="@(_ToolContent)" Pack="true" />
-		</ItemGroup>
-	</Target>
 
 </Project>
