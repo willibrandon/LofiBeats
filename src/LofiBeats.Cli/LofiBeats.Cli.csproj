@@ -27,6 +27,7 @@
 		<EnableDefaultItems>false</EnableDefaultItems>
 		<EnableDefaultNoneItems>false</EnableDefaultNoneItems>
 		<EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+		<IncludeOutputsInPackage>false</IncludeOutputsInPackage>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(PublishConfiguration)' == 'true'">
@@ -69,29 +70,16 @@
 		<None Include="../../README.md" Pack="true" PackagePath="\" />
 		
 		<!-- CLI settings -->
-		<None Include="appsettings.json">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-			<Link>cli.appsettings.json</Link>
-			<Pack>true</Pack>
-			<PackagePath>tools/$(TargetFramework)/any/cli.appsettings.json</PackagePath>
-		</None>
+		<None Include="appsettings.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/cli.appsettings.json" />
 		
 		<!-- Service settings -->
-		<None Include="..\LofiBeats.Service\appsettings.json">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-			<Link>service.appsettings.json</Link>
-			<Pack>true</Pack>
-			<PackagePath>tools/$(TargetFramework)/any/service.appsettings.json</PackagePath>
-		</None>
+		<None Include="..\LofiBeats.Service\appsettings.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/service.appsettings.json" />
 		
 		<!-- Service development settings -->
 		<None Include="..\LofiBeats.Service\appsettings.Development.json" 
-			  Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-			<Link>service.appsettings.Development.json</Link>
-			<Pack>true</Pack>
-			<PackagePath>tools/$(TargetFramework)/any/service.appsettings.Development.json</PackagePath>
-		</None>
+			  Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')"
+			  Pack="true" 
+			  PackagePath="tools/$(TargetFramework)/any/service.appsettings.Development.json" />
 	</ItemGroup>
 
 	<!-- Exclude default items -->
@@ -99,5 +87,16 @@
 		<None Remove="Properties\launchSettings.json" />
 		<Content Remove="Properties\launchSettings.json" />
 	</ItemGroup>
+
+	<!-- Custom target to copy config files -->
+	<Target Name="CopyConfigFiles" BeforeTargets="Build">
+		<Copy SourceFiles="appsettings.json" 
+			  DestinationFolder="$(OutDir)" />
+		<Copy SourceFiles="..\LofiBeats.Service\appsettings.json" 
+			  DestinationFiles="$(OutDir)service.appsettings.json" />
+		<Copy SourceFiles="..\LofiBeats.Service\appsettings.Development.json" 
+			  DestinationFiles="$(OutDir)service.appsettings.Development.json"
+			  Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')" />
+	</Target>
 
 </Project>
