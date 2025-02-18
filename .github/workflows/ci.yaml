@@ -306,21 +306,47 @@ jobs:
       with:
         dotnet-version: 9.0.x
         
-    - name: Download packages
+    - name: Download Windows package
       uses: actions/download-artifact@v4
       with:
-        pattern: nuget-package-*
-        path: packages
-        merge-multiple: true
+        name: nuget-package-windows-Release
+        path: packages/windows
         
-    - name: Verify Tool Installation
+    - name: Verify package integrity
+      shell: pwsh
       run: |
-        dotnet tool install --global --add-source ./packages LofiBeats.Cli
+        Write-Host "Listing downloaded packages:"
+        Get-ChildItem -Path packages -Recurse
+        
+        Write-Host "`nVerifying package ZIP integrity:"
+        Get-ChildItem -Path packages -Recurse -Filter *.nupkg | ForEach-Object {
+            Write-Host "Testing $($_.FullName)"
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($_.FullName)
+            $zip.Dispose()
+            Write-Host "Package $($_.Name) is valid"
+        }
+        
+    - name: Install and verify tool
+      shell: pwsh
+      run: |
+        $package = Get-ChildItem -Path packages/windows -Filter *.nupkg | Select-Object -First 1
+        if (-not $package) {
+            Write-Error "No package found in packages/windows directory"
+            exit 1
+        }
+        
+        Write-Host "Installing package: $($package.FullName)"
+        dotnet tool install --global --add-source packages/windows LofiBeats.Cli
+        
+        Write-Host "Verifying installation:"
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
         lofi --version
+        
+        Write-Host "Uninstalling tool:"
         dotnet tool uninstall -g LofiBeats.Cli
 
   publish-nuget:
-    needs: verify-tool
+    needs: publish
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     
