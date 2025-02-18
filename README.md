@@ -44,18 +44,6 @@ dotnet tool install --global LofiBeats.Cli
 # Start playing some beats
 lofi play --style jazzy
 
-# Register your own samples
-lofi sample register kick /path/to/kick.wav
-lofi sample register snare /path/to/snare.wav
-lofi sample register hat /path/to/hihat.wav
-
-# Register samples with velocity layers (0-127)
-lofi sample register kick /path/to/soft_kick.wav --velocity 64
-lofi sample register kick /path/to/hard_kick.wav --velocity 127
-
-# List registered samples
-lofi sample list
-
 # Play with custom BPM
 lofi play --style chillhop --bpm 82
 
@@ -100,6 +88,18 @@ lofi stop --tapestop
 # Schedule playback to stop later
 lofi stop --after 10m
 lofi stop --tapestop --after 30s
+
+# Register your own samples
+lofi sample register kick /path/to/kick.wav
+lofi sample register snare /path/to/snare.wav
+lofi sample register hat /path/to/hihat.wav
+
+# Register samples with velocity layers (0-127)
+lofi sample register kick /path/to/soft_kick.wav --velocity 64
+lofi sample register kick /path/to/hard_kick.wav --velocity 127
+
+# List registered samples
+lofi sample list
 ```
 
 ## User Samples
