@@ -77,13 +77,6 @@
 		<!-- Service settings -->
 		<None Include="..\LofiBeats.Service\appsettings.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/service.appsettings.json" />
 		
-		<!-- Service development settings -->
-		<None Include="..\LofiBeats.Service\appsettings.Development.json" 
-			  Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')"
-			  Pack="true" 
-			  PackagePath="tools/$(TargetFramework)/any/service.appsettings.Development.json"
-			  Visible="false" />
-
 		<!-- Service executables -->
 		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.dll" 
 			  Pack="true" 
@@ -142,9 +135,6 @@
 			  DestinationFiles="$(OutDir)cli.appsettings.json" />
 		<Copy SourceFiles="..\LofiBeats.Service\appsettings.json" 
 			  DestinationFiles="$(OutDir)service.appsettings.json" />
-		<Copy SourceFiles="..\LofiBeats.Service\appsettings.Development.json" 
-			  DestinationFiles="$(OutDir)service.appsettings.Development.json"
-			  Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')" />
 	</Target>
 
 </Project>

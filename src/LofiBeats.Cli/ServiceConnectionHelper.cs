@@ -104,6 +104,14 @@ public class ServiceConnectionHelper
     private static readonly Action<ILogger, Exception> _logChmodError =
         LoggerMessage.Define(LogLevel.Warning, new EventId(29, "ChmodError"), "Failed to set executable permissions");
 
+    private static readonly Action<ILogger, int, Exception?> _logServiceExitedQuickly =
+        LoggerMessage.Define<int>(LogLevel.Debug, new EventId(30, "ServiceExitedQuickly"), 
+            "Service exited immediately with code {ExitCode}");
+
+    private static readonly Action<ILogger, Exception?> _logServiceStillRunning =
+        LoggerMessage.Define(LogLevel.Debug, new EventId(31, "ServiceStillRunning"), 
+            "Service is still running after initial startup check");
+
     public ServiceConnectionHelper(
         ILogger<ServiceConnectionHelper> logger,
         IConfiguration configuration,
@@ -435,12 +443,12 @@ public class ServiceConnectionHelper
             if (exitedQuickly)
             {
                 // Child died almost instantly; log the exit code
-                Console.WriteLine($"[DEBUG] Service exited with code {process.ExitCode}.");
+                _logServiceExitedQuickly(_logger, process.ExitCode, null);
                 throw new Exception($"Service process exited immediately with code {process.ExitCode}.");
             }
             else
             {
-                Console.WriteLine("[DEBUG] Service is still running after 2s...");
+                _logServiceStillRunning(_logger, null);
             }
 
             // Write PID file

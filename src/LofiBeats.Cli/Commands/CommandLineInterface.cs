@@ -553,7 +553,8 @@ public class CommandLineInterface : IDisposable
         versionCommand.SetHandler(() =>
         {
             _logExecutingVersionCommand(_logger, null);
-            Console.WriteLine("LofiBeats CLI v0.1.0");
+            var version = typeof(CommandLineInterface).Assembly.GetName().Version;
+            Console.WriteLine($"LofiBeats CLI v{version?.ToString(3)}");
         });
         _rootCommand.AddCommand(versionCommand);
 
