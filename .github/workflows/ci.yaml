@@ -251,7 +251,7 @@ jobs:
         
         echo -e "\n=== NuGet package details ==="
         dotnet nuget list source
-        nuget locals all -list
+        dotnet nuget locals all --list
 
     - name: Setup GitHub Packages
       run: |
