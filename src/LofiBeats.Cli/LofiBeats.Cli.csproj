@@ -22,6 +22,8 @@
 		<PackageProjectUrl>https://github.com/willibrandon/LofiBeats</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/willibrandon/LofiBeats</RepositoryUrl>
 		<PackageTags>music;audio;lofi;beats;cli;cross-platform;dotnet;dsp;effects</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		
 		<!-- Content handling -->
 		<EnableDefaultItems>false</EnableDefaultItems>
@@ -80,7 +82,41 @@
 			  Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')"
 			  Pack="true" 
 			  PackagePath="tools/$(TargetFramework)/any/service.appsettings.Development.json" />
+
+		<!-- Service executables -->
+		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.dll" 
+			  Pack="true" 
+			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.dll" />
+		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.exe" 
+			  Pack="true" 
+			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.exe" />
+		
+		<!-- Service dependencies -->
+		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\Microsoft.AspNetCore.*.dll"
+			  Pack="true"
+			  PackagePath="tools/$(TargetFramework)/any/" />
+		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\Microsoft.OpenApi.dll"
+			  Pack="true"
+			  PackagePath="tools/$(TargetFramework)/any/" />
+		
+		<!-- Service runtime configuration -->
+		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.deps.json"
+			  Pack="true"
+			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.deps.json" />
+		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.runtimeconfig.json"
+			  Pack="true"
+			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.runtimeconfig.json" />
+		<None Remove="$(IntermediateOutputPath)apphost.exe" />
 	</ItemGroup>
+
+	<!-- Build and prepare service files -->
+	<Target Name="IncludeServiceFiles" BeforeTargets="GenerateNuspec">
+		<Message Text="🚀 Starting service inclusion..." Importance="high" />
+		<Message Text="🔨 Building LofiBeats.Service..." Importance="high" />
+		<MSBuild Projects="..\LofiBeats.Service\LofiBeats.Service.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
+		<Message Text="✅ Service files prepared" Importance="high" />
+		<Message Text="🧹 Cleaning up any running services..." Importance="high" />
+	</Target>
 
 	<!-- Exclude default items -->
 	<ItemGroup>
