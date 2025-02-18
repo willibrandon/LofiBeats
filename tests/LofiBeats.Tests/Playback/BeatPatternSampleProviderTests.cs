@@ -1,5 +1,6 @@
 using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
+using LofiBeats.Core.Telemetry;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NAudio.Wave;
@@ -11,6 +12,9 @@ public class BeatPatternSampleProviderTests : IDisposable
 {
     private readonly Mock<ILogger> _loggerMock;
     private readonly Mock<ILogger<UserSampleRepository>> _repoLoggerMock;
+    private readonly Mock<ITelemetryService> _telemetryServiceMock;
+    private readonly Mock<ILogger<TelemetryTracker>> _telemetryLoggerMock;
+    private readonly TelemetryTracker _telemetryTracker;
     private readonly BeatPattern _testPattern;
     private readonly UserSampleRepository _userSamples;
 
@@ -30,6 +34,9 @@ public class BeatPatternSampleProviderTests : IDisposable
     {
         _loggerMock = new Mock<ILogger>();
         _repoLoggerMock = new Mock<ILogger<UserSampleRepository>>();
+        _telemetryServiceMock = new Mock<ITelemetryService>();
+        _telemetryLoggerMock = new Mock<ILogger<TelemetryTracker>>();
+        _telemetryTracker = new TelemetryTracker(_telemetryServiceMock.Object, _telemetryLoggerMock.Object);
         _userSamples = new UserSampleRepository(_repoLoggerMock.Object);
         _testPattern = new BeatPattern
         {
@@ -73,7 +80,7 @@ public class BeatPatternSampleProviderTests : IDisposable
     public void DrumHits_HaveTimeOffsets()
     {
         // Arrange
-        var provider = new BeatPatternSampleProvider(_testPattern, _loggerMock.Object, _userSamples);
+        var provider = new BeatPatternSampleProvider(_testPattern, _loggerMock.Object, _userSamples, _telemetryTracker);
         var buffer = new float[44100]; // 1 second of audio at 44.1kHz
         var originalBuffer = new float[44100];
 
@@ -116,7 +123,7 @@ public class BeatPatternSampleProviderTests : IDisposable
             DrumSequence = ["kick", "_", "_", "_", "kick", "_", "_", "_"],
             ChordProgression = ["Dm7"]
         };
-        var provider = new BeatPatternSampleProvider(kickOnlyPattern, _loggerMock.Object, _userSamples);
+        var provider = new BeatPatternSampleProvider(kickOnlyPattern, _loggerMock.Object, _userSamples, _telemetryTracker);
         var buffer1 = new float[44100];
         var buffer2 = new float[44100];
 
@@ -211,7 +218,7 @@ public class BeatPatternSampleProviderTests : IDisposable
             DrumSequence = ["snare", "snare", "snare", "snare"],
             ChordProgression = ["Dm7"]
         };
-        var provider = new BeatPatternSampleProvider(singleDrumPattern, _loggerMock.Object, _userSamples);
+        var provider = new BeatPatternSampleProvider(singleDrumPattern, _loggerMock.Object, _userSamples, _telemetryTracker);
         var buffer = new float[44100];
 
         // Act
@@ -245,7 +252,7 @@ public class BeatPatternSampleProviderTests : IDisposable
     public void VelocityRanges_StayWithinBounds()
     {
         // Arrange
-        var provider = new BeatPatternSampleProvider(_testPattern, _loggerMock.Object, _userSamples);
+        var provider = new BeatPatternSampleProvider(_testPattern, _loggerMock.Object, _userSamples, _telemetryTracker);
         var buffer = new float[44100];
 
         // Act
@@ -269,7 +276,7 @@ public class BeatPatternSampleProviderTests : IDisposable
     public void GeneratedAudio_HasNoClipping()
     {
         // Arrange
-        var provider = new BeatPatternSampleProvider(_testPattern, _loggerMock.Object, _userSamples);
+        var provider = new BeatPatternSampleProvider(_testPattern, _loggerMock.Object, _userSamples, _telemetryTracker);
         var buffer = new float[44100 * 2]; // 2 seconds of audio
 
         // Act
@@ -301,7 +308,7 @@ public class BeatPatternSampleProviderTests : IDisposable
             UserSampleSteps = new Dictionary<int, string> { { 1, "test_sample" } }
         };
 
-        var provider = new BeatPatternSampleProvider(pattern, _loggerMock.Object, _userSamples);
+        var provider = new BeatPatternSampleProvider(pattern, _loggerMock.Object, _userSamples, _telemetryTracker);
         var buffer = new float[44100];
 
         // Act
@@ -330,7 +337,7 @@ public class BeatPatternSampleProviderTests : IDisposable
         Assert.True(_userSamples.HasSample("test_sample"), "Test sample should be registered");
         Console.WriteLine("Test sample is registered in repository");
         
-        var provider = new BeatPatternSampleProvider(patternWithUserSample, _loggerMock.Object, _userSamples);
+        var provider = new BeatPatternSampleProvider(patternWithUserSample, _loggerMock.Object, _userSamples, _telemetryTracker);
         var buffer = new float[44100]; // 1 second of audio
 
         // Act

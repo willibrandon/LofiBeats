@@ -1,4 +1,5 @@
 using LofiBeats.Core.Models;
+using LofiBeats.Core.Telemetry;
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;
 
@@ -10,6 +11,7 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
     private readonly ILogger _logger;
     private readonly WaveFormat _waveFormat;
     private readonly UserSampleRepository _userSamples;
+    private readonly TelemetryTracker _telemetry;
     private float _phase;
     private int _currentStep;
     private readonly float[] _frequencies = [440f, 587.33f, 659.25f, 783.99f]; // A4, D5, E5, G5
@@ -42,13 +44,16 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
     private int _userSampleBufferPosition;
     private int _userSampleBufferCount;
 
+    private readonly Dictionary<string, int> _sampleTriggerCounts = new();
+
     public WaveFormat WaveFormat => _waveFormat;
 
-    public BeatPatternSampleProvider(BeatPattern pattern, ILogger logger, UserSampleRepository userSamples)
+    public BeatPatternSampleProvider(BeatPattern pattern, ILogger logger, UserSampleRepository userSamples, TelemetryTracker telemetry)
     {
         _pattern = pattern;
         _logger = logger;
         _userSamples = userSamples;
+        _telemetry = telemetry;
         _waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
 
         // Calculate samples per step based on tempo
@@ -162,6 +167,20 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
         // First check if we have a user sample for this drum type
         if (_userSamples.HasSample(currentDrum))
         {
+            // Track sample trigger
+            if (!_sampleTriggerCounts.TryGetValue(currentDrum, out int count))
+            {
+                count = 0;
+            }
+            _sampleTriggerCounts[currentDrum] = count + 1;
+
+            _telemetry.TrackEvent(TelemetryConstants.Events.UserSampleTriggered, new Dictionary<string, string>
+            {
+                { TelemetryConstants.Properties.SampleName, currentDrum },
+                { TelemetryConstants.Properties.SampleVelocity, velocity.ToString("F2") },
+                { TelemetryConstants.Properties.SamplePosition, _currentStep.ToString() }
+            });
+
             sample = GenerateUserSample(currentDrum) * velocity;
         }
         else

@@ -156,7 +156,7 @@ public partial class Program
             {
                 var generator = factory.GetGenerator(style);
                 var pattern = generator.GeneratePattern();
-                var beatSource = new BeatPatternSampleProvider(pattern, logger, userSamples);
+                var beatSource = new BeatPatternSampleProvider(pattern, logger, userSamples, telemetryTracker);
                 playback.SetSource(beatSource);
                 playback.StartPlayback();
             });
@@ -210,7 +210,7 @@ public partial class Program
                 }
             }
 
-            var beatSource = new BeatPatternSampleProvider(pattern, app.Logger, userSamples);
+            var beatSource = new BeatPatternSampleProvider(pattern, app.Logger, userSamples, telemetryTracker);
             playback.CurrentStyle = style;
             playback.SetSource(beatSource);
             playback.StartPlayback();

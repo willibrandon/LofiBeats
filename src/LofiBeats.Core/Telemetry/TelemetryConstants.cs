@@ -39,6 +39,11 @@ public static class TelemetryConstants
         public const string AudioDeviceError = "AudioDeviceError";
         public const string AudioBufferUnderrun = "AudioBufferUnderrun";
         public const string AudioLatencySpike = "AudioLatencySpike";
+
+        // User Sample Events
+        public const string UserSampleRegistered = "UserSample.Registered";
+        public const string UserSampleTriggered = "UserSample.Triggered";
+        public const string UserSampleLoadError = "UserSample.LoadError";
     }
 
     public static class Metrics
@@ -73,6 +78,11 @@ public static class TelemetryConstants
         public const string BeatVariationRate = "Beat.VariationRate";
         public const string BeatSyncAccuracy = "Beat.SyncAccuracy";
         public const string PatternRepetitionRate = "Beat.PatternRepetitionRate";
+
+        // User Sample Metrics
+        public const string UserSampleTriggerCount = "UserSample.TriggerCount";
+        public const string UserSampleLoadTime = "UserSample.LoadTime";
+        public const string UserSampleMemoryUsage = "UserSample.MemoryUsage";
     }
 
     public static class Properties
@@ -117,5 +127,12 @@ public static class TelemetryConstants
         // Playback Properties
         public const string StopDelay = "StopDelay";
         public const string UseEffect = "UseEffect";
+
+        // User Sample Properties
+        public const string SampleName = "SampleName";
+        public const string SampleDuration = "SampleDuration";
+        public const string SampleFileSize = "SampleFileSize";
+        public const string SampleVelocity = "SampleVelocity";
+        public const string SamplePosition = "SamplePosition";
     }
 } 
