@@ -11,6 +11,15 @@ A cross-platform command-line tool and service for generating and playing lofi b
   - Vinyl (adds vinyl record crackle and noise for that authentic feel)
   - Reverb (adds space and atmosphere to create depth)
   - Low Pass Filter (reduces high frequencies for that warm, mellow sound)
+- Advanced Drum Synthesis:
+  - Multi-stage envelopes for realistic drum sounds
+  - Velocity and timing humanization
+  - Customizable synthesis parameters
+- User Sample Support:
+  - Register your own drum samples
+  - Support for velocity layers
+  - Automatic sample management
+  - Preloading option for optimal performance
 - Preset Management:
   - Save current style, volume, and effects to a preset file
   - Load presets to quickly restore your favorite configurations
@@ -34,6 +43,18 @@ dotnet tool install --global LofiBeats.Cli
 
 # Start playing some beats
 lofi play --style jazzy
+
+# Register your own samples
+lofi sample register kick /path/to/kick.wav
+lofi sample register snare /path/to/snare.wav
+lofi sample register hat /path/to/hihat.wav
+
+# Register samples with velocity layers (0-127)
+lofi sample register kick /path/to/soft_kick.wav --velocity 64
+lofi sample register kick /path/to/hard_kick.wav --velocity 127
+
+# List registered samples
+lofi sample list
 
 # Play with custom BPM
 lofi play --style chillhop --bpm 82
@@ -80,6 +101,12 @@ lofi stop --tapestop
 lofi stop --after 10m
 lofi stop --tapestop --after 30s
 ```
+
+## User Samples
+
+LofiBeats supports using your own audio samples for drum sounds. Samples are automatically managed and stored in your local application data directory.
+
+For detailed information about sample management, velocity layers, supported formats, and best practices, see [User Samples Guide](docs/USER_SAMPLES.md).
 
 ## Architecture
 
