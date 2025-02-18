@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 
 namespace LofiBeats.Cli.Commands;
 
