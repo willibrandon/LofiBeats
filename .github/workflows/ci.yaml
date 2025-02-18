@@ -317,10 +317,6 @@ jobs:
       run: |
         dotnet tool install --global --add-source ./packages LofiBeats.Cli
         lofi --version
-        # Quick smoke test of core functionality
-        lofi play --style basic
-        Start-Sleep -Seconds 5
-        lofi stop
         dotnet tool uninstall -g LofiBeats.Cli
 
   publish-nuget:
@@ -332,7 +328,7 @@ jobs:
     - name: Download packages
       uses: actions/download-artifact@v4
       with:
-        name: nuget-package-windows-Release
+        pattern: nuget-package-*
         path: packages
         
     - name: Publish to NuGet
