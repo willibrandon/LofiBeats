@@ -17,9 +17,9 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
     private int _currentSampleInStep;
     private readonly Random _rand = new();
     private float _kickPhase;
-    private float _kickFreq = 150f; // Starting frequency for kick
     private readonly float[] _noiseBuffer = new float[1024]; // For noise-based sounds
     private int _noisePosition;
+    private const float SAMPLE_RATE = 44100f;
     private bool _disposed;
 
     // Humanization fields
@@ -130,7 +130,6 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
                 _currentSampleInStep = 0;
                 _currentStep = (_currentStep + 1) % _pattern.DrumSequence.Length;
                 _kickPhase = 0; // Reset kick phase for new step
-                _kickFreq = 150f; // Reset kick frequency
                 RandomizeOffsets(); // Randomize offsets for next step
 
                 // Reset user sample state
@@ -176,7 +175,10 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
                     sample += GenerateSnare(normalizedTime) * velocity;
                     break;
                 case "hat":
-                    sample += GenerateHiHat(normalizedTime) * velocity;
+                    sample += GenerateHiHat(normalizedTime, false) * velocity;
+                    break;
+                case "ohat":
+                    sample += GenerateHiHat(normalizedTime, true) * velocity;
                     break;
             }
         }
@@ -213,48 +215,76 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
 
     private float GenerateKick(float normalizedTime)
     {
-        // Frequency sweep from 150Hz down to 50Hz
-        _kickFreq = Math.Max(50f, _kickFreq * 0.9995f);
-        _kickPhase += (float)(2 * Math.PI * _kickFreq / _waveFormat.SampleRate);
-        if (_kickPhase > 2 * Math.PI) _kickPhase -= (float)(2 * Math.PI);
+        float attackTime = 0.003f;  // 3ms attack - quick punch
+        float decayTime = 0.08f;    // 80ms decay - tighter
+        
+        float t = normalizedTime * (attackTime + decayTime);
+        float envelope;
+        
+        if (t < attackTime)
+        {
+            envelope = t / attackTime;
+        }
+        else
+        {
+            float decayPhase = (t - attackTime) / decayTime;
+            envelope = MathF.Exp(-5f * decayPhase); // Faster decay
+        }
 
-        // Amplitude envelope
-        float envelope = (float)Math.Exp(-8.0f * normalizedTime);
+        // Simpler frequency sweep focused on sub frequencies
+        float freqStart = 120f;  // Start lower
+        float freqEnd = 45f;     // Don't go too low to maintain punch
+        float freqRange = freqStart - freqEnd;
+        float freq = freqEnd + (freqRange * MathF.Exp(-11f * normalizedTime)); // Faster initial drop
         
-        // Add some distortion for punch
-        float kick = (float)Math.Sin(_kickPhase);
-        kick = Math.Sign(kick) * (float)Math.Pow(Math.Abs(kick), 0.9);
+        _kickPhase += 2f * MathF.PI * freq / SAMPLE_RATE;
+        if (_kickPhase > 2f * MathF.PI) _kickPhase -= 2f * MathF.PI;
         
-        return kick * envelope * 0.8f;
+        float wave = MathF.Sin(_kickPhase);
+        
+        return wave * envelope * 0.85f; // Slightly louder but clean
     }
 
     private float GenerateSnare(float normalizedTime)
     {
-        // Mix of noise and two sine tones
         float noise = GetNextNoise();
         
-        // Two sine tones for body
-        float tone1 = (float)Math.Sin(2 * Math.PI * 200 * normalizedTime);
-        float tone2 = (float)Math.Sin(2 * Math.PI * 180 * normalizedTime);
+        // Two tones for body - typical for vintage drum machines
+        float tone1 = MathF.Sin(2f * MathF.PI * 200f * normalizedTime); // Higher tone
+        float tone2 = MathF.Sin(2f * MathF.PI * 160f * normalizedTime); // Lower tone
         
-        // Different envelopes for noise and tones
-        float noiseEnv = (float)Math.Exp(-4.0f * normalizedTime);
-        float toneEnv = (float)Math.Exp(-8.0f * normalizedTime);
+        // Longer attack for noise
+        float noiseAttack = MathF.Min(normalizedTime / 0.002f, 1f); // 2ms attack
+        float noiseEnvelope = noiseAttack * MathF.Exp(-normalizedTime * 12f); // Faster decay
         
-        return (noise * 0.6f * noiseEnv + (tone1 + tone2) * 0.2f * toneEnv) * 0.7f;
+        // Shorter envelope for tones
+        float toneEnvelope = MathF.Exp(-normalizedTime * 14f);
+        
+        // Mix with more noise for that vintage sound
+        float noisePart = noise * 0.7f * noiseEnvelope;
+        float tonePart = (tone1 + tone2) * 0.2f * toneEnvelope;
+        
+        return (noisePart + tonePart) * 0.7f;
     }
 
-    private float GenerateHiHat(float normalizedTime)
+    private float GenerateHiHat(float normalizedTime, bool open = false)
     {
         float noise = GetNextNoise();
         
-        // Bandpass filter simulation (very basic)
-        noise = (float)Math.Sin(2 * Math.PI * 8000 * normalizedTime + noise);
+        // Different decay times for open/closed
+        float decayRate = open ? 8f : 45f; // Longer open, shorter closed
         
-        // Sharp envelope
-        float envelope = (float)Math.Exp(-30.0f * normalizedTime);
+        // Quick attack
+        float attack = MathF.Min(normalizedTime / 0.001f, 1f); // 1ms attack
+        float envelope = attack * MathF.Exp(-normalizedTime * decayRate);
         
-        return noise * envelope * 0.3f;
+        // Multiple resonant frequencies for metallic character
+        float res1 = MathF.Sin(2f * MathF.PI * 3000f * normalizedTime); // Higher frequency
+        float res2 = MathF.Sin(2f * MathF.PI * 4500f * normalizedTime); // Even higher
+        float resonance = (res1 + res2) * 0.15f;
+        
+        // More noise-focused mix
+        return (noise * 0.6f + resonance) * envelope * 0.45f;
     }
 
     private float GenerateChord(float normalizedTime)
