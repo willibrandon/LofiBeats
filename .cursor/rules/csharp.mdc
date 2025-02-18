@@ -1,6 +1,6 @@
 ---
-description: 
-globs: 
+description: C# coding standards and practices, focusing on C# 12/13 features and modern patterns
+globs: ["**/*.cs", "**/*.csproj"]
 ---
 # C# Coding Rules
 

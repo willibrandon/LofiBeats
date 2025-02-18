@@ -1,6 +1,6 @@
 ---
-description: 
-globs: 
+description: Audio processing and playback guidelines for handling real-time audio streams
+globs: ["**/LofiBeats.Core/Playback/**/*.cs", "**/LofiBeats.Core/Effects/**/*.cs"]
 ---
 # Audio Processing Rules
 

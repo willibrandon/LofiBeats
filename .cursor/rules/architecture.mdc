@@ -1,6 +1,6 @@
 ---
-description:
-globs:
+description: Architectural principles and patterns for the LofiBeats project, including service organization and domain rules
+globs: ["**/*.cs", "**/appsettings.json"]
 ---
 # Architecture Rules
 
