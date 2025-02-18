@@ -27,6 +27,18 @@ public static class SampleCommands
             new EventId(3, "ListSamplesFailed"),
             "Failed to list samples");
 
+    private static readonly Action<ILogger, string, Exception?> LogSampleUnregistered =
+        LoggerMessage.Define<string>(
+            LogLevel.Information,
+            new EventId(4, "SampleUnregistered"),
+            "Successfully unregistered sample '{Name}'");
+
+    private static readonly Action<ILogger, string, Exception?> LogSampleUnregistrationFailed =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(5, "SampleUnregistrationFailed"),
+            "Failed to unregister sample '{Name}'");
+
     private static readonly string[] CommonDrums = ["kick", "snare", "hat", "ohat"];
 
     public static Command CreateSampleCommand(UserSampleRepository sampleRepository, ILogger logger)
@@ -98,9 +110,36 @@ public static class SampleCommands
             }
         });
 
+        // Unregister sample command
+        var unregisterCommand = new Command("unregister", "Unregister a sample");
+        var unregisterNameArg = new Argument<string>("name", "Name of the sample to unregister");
+        unregisterCommand.AddArgument(unregisterNameArg);
+
+        unregisterCommand.SetHandler((string name) =>
+        {
+            try
+            {
+                if (sampleRepository.UnregisterSample(name))
+                {
+                    LogSampleUnregistered(logger, name, null);
+                    Console.WriteLine($"Sample '{name}' unregistered successfully");
+                }
+                else
+                {
+                    Console.WriteLine($"Sample '{name}' not found");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogSampleUnregistrationFailed(logger, name, ex);
+                Console.Error.WriteLine($"Error: {ex.Message}");
+            }
+        }, unregisterNameArg);
+
         // Add subcommands
         sampleCommand.AddCommand(registerCommand);
         sampleCommand.AddCommand(listCommand);
+        sampleCommand.AddCommand(unregisterCommand);
 
         return sampleCommand;
     }

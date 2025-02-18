@@ -618,9 +618,10 @@ public class CommandLineInterface : IDisposable
                     Console.WriteLine("  stop [--tapestop]                          - Stop audio playback");
                     Console.WriteLine("  pause                                      - Pause audio playback");
                     Console.WriteLine("  resume                                     - Resume audio playback");
-                    Console.WriteLine("  sample register <name> <path> [--velocity] - Register a new sample");
+                    Console.WriteLine("  sample register <n> <path> [--velocity] - Register a new sample");
+                    Console.WriteLine("  sample unregister <n>                   - Unregister a sample");
                     Console.WriteLine("  sample list                               - List registered samples");
-                    Console.WriteLine("  effect <name> [--enable=true|false]       - Manage effects");
+                    Console.WriteLine("  effect <n> [--enable=true|false]       - Manage effects");
                     Console.WriteLine("  volume --level=<0.0-1.0>                  - Adjust master volume");
                     Console.WriteLine("  version                                   - Display version information");
                     Console.WriteLine("  update                                    - Update to latest version");
@@ -711,6 +712,7 @@ public class CommandLineInterface : IDisposable
             "  Play with custom BPM:         lofi play --style=basic --bpm=75\n" +
             "  Register a sample:            lofi sample register kick /path/to/kick.wav\n" +
             "  Register with velocity:       lofi sample register kick-soft /path/to/kick.wav --velocity 64\n" +
+            "  Unregister a sample:         lofi sample unregister kick\n" +
             "  List registered samples:      lofi sample list\n" +
             "  Enable vinyl effect:          lofi effect vinyl\n" +
             "  Adjust volume:                lofi volume --level=0.8\n" +

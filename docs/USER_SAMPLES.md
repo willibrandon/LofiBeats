@@ -17,6 +17,29 @@ lofi sample register <type> <path> --velocity <0-127>
 
 # List all registered samples
 lofi sample list
+
+# Unregister a sample (removes the sample and all its velocity layers)
+lofi sample unregister <type>
+```
+
+### Sample Management Examples
+
+```bash
+# Register basic samples
+lofi sample register kick /path/to/kick.wav
+lofi sample register snare /path/to/snare.wav
+
+# Register velocity-layered samples
+lofi sample register kick /path/to/soft_kick.wav --velocity 32
+lofi sample register kick /path/to/med_kick.wav --velocity 64
+lofi sample register kick /path/to/hard_kick.wav --velocity 96
+
+# List all registered samples
+lofi sample list
+
+# Unregister samples
+lofi sample unregister kick     # Removes kick.wav or all velocity layers of kick
+lofi sample unregister snare    # Removes snare.wav
 ```
 
 ## Velocity Layers

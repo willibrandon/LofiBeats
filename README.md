@@ -100,6 +100,10 @@ lofi sample register kick /path/to/hard_kick.wav --velocity 127
 
 # List registered samples
 lofi sample list
+
+# Unregister samples
+lofi sample unregister kick        # Unregister a basic sample
+lofi sample unregister kick-soft   # Unregister a sample with all its velocity layers
 ```
 
 ## User Samples

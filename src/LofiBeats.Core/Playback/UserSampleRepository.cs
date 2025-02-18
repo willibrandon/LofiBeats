@@ -177,6 +177,51 @@ public class UserSampleRepository : IDisposable
         return parts.Length > 1 && int.TryParse(parts[1], out var layer) ? layer : null;
     }
 
+    /// <summary>
+    /// Unregisters a sample and removes its associated files.
+    /// </summary>
+    /// <param name="name">The name of the sample to unregister.</param>
+    /// <returns>True if any samples were unregistered, false otherwise.</returns>
+    public bool UnregisterSample(string name)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(UserSampleRepository));
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Sample name cannot be empty", nameof(name));
+
+        var unregisteredAny = false;
+        var keysToRemove = _samples.Keys.Where(k => k == name || k.StartsWith($"{name}:")).ToList();
+
+        foreach (var key in keysToRemove)
+        {
+            if (_samples.TryRemove(key, out var sampleInfo))
+            {
+                try
+                {
+                    if (File.Exists(sampleInfo.FilePath))
+                    {
+                        File.Delete(sampleInfo.FilePath);
+                    }
+                    _preloadedData.TryRemove(key, out _);
+                    unregisteredAny = true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to delete sample file for {Name}", key);
+                }
+            }
+        }
+
+        if (unregisteredAny)
+        {
+            _logger.LogInformation("Successfully unregistered sample {Name}", name);
+        }
+        else
+        {
+            _logger.LogWarning("Sample {Name} not found in repository", name);
+        }
+
+        return unregisteredAny;
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
