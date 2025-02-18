@@ -5,6 +5,34 @@ using NAudio.Wave;
 
 namespace LofiBeats.Core.Playback;
 
+/// <summary>
+/// Provides real-time audio synthesis for drum patterns with support for both
+/// synthesized and user-supplied samples.
+/// </summary>
+/// <remarks>
+/// This class implements a hybrid approach to drum sound generation:
+/// - Synthesized drums using multi-stage envelopes and frequency modulation
+/// - User-supplied samples with velocity layers
+/// - Real-time effects including resonant filtering and amplitude modulation
+/// 
+/// Features:
+/// - Advanced drum synthesis with realistic envelopes and frequency sweeps
+/// - Humanization through timing and velocity variations
+/// - Seamless integration of user samples with velocity mapping
+/// - Real-time buffer management and resource cleanup
+/// - Thread-safe audio generation
+/// - Automatic sample rate conversion
+/// - Telemetry tracking for performance monitoring
+/// 
+/// Performance considerations:
+/// - Uses pre-allocated buffers for noise generation
+/// - Minimizes allocations in the audio processing path
+/// - Implements proper resource disposal
+/// - Handles buffer underruns gracefully
+/// 
+/// The provider maintains its own timing and synchronization, ensuring accurate
+/// playback of patterns at the specified tempo.
+/// </remarks>
 public class BeatPatternSampleProvider : ISampleProvider, IDisposable
 {
     private readonly BeatPattern _pattern;
@@ -232,6 +260,16 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
             : 0f;
     }
 
+    /// <summary>
+    /// Generates a kick drum sound using multi-stage envelope and frequency sweep.
+    /// </summary>
+    /// <param name="normalizedTime">Time within the current step (0-1).</param>
+    /// <returns>The generated sample value between -1.0 and 1.0.</returns>
+    /// <remarks>
+    /// Uses a two-stage envelope (attack and decay) with exponential decay curve.
+    /// The frequency sweep starts at 120Hz and drops to 45Hz for deep sub-bass.
+    /// Attack is very quick (3ms) for punch, with a longer decay (80ms) for body.
+    /// </remarks>
     private float GenerateKick(float normalizedTime)
     {
         float attackTime = 0.003f;  // 3ms attack - quick punch
@@ -264,6 +302,18 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
         return wave * envelope * 0.85f; // Slightly louder but clean
     }
 
+    /// <summary>
+    /// Generates a snare drum sound using noise and tonal components.
+    /// </summary>
+    /// <param name="normalizedTime">Time within the current step (0-1).</param>
+    /// <returns>The generated sample value between -1.0 and 1.0.</returns>
+    /// <remarks>
+    /// Creates a vintage drum machine style snare using:
+    /// - Two tonal oscillators (200Hz and 160Hz) for body
+    /// - Filtered noise component for snap
+    /// - Separate envelopes for noise (2ms attack) and tones
+    /// - 70/30 mix of noise to tonal components
+    /// </remarks>
     private float GenerateSnare(float normalizedTime)
     {
         float noise = GetNextNoise();
@@ -286,6 +336,20 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
         return (noisePart + tonePart) * 0.7f;
     }
 
+    /// <summary>
+    /// Generates a hi-hat sound using filtered noise and resonant frequencies.
+    /// </summary>
+    /// <param name="normalizedTime">Time within the current step (0-1).</param>
+    /// <param name="open">If true, generates an open hi-hat with longer decay.</param>
+    /// <returns>The generated sample value between -1.0 and 1.0.</returns>
+    /// <remarks>
+    /// Creates metallic character through:
+    /// - Multiple resonant frequencies (3kHz and 4.5kHz)
+    /// - Filtered white noise base
+    /// - Quick 1ms attack for both open and closed
+    /// - Variable decay (45ms for closed, 8ms for open)
+    /// - 60/40 mix of noise to resonance
+    /// </remarks>
     private float GenerateHiHat(float normalizedTime, bool open = false)
     {
         float noise = GetNextNoise();
@@ -306,6 +370,18 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
         return (noise * 0.6f + resonance) * envelope * 0.45f;
     }
 
+    /// <summary>
+    /// Generates a chord tone to accompany the drum pattern.
+    /// </summary>
+    /// <param name="normalizedTime">Time within the current step (0-1).</param>
+    /// <returns>The generated sample value between -1.0 and 1.0.</returns>
+    /// <remarks>
+    /// Generates a rich harmonic texture by:
+    /// - Using the first three harmonics of the base frequency
+    /// - Decreasing amplitude for higher harmonics (1/n falloff)
+    /// - Applying a soft attack and long decay envelope
+    /// - Mixing at a lower volume (-15dB) to sit behind drums
+    /// </remarks>
     private float GenerateChord(float normalizedTime)
     {
         // Simple chord simulation with multiple frequencies
@@ -325,6 +401,15 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
         return chord * envelope * 0.15f; // Reduced volume for background
     }
 
+    /// <summary>
+    /// Gets the next sample from the noise buffer for use in drum synthesis.
+    /// </summary>
+    /// <returns>A random value between -1.0 and 1.0.</returns>
+    /// <remarks>
+    /// Uses a circular buffer of pre-generated noise samples to avoid
+    /// real-time random number generation. The buffer size (1024 samples)
+    /// provides enough variation while being cache-friendly.
+    /// </remarks>
     private float GetNextNoise()
     {
         _noisePosition = (_noisePosition + 1) % _noiseBuffer.Length;
