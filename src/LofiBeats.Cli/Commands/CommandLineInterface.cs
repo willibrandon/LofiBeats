@@ -510,7 +510,7 @@ public class CommandLineInterface : IDisposable
             _logExecutingStartCommand(_logger, null);
             try
             {
-                Console.Write("Starting LofiBeats service... ");
+                Console.Write("Starting LofiBeats service... " + Environment.NewLine);
                 ShowSpinner("Starting LofiBeats service", 1000);
                 
                 // EnsureServiceRunningAsync will start the service if it's not running
@@ -532,7 +532,7 @@ public class CommandLineInterface : IDisposable
             _logExecutingShutdownCommand(_logger, null);
             try
             {
-                Console.Write("Shutting down service... ");
+                Console.Write("Shutting down service... " + Environment.NewLine);
                 ShowSpinner("Shutting down service", 1000);
                 await _serviceHelper.ShutdownServiceAsync();
                 Console.WriteLine("Service has been shut down.");
