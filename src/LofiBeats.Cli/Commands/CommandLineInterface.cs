@@ -1,6 +1,7 @@
 using LofiBeats.Core.Models;
 using LofiBeats.Core.Scheduling;
 using LofiBeats.Core.Storage;
+using LofiBeats.Core.Playback;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.CommandLine;
@@ -15,6 +16,7 @@ public class CommandLineInterface : IDisposable
     private readonly ILogger<CommandLineInterface> _logger;
     private readonly ServiceConnectionHelper _serviceHelper;
     private readonly PlaybackScheduler _scheduler;
+    private readonly UserSampleRepository _userSamples;
 
     private static readonly Action<ILogger, Exception?> _logCommandLineInterfaceInitialized =
         LoggerMessage.Define(LogLevel.Information, new EventId(0, nameof(CommandLineInterface)), "CommandLineInterface initialized");
@@ -113,6 +115,7 @@ public class CommandLineInterface : IDisposable
             loggerFactory.CreateLogger<ServiceConnectionHelper>(),
             configuration);
         _scheduler = new PlaybackScheduler(loggerFactory.CreateLogger<PlaybackScheduler>());
+        _userSamples = new UserSampleRepository(loggerFactory.CreateLogger<UserSampleRepository>());
 
         _rootCommand = new RootCommand("Lofi Beats Generator & Player CLI")
         {
@@ -125,6 +128,10 @@ public class CommandLineInterface : IDisposable
 
     private void ConfigureCommands()
     {
+        // Add sample command
+        var sampleCommand = SampleCommands.CreateSampleCommand(_userSamples, _logger);
+        _rootCommand.AddCommand(sampleCommand);
+
         // Add update command
         var updateCommand = new Command("update", "Update the CLI tool to the latest version");
         updateCommand.Description = "Updates the LofiBeats CLI tool to the latest version.\n\n" +
@@ -611,6 +618,8 @@ public class CommandLineInterface : IDisposable
                     Console.WriteLine("  stop [--tapestop]                          - Stop audio playback");
                     Console.WriteLine("  pause                                      - Pause audio playback");
                     Console.WriteLine("  resume                                     - Resume audio playback");
+                    Console.WriteLine("  sample register <name> <path> [--velocity] - Register a new sample");
+                    Console.WriteLine("  sample list                               - List registered samples");
                     Console.WriteLine("  effect <name> [--enable=true|false]       - Manage effects");
                     Console.WriteLine("  volume --level=<0.0-1.0>                  - Adjust master volume");
                     Console.WriteLine("  version                                   - Display version information");
@@ -700,6 +709,9 @@ public class CommandLineInterface : IDisposable
             "  Generate with custom BPM:     lofi generate --style=chillhop --bpm=85\n" +
             "  Play with a specific style:   lofi play --style=chillhop\n" +
             "  Play with custom BPM:         lofi play --style=basic --bpm=75\n" +
+            "  Register a sample:            lofi sample register kick /path/to/kick.wav\n" +
+            "  Register with velocity:       lofi sample register kick-soft /path/to/kick.wav --velocity 64\n" +
+            "  List registered samples:      lofi sample list\n" +
             "  Enable vinyl effect:          lofi effect vinyl\n" +
             "  Adjust volume:                lofi volume --level=0.8\n" +
             "  Interactive mode:             lofi interactive\n" +

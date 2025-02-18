@@ -142,14 +142,23 @@ public class BeatPatternSampleProviderTests : IDisposable
     private static List<int> FindKickOnsets(float[] buffer, float threshold = 0.005f)
     {
         var onsets = new List<int>();
-        bool inOnset = false;
-        int minSamplesBetweenOnsets = 100; // Prevent multiple detections of same kick
-        int samplesSinceLastOnset = minSamplesBetweenOnsets;
-        
-        // Use a sliding window to detect amplitude spikes
-        const int windowSize = 3;
+        const int windowSize = 10; // Larger window for more stable detection
+        const int minSamplesBetweenOnsets = 5000; // About 100ms at 44.1kHz
         var window = new float[windowSize];
-        
+        int samplesSinceLastOnset = minSamplesBetweenOnsets;
+
+        // First pass: find average amplitude to set dynamic threshold
+        float sum = 0;
+        int count = 0;
+        for (int i = 0; i < buffer.Length; i++)
+        {
+            sum += Math.Abs(buffer[i]);
+            count++;
+        }
+        float avgAmplitude = sum / count;
+        float detectionThreshold = Math.Max(threshold, avgAmplitude * 2.0f);
+
+        // Second pass: find peaks using the dynamic threshold
         for (int i = windowSize; i < buffer.Length; i++)
         {
             // Update window
@@ -161,21 +170,30 @@ public class BeatPatternSampleProviderTests : IDisposable
             
             samplesSinceLastOnset++;
 
-            // Center sample is higher than both neighbors and above threshold
-            if (!inOnset && 
-                samplesSinceLastOnset >= minSamplesBetweenOnsets &&
-                window[1] > threshold &&
-                window[1] > window[0] * 1.2f && // 20% increase from previous
-                window[1] > window[2]) // Peak detection
+            if (samplesSinceLastOnset >= minSamplesBetweenOnsets)
             {
-                onsets.Add(i - 1); // -1 because we want the start of the rise
-                inOnset = true;
-                samplesSinceLastOnset = 0;
-            }
-            // Reset detection after significant drop
-            else if (inOnset && window[windowSize - 1] < threshold / 2)
-            {
-                inOnset = false;
+                // Check if center of window is a peak
+                bool isPeak = true;
+                float centerValue = window[windowSize / 2];
+                
+                // Must be above threshold
+                if (centerValue < detectionThreshold) continue;
+
+                // Must be higher than surrounding samples
+                for (int j = 0; j < windowSize; j++)
+                {
+                    if (j != windowSize / 2 && window[j] >= centerValue)
+                    {
+                        isPeak = false;
+                        break;
+                    }
+                }
+
+                if (isPeak)
+                {
+                    onsets.Add(i - (windowSize / 2));
+                    samplesSinceLastOnset = 0;
+                }
             }
         }
 
