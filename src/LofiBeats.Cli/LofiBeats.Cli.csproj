@@ -81,31 +81,42 @@
 		<None Include="..\LofiBeats.Service\appsettings.Development.json" 
 			  Condition="Exists('..\LofiBeats.Service\appsettings.Development.json')"
 			  Pack="true" 
-			  PackagePath="tools/$(TargetFramework)/any/service.appsettings.Development.json" />
+			  PackagePath="tools/$(TargetFramework)/any/service.appsettings.Development.json"
+			  Visible="false" />
 
 		<!-- Service executables -->
 		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.dll" 
 			  Pack="true" 
-			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.dll" />
+			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.dll"
+			   Visible="false" />
+		
 		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.exe" 
 			  Pack="true" 
-			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.exe" />
+			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.exe" 
+			  Visible="false" />
 		
 		<!-- Service dependencies -->
 		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\Microsoft.AspNetCore.*.dll"
 			  Pack="true"
-			  PackagePath="tools/$(TargetFramework)/any/" />
+			  PackagePath="tools/$(TargetFramework)/any/"
+			  Visible="false" />
+		
 		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\Microsoft.OpenApi.dll"
 			  Pack="true"
-			  PackagePath="tools/$(TargetFramework)/any/" />
+			  PackagePath="tools/$(TargetFramework)/any/"
+			  Visible="false" />
 		
 		<!-- Service runtime configuration -->
 		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.deps.json"
 			  Pack="true"
-			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.deps.json" />
+			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.deps.json"
+			  Visible="false" />
+		
 		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.runtimeconfig.json"
 			  Pack="true"
-			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.runtimeconfig.json" />
+			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.runtimeconfig.json"
+			  Visible="false" />
+		
 		<None Remove="$(IntermediateOutputPath)apphost.exe" />
 	</ItemGroup>
 
