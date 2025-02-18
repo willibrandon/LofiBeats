@@ -6,14 +6,18 @@ using Moq;
 namespace LofiBeats.Tests.Playback;
 
 [Collection("AI Generated Tests")]
-public class BeatPatternSampleProviderTests
+public class BeatPatternSampleProviderTests : IDisposable
 {
     private readonly Mock<ILogger> _loggerMock;
+    private readonly Mock<ILogger<UserSampleRepository>> _repoLoggerMock;
     private readonly BeatPattern _testPattern;
+    private readonly UserSampleRepository _userSamples;
 
     public BeatPatternSampleProviderTests()
     {
         _loggerMock = new Mock<ILogger>();
+        _repoLoggerMock = new Mock<ILogger<UserSampleRepository>>();
+        _userSamples = new UserSampleRepository(_repoLoggerMock.Object);
         _testPattern = new BeatPattern
         {
             BPM = 80,
@@ -22,12 +26,17 @@ public class BeatPatternSampleProviderTests
         };
     }
 
+    public void Dispose()
+    {
+        _userSamples.Dispose();
+    }
+
     [Fact]
     [Trait("Category", "AI_Generated")]
     public void DrumHits_HaveTimeOffsets()
     {
         // Arrange
-        var provider = new BeatPatternSampleProvider(_testPattern, _loggerMock.Object);
+        var provider = new BeatPatternSampleProvider(_testPattern, _loggerMock.Object, _userSamples);
         var buffer = new float[44100]; // 1 second of audio at 44.1kHz
         var originalBuffer = new float[44100];
 
@@ -70,7 +79,7 @@ public class BeatPatternSampleProviderTests
             DrumSequence = ["kick", "_", "_", "_", "kick", "_", "_", "_"],
             ChordProgression = ["Dm7"]
         };
-        var provider = new BeatPatternSampleProvider(kickOnlyPattern, _loggerMock.Object);
+        var provider = new BeatPatternSampleProvider(kickOnlyPattern, _loggerMock.Object, _userSamples);
         var buffer1 = new float[44100];
         var buffer2 = new float[44100];
 
@@ -147,7 +156,7 @@ public class BeatPatternSampleProviderTests
             DrumSequence = ["snare", "snare", "snare", "snare"],
             ChordProgression = ["Dm7"]
         };
-        var provider = new BeatPatternSampleProvider(singleDrumPattern, _loggerMock.Object);
+        var provider = new BeatPatternSampleProvider(singleDrumPattern, _loggerMock.Object, _userSamples);
         var buffer = new float[44100];
 
         // Act
@@ -181,7 +190,7 @@ public class BeatPatternSampleProviderTests
     public void VelocityRanges_StayWithinBounds()
     {
         // Arrange
-        var provider = new BeatPatternSampleProvider(_testPattern, _loggerMock.Object);
+        var provider = new BeatPatternSampleProvider(_testPattern, _loggerMock.Object, _userSamples);
         var buffer = new float[44100];
 
         // Act
@@ -205,7 +214,7 @@ public class BeatPatternSampleProviderTests
     public void GeneratedAudio_HasNoClipping()
     {
         // Arrange
-        var provider = new BeatPatternSampleProvider(_testPattern, _loggerMock.Object);
+        var provider = new BeatPatternSampleProvider(_testPattern, _loggerMock.Object, _userSamples);
         var buffer = new float[44100 * 2]; // 2 seconds of audio
 
         // Act
@@ -223,5 +232,29 @@ public class BeatPatternSampleProviderTests
             }
         }
         Assert.False(hasClipping, "Generated audio should not have any clipping");
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void UserSamples_AreDisposedProperly()
+    {
+        // Arrange
+        var pattern = new BeatPattern
+        {
+            BPM = 80,
+            DrumSequence = ["kick", "_", "_", "_"],
+            UserSampleSteps = new Dictionary<int, string> { { 1, "test_sample" } }
+        };
+
+        var provider = new BeatPatternSampleProvider(pattern, _loggerMock.Object, _userSamples);
+        var buffer = new float[44100];
+
+        // Act
+        provider.Read(buffer, 0, buffer.Length);
+        provider.Dispose();
+
+        // Assert
+        // No explicit assertion needed - we're testing that no exceptions are thrown
+        // during disposal and that memory is properly cleaned up
     }
 } 

@@ -4,11 +4,12 @@ using NAudio.Wave;
 
 namespace LofiBeats.Core.Playback;
 
-public class BeatPatternSampleProvider : ISampleProvider
+public class BeatPatternSampleProvider : ISampleProvider, IDisposable
 {
     private readonly BeatPattern _pattern;
     private readonly ILogger _logger;
     private readonly WaveFormat _waveFormat;
+    private readonly UserSampleRepository _userSamples;
     private float _phase;
     private int _currentStep;
     private readonly float[] _frequencies = [440f, 587.33f, 659.25f, 783.99f]; // A4, D5, E5, G5
@@ -19,6 +20,7 @@ public class BeatPatternSampleProvider : ISampleProvider
     private float _kickFreq = 150f; // Starting frequency for kick
     private readonly float[] _noiseBuffer = new float[1024]; // For noise-based sounds
     private int _noisePosition;
+    private bool _disposed;
 
     // Humanization fields
     private readonly float _maxTimeShiftMs = 15f; // up to ±15 ms
@@ -34,12 +36,19 @@ public class BeatPatternSampleProvider : ISampleProvider
     private readonly float _hatMaxVelocity = 0.8f;
     private readonly Dictionary<int, float> _velocities = new();
 
+    // User sample tracking
+    private ISampleProvider? _currentUserSample;
+    private readonly float[] _userSampleBuffer = new float[4096];
+    private int _userSampleBufferPosition;
+    private int _userSampleBufferCount;
+
     public WaveFormat WaveFormat => _waveFormat;
 
-    public BeatPatternSampleProvider(BeatPattern pattern, ILogger logger)
+    public BeatPatternSampleProvider(BeatPattern pattern, ILogger logger, UserSampleRepository userSamples)
     {
         _pattern = pattern;
         _logger = logger;
+        _userSamples = userSamples;
         _waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
 
         // Calculate samples per step based on tempo
@@ -65,7 +74,7 @@ public class BeatPatternSampleProvider : ISampleProvider
         for (int i = 0; i < _timeOffsets.Length; i++)
         {
             // For certain drums only (like snare/hat), add random offset
-            string drum = _pattern.DrumSequence[i];
+            string drum = _pattern.GetSampleForStep(i);
             if (drum == "snare" || drum == "hat")
             {
                 float shiftMs = (float)(_rand.NextDouble() * 2 * _maxTimeShiftMs - _maxTimeShiftMs);
@@ -73,7 +82,7 @@ public class BeatPatternSampleProvider : ISampleProvider
             }
             else
             {
-                _timeOffsets[i] = 0; // no offset for kick
+                _timeOffsets[i] = 0; // no offset for kick or user samples
             }
 
             // Also randomize velocity for this step
@@ -82,13 +91,15 @@ public class BeatPatternSampleProvider : ISampleProvider
                 "kick" => (float)(_kickMinVelocity + _rand.NextDouble() * (_kickMaxVelocity - _kickMinVelocity)),
                 "snare" => (float)(_snareMinVelocity + _rand.NextDouble() * (_snareMaxVelocity - _snareMinVelocity)),
                 "hat" => (float)(_hatMinVelocity + _rand.NextDouble() * (_hatMaxVelocity - _hatMinVelocity)),
-                _ => 1.0f
+                _ => 1.0f // User samples use full velocity
             };
         }
     }
 
     public int Read(float[] buffer, int offset, int count)
     {
+        if (_disposed) return 0;
+
         for (int i = 0; i < count; i += 2) // Stereo, so increment by 2
         {
             // Get the offset for the current step
@@ -121,6 +132,15 @@ public class BeatPatternSampleProvider : ISampleProvider
                 _kickPhase = 0; // Reset kick phase for new step
                 _kickFreq = 150f; // Reset kick frequency
                 RandomizeOffsets(); // Randomize offsets for next step
+
+                // Reset user sample state
+                if (_currentUserSample is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
+                _currentUserSample = null;
+                _userSampleBufferPosition = 0;
+                _userSampleBufferCount = 0;
             }
 
             // Update phase for oscillator
@@ -133,24 +153,32 @@ public class BeatPatternSampleProvider : ISampleProvider
 
     private float GenerateSample()
     {
-        string currentDrum = _pattern.DrumSequence[_currentStep];
+        string currentDrum = _pattern.GetSampleForStep(_currentStep);
         if (currentDrum == "_") return 0f; // Silent for rest
 
         float sample = 0f;
         float normalizedTime = (float)_currentSampleInStep / _samplesPerStep;
         float velocity = _velocities[_currentStep];
 
-        switch (currentDrum.ToLower())
+        // Check if this is a user sample
+        if (_pattern.HasUserSample(_currentStep) && _userSamples.HasSample(currentDrum))
         {
-            case "kick":
-                sample += GenerateKick(normalizedTime) * velocity;
-                break;
-            case "snare":
-                sample += GenerateSnare(normalizedTime) * velocity;
-                break;
-            case "hat":
-                sample += GenerateHiHat(normalizedTime) * velocity;
-                break;
+            sample = GenerateUserSample(currentDrum) * velocity;
+        }
+        else
+        {
+            switch (currentDrum.ToLower())
+            {
+                case "kick":
+                    sample += GenerateKick(normalizedTime) * velocity;
+                    break;
+                case "snare":
+                    sample += GenerateSnare(normalizedTime) * velocity;
+                    break;
+                case "hat":
+                    sample += GenerateHiHat(normalizedTime) * velocity;
+                    break;
+            }
         }
 
         // Add a simple chord tone based on the current step
@@ -160,6 +188,27 @@ public class BeatPatternSampleProvider : ISampleProvider
         }
 
         return sample * 0.5f; // Reduce overall volume
+    }
+
+    private float GenerateUserSample(string sampleName)
+    {
+        // Initialize or refill buffer if needed
+        if (_currentUserSample == null)
+        {
+            _currentUserSample = _userSamples.CreateSampleProvider(sampleName);
+            _userSampleBufferPosition = 0;
+            _userSampleBufferCount = _currentUserSample.Read(_userSampleBuffer, 0, _userSampleBuffer.Length);
+        }
+        else if (_userSampleBufferPosition >= _userSampleBufferCount)
+        {
+            _userSampleBufferCount = _currentUserSample.Read(_userSampleBuffer, 0, _userSampleBuffer.Length);
+            _userSampleBufferPosition = 0;
+            if (_userSampleBufferCount == 0) return 0f; // End of sample
+        }
+
+        return _userSampleBufferPosition < _userSampleBufferCount 
+            ? _userSampleBuffer[_userSampleBufferPosition++] 
+            : 0f;
     }
 
     private float GenerateKick(float normalizedTime)
@@ -231,5 +280,16 @@ public class BeatPatternSampleProvider : ISampleProvider
     {
         _noisePosition = (_noisePosition + 1) % _noiseBuffer.Length;
         return _noiseBuffer[_noisePosition];
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        if (_currentUserSample is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
+        GC.SuppressFinalize(this);
     }
 } 

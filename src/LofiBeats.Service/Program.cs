@@ -70,6 +70,7 @@ public partial class Program
         builder.Services.AddSingleton<IBeatGeneratorFactory, BeatGeneratorFactory>();
         builder.Services.AddSingleton<IEffectFactory, EffectFactory>();
         builder.Services.AddSingleton<PlaybackScheduler>();
+        builder.Services.AddSingleton<UserSampleRepository>();
 
         var app = builder.Build();
 
@@ -134,7 +135,8 @@ public partial class Program
 
         // Schedule play endpoint
         api.MapPost("/schedule-play", (IBeatGeneratorFactory factory, IAudioPlaybackService playback,
-                                     PlaybackScheduler scheduler, ILogger<Program> logger, string style = "basic", string delay = "0s") =>
+                                     PlaybackScheduler scheduler, ILogger<Program> logger, UserSampleRepository userSamples,
+                                     string style = "basic", string delay = "0s") =>
         {
             telemetryTracker.TrackEvent(TelemetryConstants.Events.PlaybackScheduled, new Dictionary<string, string>
             {
@@ -154,7 +156,7 @@ public partial class Program
             {
                 var generator = factory.GetGenerator(style);
                 var pattern = generator.GeneratePattern();
-                var beatSource = new BeatPatternSampleProvider(pattern, logger);
+                var beatSource = new BeatPatternSampleProvider(pattern, logger, userSamples);
                 playback.SetSource(beatSource);
                 playback.StartPlayback();
             });
@@ -177,7 +179,7 @@ public partial class Program
         });
 
         // Play endpoint
-        api.MapPost("/play", (HttpContext context, IAudioPlaybackService playback, IBeatGeneratorFactory factory) =>
+        api.MapPost("/play", (HttpContext context, IAudioPlaybackService playback, IBeatGeneratorFactory factory, UserSampleRepository userSamples) =>
         {
             var style = context.Request.Query["style"].FirstOrDefault() ?? "basic";
             int? bpm = null;
@@ -197,7 +199,7 @@ public partial class Program
 
             var generator = factory.GetGenerator(style);
             var pattern = generator.GeneratePattern(bpm);
-            var beatSource = new BeatPatternSampleProvider(pattern, app.Logger);
+            var beatSource = new BeatPatternSampleProvider(pattern, app.Logger, userSamples);
             playback.CurrentStyle = style;
             playback.SetSource(beatSource);
             playback.StartPlayback();
