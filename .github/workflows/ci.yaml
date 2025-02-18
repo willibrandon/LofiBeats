@@ -231,9 +231,42 @@ jobs:
         path: packages
         merge-multiple: true
         
+    - name: Install zip tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y zip unzip file
+
+    - name: Verify Package Contents
+      run: |
+        echo "=== Package location and permissions ==="
+        ls -la packages/
+        
+        echo -e "\n=== Package file type ==="
+        file packages/*.nupkg
+        
+        echo -e "\n=== Package contents listing ==="
+        unzip -l packages/*.nupkg || echo "Failed to list contents"
+        
+        echo -e "\n=== Package validation ==="
+        dotnet nuget verify packages/*.nupkg || echo "Package verification failed"
+        
+        echo -e "\n=== NuGet package details ==="
+        dotnet nuget list source
+        nuget locals all -list
+
     - name: Setup GitHub Packages
-      run: dotnet nuget add source --username ${{ github.actor }} --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
-      
+      run: |
+        echo "=== Configuring NuGet source ==="
+        dotnet nuget remove source github || true
+        dotnet nuget add source --username ${{ github.actor }} \
+          --password ${{ secrets.GITHUB_TOKEN }} \
+          --store-password-in-clear-text \
+          --name github \
+          "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+        
+        echo -e "\n=== Verifying NuGet sources ==="
+        dotnet nuget list source
+        
     - name: Create Release
       id: create_release
       uses: softprops/action-gh-release@v1
