@@ -13,12 +13,55 @@ public class UserSampleRepository : IDisposable
     private readonly ConcurrentDictionary<string, UserSampleInfo> _samples = new();
     private readonly ConcurrentDictionary<string, byte[]> _preloadedData = new();
     private readonly bool _preloadSamples;
+    private readonly string _samplesDirectory;
     private bool _disposed;
 
     public UserSampleRepository(ILogger<UserSampleRepository> logger, bool preloadSamples = false)
     {
         _logger = logger;
         _preloadSamples = preloadSamples;
+        
+        // Create samples directory in user's app data
+        _samplesDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "LofiBeats",
+            "Samples"
+        );
+        Directory.CreateDirectory(_samplesDirectory);
+        LoadExistingSamples();
+    }
+
+    private void LoadExistingSamples()
+    {
+        try
+        {
+            foreach (var file in Directory.GetFiles(_samplesDirectory, "*.wav"))
+            {
+                var name = Path.GetFileNameWithoutExtension(file);
+                var parts = name.Split('_');
+                if (parts.Length > 1 && int.TryParse(parts[1], out var velocity))
+                {
+                    // Sample with velocity layer
+                    _samples[GetSampleKey(parts[0], velocity)] = new UserSampleInfo(file, GetWaveFormat(file));
+                }
+                else
+                {
+                    // Sample without velocity layer
+                    _samples[name] = new UserSampleInfo(file, GetWaveFormat(file));
+                }
+            }
+            _logger.LogInformation("Loaded {Count} samples from {Directory}", _samples.Count, _samplesDirectory);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load existing samples from {Directory}", _samplesDirectory);
+        }
+    }
+
+    private static WaveFormat GetWaveFormat(string filePath)
+    {
+        using var reader = new AudioFileReader(filePath);
+        return reader.WaveFormat;
     }
 
     /// <summary>
@@ -41,12 +84,21 @@ public class UserSampleRepository : IDisposable
         {
             // Validate the audio file and get its format
             using var reader = new AudioFileReader(filePath);
-            var sampleInfo = new UserSampleInfo(filePath, reader.WaveFormat);
+            var format = reader.WaveFormat;
+
+            // Create destination path
+            string destinationFileName = velocityLayer.HasValue ? $"{name}_{velocityLayer}.wav" : $"{name}.wav";
+            string destinationPath = Path.Combine(_samplesDirectory, destinationFileName);
+
+            // Copy file to samples directory
+            File.Copy(filePath, destinationPath, true);
 
             string key = GetSampleKey(name, velocityLayer);
+            var sampleInfo = new UserSampleInfo(destinationPath, format);
+
             if (_preloadSamples)
             {
-                PreloadSample(key, filePath);
+                PreloadSample(key, destinationPath);
             }
 
             if (!_samples.TryAdd(key, sampleInfo))

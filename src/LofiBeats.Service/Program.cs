@@ -199,6 +199,17 @@ public partial class Program
 
             var generator = factory.GetGenerator(style);
             var pattern = generator.GeneratePattern(bpm);
+
+            // Add user samples to pattern
+            for (int i = 0; i < pattern.DrumSequence.Length; i++)
+            {
+                var drum = pattern.DrumSequence[i];
+                if (userSamples.HasSample(drum))
+                {
+                    pattern.UserSampleSteps[i] = drum;
+                }
+            }
+
             var beatSource = new BeatPatternSampleProvider(pattern, app.Logger, userSamples);
             playback.CurrentStyle = style;
             playback.SetSource(beatSource);

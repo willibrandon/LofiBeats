@@ -159,8 +159,8 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
         float normalizedTime = (float)_currentSampleInStep / _samplesPerStep;
         float velocity = _velocities[_currentStep];
 
-        // Check if this is a user sample
-        if (_pattern.HasUserSample(_currentStep) && _userSamples.HasSample(currentDrum))
+        // First check if we have a user sample for this drum type
+        if (_userSamples.HasSample(currentDrum))
         {
             sample = GenerateUserSample(currentDrum) * velocity;
         }
