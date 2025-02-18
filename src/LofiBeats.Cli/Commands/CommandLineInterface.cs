@@ -68,6 +68,12 @@ public class CommandLineInterface : IDisposable
     private static readonly Action<ILogger, Guid, Exception> _logScheduledStopError =
         LoggerMessage.Define<Guid>(LogLevel.Error, new EventId(17, "ScheduledStopError"), "Error executing scheduled stop {ActionId}");
 
+    private static readonly Action<ILogger, Exception?> _logExecutingStartCommand =
+        LoggerMessage.Define(LogLevel.Information, new EventId(19, "ExecutingStartCommand"), "Executing start command");
+
+    private static readonly Action<ILogger, Exception?> _logServiceStarted =
+        LoggerMessage.Define(LogLevel.Information, new EventId(20, "ServiceStarted"), "LofiBeats service started successfully");
+
     private static readonly string[] ValidEffects = ["vinyl", "reverb", "lowpass", "tapeflutter"];
     private static readonly string[] ValidBeatStyles = ["basic", "jazzy", "chillhop", "hiphop"];
 
@@ -491,6 +497,34 @@ public class CommandLineInterface : IDisposable
         }, volumeOption);
         _rootCommand.AddCommand(volumeCommand);
 
+        // Add start command
+        var startCommand = new Command("start", "Starts the LofiBeats service");
+        startCommand.Description = "Starts the LofiBeats service if it's not already running.\n\n" +
+                                 "This command is useful when you want to:\n" +
+                                 "1. Start the service explicitly before using other commands\n" +
+                                 "2. Restart the service after a shutdown\n" +
+                                 "3. Ensure the service is running without executing any playback commands";
+        
+        startCommand.SetHandler(async () =>
+        {
+            _logExecutingStartCommand(_logger, null);
+            try
+            {
+                Console.Write("Starting LofiBeats service... ");
+                ShowSpinner("Starting LofiBeats service", 1000);
+                
+                // EnsureServiceRunningAsync will start the service if it's not running
+                await _serviceHelper.EnsureServiceRunningAsync();
+                _logServiceStarted(_logger, null);
+                Console.WriteLine("LofiBeats service is now running.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error starting service: {ex.Message}");
+            }
+        });
+        _rootCommand.AddCommand(startCommand);
+
         // Add shutdown command
         var shutdownCommand = new Command("shutdown", "Shuts down the LofiBeats service");
         shutdownCommand.SetHandler(async () =>
@@ -645,9 +679,10 @@ public class CommandLineInterface : IDisposable
 
         _rootCommand.AddCommand(scheduleCommand);
 
-        // Add help examples to the root command
+        // Update help examples in the root command
         _rootCommand.Description = "A command-line application for generating and playing lofi beats\n\n" +
             "Examples:\n" +
+            "  Start the service:            lofi start\n" +
             "  Generate a jazzy beat:        lofi generate --style=jazzy\n" +
             "  Generate with custom BPM:     lofi generate --style=chillhop --bpm=85\n" +
             "  Play with a specific style:   lofi play --style=chillhop\n" +
@@ -655,7 +690,8 @@ public class CommandLineInterface : IDisposable
             "  Enable vinyl effect:          lofi effect vinyl\n" +
             "  Adjust volume:                lofi volume --level=0.8\n" +
             "  Interactive mode:             lofi interactive\n" +
-            "  Update to latest version:     lofi update\n\n" +
+            "  Update to latest version:     lofi update\n" +
+            "  Shutdown the service:         lofi shutdown\n\n" +
             "For more information about a command, run: lofi help <command>";
 
         _logCommandsConfigured(_logger, null);
