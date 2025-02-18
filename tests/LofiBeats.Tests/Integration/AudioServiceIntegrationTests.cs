@@ -145,6 +145,88 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
         Assert.NotNull(testService.CurrentSource);
     }
 
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task PresetLifecycle_Success()
+    {
+        // Arrange - Set up initial state
+        await _client.PostAsync("/api/lofi/play?style=jazzy", null);
+        await _client.PostAsync("/api/lofi/effect?name=vinyl&enable=true", null);
+        await _client.PostAsync("/api/lofi/volume?level=0.7", null);
+
+        // Act - Get current preset
+        var getCurrentResponse = await _client.GetAsync("/api/lofi/preset/current");
+        Assert.Equal(HttpStatusCode.OK, getCurrentResponse.StatusCode);
+        var preset = await getCurrentResponse.Content.ReadFromJsonAsync<Preset>();
+        
+        // Assert - Verify preset state
+        Assert.NotNull(preset);
+        Assert.Equal("jazzy", preset.Style);
+        Assert.Equal(0.7f, preset.Volume);
+        Assert.Contains("vinyl", preset.Effects);
+
+        // Act - Apply a different preset
+        var newPreset = new Preset
+        {
+            Name = "Test Preset",
+            Style = "chillhop",
+            Volume = 0.8f,
+            Effects = ["reverb"]
+        };
+        var applyResponse = await _client.PostAsync("/api/lofi/preset/apply", JsonContent.Create(newPreset));
+        Assert.Equal(HttpStatusCode.OK, applyResponse.StatusCode);
+
+        // Assert - Verify new state
+        var finalResponse = await _client.GetAsync("/api/lofi/preset/current");
+        var finalPreset = await finalResponse.Content.ReadFromJsonAsync<Preset>();
+        Assert.NotNull(finalPreset);
+        Assert.Equal("chillhop", finalPreset.Style);
+        Assert.Equal(0.8f, finalPreset.Volume);
+        Assert.Contains("reverb", finalPreset.Effects);
+        Assert.DoesNotContain("vinyl", finalPreset.Effects);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task ApplyPreset_WithInvalidValues_ReturnsBadRequest()
+    {
+        // Arrange
+        var invalidPreset = new Preset
+        {
+            Name = "Invalid Preset",
+            Style = "",  // Invalid: empty style
+            Volume = 2.0f,  // Invalid: volume > 1.0
+            Effects = ["nonexistent_effect"]
+        };
+
+        // Act
+        var response = await _client.PostAsync("/api/lofi/preset/apply", JsonContent.Create(invalidPreset));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiResponse>();
+        Assert.NotNull(error?.Error);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task GetCurrentPreset_WhenNoPlayback_ReturnsDefaultValues()
+    {
+        // Arrange - Ensure no playback
+        await _client.PostAsync("/api/lofi/stop", null);
+
+        // Act
+        var response = await _client.GetAsync("/api/lofi/preset/current");
+        
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var preset = await response.Content.ReadFromJsonAsync<Preset>();
+        Assert.NotNull(preset);
+        Assert.Equal("basic", preset.Style);  // Default style
+        Assert.Equal(1.0f, preset.Volume);    // Default volume
+        Assert.Empty(preset.Effects);         // No effects
+    }
+
     private record ApiResponse
     {
         public string? Message { get; init; }

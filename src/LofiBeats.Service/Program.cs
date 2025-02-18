@@ -1,5 +1,6 @@
 using LofiBeats.Core.BeatGeneration;
 using LofiBeats.Core.Effects;
+using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
 using LofiBeats.Core.Scheduling;
 using LofiBeats.Core.Telemetry;
@@ -197,6 +198,7 @@ public partial class Program
             var generator = factory.GetGenerator(style);
             var pattern = generator.GeneratePattern(bpm);
             var beatSource = new BeatPatternSampleProvider(pattern, app.Logger);
+            playback.CurrentStyle = style;
             playback.SetSource(beatSource);
             playback.StartPlayback();
             return Results.Text(JsonSerializer.Serialize(new { message = "Playback started", pattern = pattern }), "application/json");
@@ -300,6 +302,38 @@ public partial class Program
 
                 playback.RemoveEffect(name);
                 return Results.Text(JsonSerializer.Serialize(new { message = $"{name} effect disabled" }), "application/json");
+            }
+        });
+
+        // Get current preset endpoint
+        api.MapGet("/preset/current", (IAudioPlaybackService playback) =>
+        {
+            var preset = playback.GetCurrentPreset();
+            return Results.Ok(preset);
+        });
+
+        // Apply preset endpoint
+        api.MapPost("/preset/apply", (IAudioPlaybackService playback, IEffectFactory effectFactory, Preset preset) =>
+        {
+            try
+            {
+                // Validate the preset
+                preset.Validate();
+
+                // Track preset application
+                telemetryTracker.TrackEvent(TelemetryConstants.Events.PresetLoaded, new Dictionary<string, string>
+                {
+                    { TelemetryConstants.Properties.PreferredBeatStyle, preset.Style },
+                    { TelemetryConstants.Properties.PreferredEffects, string.Join(",", preset.Effects) }
+                });
+
+                // Apply the preset
+                playback.ApplyPreset(preset, effectFactory);
+                return Results.Ok(new { message = $"Preset '{preset.Name}' applied successfully" });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
             }
         });
 
