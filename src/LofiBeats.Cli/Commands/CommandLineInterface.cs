@@ -1,9 +1,11 @@
+using LofiBeats.Core.Models;
+using LofiBeats.Core.Scheduling;
+using LofiBeats.Core.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Net.Http.Json;
-using LofiBeats.Core.Scheduling;
 
 namespace LofiBeats.Cli.Commands;
 
@@ -74,6 +76,12 @@ public class CommandLineInterface : IDisposable
     private static readonly Action<ILogger, Exception?> _logServiceStarted =
         LoggerMessage.Define(LogLevel.Information, new EventId(20, "ServiceStarted"), "LofiBeats service started successfully");
 
+    private static readonly Action<ILogger, string, Exception?> _logExecutingSavePreset =
+        LoggerMessage.Define<string>(LogLevel.Information, new EventId(21, "ExecutingSavePreset"), "Saving preset to {FilePath}");
+
+    private static readonly Action<ILogger, string, Exception?> _logExecutingLoadPreset =
+        LoggerMessage.Define<string>(LogLevel.Information, new EventId(22, "ExecutingLoadPreset"), "Loading preset from {FilePath}");
+
     private static readonly string[] ValidEffects = ["vinyl", "reverb", "lowpass", "tapeflutter"];
     private static readonly string[] ValidBeatStyles = ["basic", "jazzy", "chillhop", "hiphop"];
 
@@ -132,6 +140,10 @@ public class CommandLineInterface : IDisposable
             Console.WriteLine("\nThis will update to the latest version from NuGet.");
         });
         _rootCommand.AddCommand(updateCommand);
+
+        // Add preset command
+        var presetCommand = CreatePresetCommand();
+        _rootCommand.AddCommand(presetCommand);
 
         // Add generate command with enhanced description and validation
         var generateCommand = new Command("generate", "Generates a new lofi beat pattern with customizable style")
@@ -696,6 +708,132 @@ public class CommandLineInterface : IDisposable
             "For more information about a command, run: lofi help <command>";
 
         _logCommandsConfigured(_logger, null);
+    }
+
+    private Command CreatePresetCommand()
+    {
+        var presetCommand = new Command("preset", "Manage LofiBeats presets (style, volume, effects)");
+        presetCommand.Description = "Save and load preset configurations including style, volume, and effects.\n\n" +
+                                  "Subcommands:\n" +
+                                  "  save <file>    Save current settings to a preset file\n" +
+                                  "  load <file>    Load settings from a preset file\n\n" +
+                                  "Examples:\n" +
+                                  "  preset save mypreset.json     Save current settings\n" +
+                                  "  preset load mypreset.json     Load saved settings\n" +
+                                  "  preset save presets/jazz.json Save to a subdirectory";
+
+        // 'save' subcommand
+        var saveCommand = new Command("save", "Save the current playback settings to a preset file");
+        var saveFileArg = new Argument<string>("file", "Path to the preset file (e.g., mypreset.json)");
+        saveCommand.AddArgument(saveFileArg);
+        saveCommand.SetHandler(async (string file) =>
+        {
+            _logExecutingSavePreset(_logger, file, null);
+            await HandleSavePreset(file);
+        }, saveFileArg);
+
+        // 'load' subcommand
+        var loadCommand = new Command("load", "Load preset settings from a file");
+        var loadFileArg = new Argument<string>("file", "Path to the preset file (e.g., mypreset.json)");
+        loadCommand.AddArgument(loadFileArg);
+        loadCommand.SetHandler(async (string file) =>
+        {
+            _logExecutingLoadPreset(_logger, file, null);
+            await HandleLoadPreset(file);
+        }, loadFileArg);
+
+        presetCommand.AddCommand(saveCommand);
+        presetCommand.AddCommand(loadCommand);
+
+        return presetCommand;
+    }
+
+    private async Task HandleSavePreset(string filePath)
+    {
+        try
+        {
+            Console.Write("Saving preset... ");
+            ShowSpinner("Saving preset", 500);
+
+            // Get current preset from service
+            var response = await _serviceHelper.SendCommandAsync(HttpMethod.Get, "preset/current");
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadFromJsonAsync<ApiResponse>();
+                Console.WriteLine($"Error getting current preset: {error?.Error ?? "Unknown error"}");
+                return;
+            }
+
+            var preset = await response.Content.ReadFromJsonAsync<Preset>();
+            if (preset == null)
+            {
+                Console.WriteLine("Error: Failed to get current preset state");
+                return;
+            }
+
+            // Save to file
+            PresetStorage.SavePreset(filePath, preset);
+            Console.WriteLine($"Preset saved to {filePath}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving preset: {ex.Message}");
+            Console.WriteLine("Please ensure the LofiBeats service is running and try again.");
+        }
+    }
+
+    private async Task HandleLoadPreset(string filePath)
+    {
+        try
+        {
+            if (!PresetStorage.PresetExists(filePath))
+            {
+                Console.WriteLine($"Error: Preset file not found: {filePath}");
+                return;
+            }
+
+            Console.Write("Loading preset... ");
+            ShowSpinner("Loading preset", 500);
+
+            // Load from file
+            var preset = PresetStorage.LoadPreset(filePath);
+            if (preset == null)
+            {
+                Console.WriteLine($"Error: Failed to load preset from {filePath}");
+                return;
+            }
+
+            // Apply preset through service
+            var response = await _serviceHelper.SendCommandAsync(
+                HttpMethod.Post,
+                "preset/apply",
+                JsonContent.Create(preset));
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadFromJsonAsync<ApiResponse>();
+                Console.WriteLine($"Error applying preset: {error?.Error ?? "Unknown error"}");
+                return;
+            }
+
+            Console.WriteLine($"Preset loaded from {filePath}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading preset: {ex.Message}");
+            Console.WriteLine("Please ensure the LofiBeats service is running and try again.");
+        }
+    }
+
+    private record ApiResponse
+    {
+        public string? Message { get; init; }
+        public string? Error { get; init; }
+    }
+
+    private sealed record PlayResponse : ApiResponse
+    {
+        public object? Pattern { get; init; }
     }
 
     public async Task<int> ExecuteAsync(string[] args, CancellationToken cancellationToken = default)
