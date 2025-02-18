@@ -1,6 +1,6 @@
 ---
 description: General project-wide guidelines and architectural overview for the LofiBeats project
-globs: ["**/*.cs"]
+globs: **/*.cs
 ---
 # General Project Rules
 

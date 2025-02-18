@@ -1,6 +1,6 @@
 ---
 description: Command-line interface implementation guidelines using System.CommandLine
-globs: ["**/LofiBeats.Cli/**/*.cs"]
+globs: **/LofiBeats.Cli/**/*.cs
 ---
 # CLI Rules
 

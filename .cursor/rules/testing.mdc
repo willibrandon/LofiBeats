@@ -1,6 +1,6 @@
 ---
 description: Testing guidelines and rules for the LofiBeats project, including xUnit practices and AI-generated test requirements
-globs: ["**/*.Tests/**/*.cs", "**/*Test.cs", "**/*Tests.cs"]
+globs: **/*.Tests/**/*.cs, **/*Test.cs, **/*Tests.cs
 ---
 # Testing Rules
 

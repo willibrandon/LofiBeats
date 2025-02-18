@@ -1,6 +1,6 @@
 ---
 description: Performance optimization guidelines focusing on audio processing, memory management, and real-time considerations
-globs: ["**/LofiBeats.Core/**/*.cs"]
+globs: **/LofiBeats.Core/**/*.cs
 ---
 # Performance Rules
 
