@@ -11,7 +11,7 @@ on:
 
 permissions:
   contents: write
-  packages: read
+  packages: write
 
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
@@ -281,8 +281,19 @@ jobs:
         
     - name: Publish NuGet Package
       run: |
+        echo "=== Publishing to GitHub Packages ==="
         for package in packages/*.nupkg; do
-          dotnet nuget push "$package" --source "github" --api-key ${{ secrets.GITHUB_TOKEN }}
+          echo "Publishing $package..."
+          # Try with dotnet nuget push first
+          dotnet nuget push "$package" \
+            --source "github" \
+            --api-key ${{ secrets.GITHUB_TOKEN }} \
+            --skip-duplicate || \
+          # If that fails, try with nuget push
+          dotnet nuget push "$package" \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key ${{ secrets.GITHUB_TOKEN }} \
+            --skip-duplicate
         done
 
   verify-tool:
