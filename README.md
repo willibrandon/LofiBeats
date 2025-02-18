@@ -11,6 +11,10 @@ A cross-platform command-line tool and service for generating and playing lofi b
   - Vinyl (adds vinyl record crackle and noise for that authentic feel)
   - Reverb (adds space and atmosphere to create depth)
   - Low Pass Filter (reduces high frequencies for that warm, mellow sound)
+- Preset Management:
+  - Save current style, volume, and effects to a preset file
+  - Load presets to quickly restore your favorite configurations
+  - JSON-based preset format for easy sharing and editing
 - Interactive mode for live control
 - RESTful API service for remote control
 - Cross-platform support (Windows, macOS, Linux)
@@ -44,6 +48,15 @@ lofi effect --name vinyl
 
 # Control volume
 lofi volume 0.8
+
+# Save current configuration as a preset
+lofi preset save mypreset.json
+
+# Load a saved preset
+lofi preset load mypreset.json
+
+# Save presets in a custom directory
+lofi preset save presets/chillvibes.json
 
 # Stop playback
 lofi stop
@@ -134,6 +147,8 @@ The service exposes the following REST API endpoints:
 - `POST /api/lofi/resume` - Resume playback
 - `POST /api/lofi/volume` - Set volume level
 - `POST /api/lofi/effect` - Add/remove effects
+- `GET /api/lofi/preset/current` - Get current preset state
+- `POST /api/lofi/preset/apply` - Apply a preset configuration
 - `GET /healthz` - Health check endpoint
 
 ## Development
