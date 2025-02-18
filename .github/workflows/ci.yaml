@@ -227,9 +227,8 @@ jobs:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
-        pattern: nuget-package-*
+        name: nuget-package-windows-Release
         path: packages
-        merge-multiple: true
         
     - name: Install zip tools
       run: |
