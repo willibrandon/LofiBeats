@@ -15,12 +15,16 @@ A cross-platform command-line tool and service for generating and playing lofi b
   - Save current style, volume, and effects to a preset file
   - Load presets to quickly restore your favorite configurations
   - JSON-based preset format for easy sharing and editing
+- Schedule Management:
+  - Schedule playback and stop actions with delays
+  - List all pending scheduled actions
+  - Cancel specific scheduled actions by ID
+  - Real-time progress tracking for scheduled actions
 - Interactive mode for live control
 - RESTful API service for remote control
 - Cross-platform support (Windows, macOS, Linux)
 - Telemetry support with local file and Seq logging
 - Plugin system for custom effects
-- Scheduled playback and stop commands
 
 ## Quick Start
 
@@ -48,6 +52,14 @@ lofi effect --name vinyl
 
 # Control volume
 lofi volume 0.8
+
+# Schedule commands
+lofi play --style jazzy --after 5m     # Start playing in 5 minutes
+lofi stop --tapestop --after 30s       # Stop with effect in 30 seconds
+
+# Manage scheduled actions
+lofi schedule list                      # View all scheduled actions
+lofi schedule cancel <action-id>        # Cancel a specific action
 
 # Save current configuration as a preset
 lofi preset save mypreset.json
@@ -147,6 +159,8 @@ The service exposes the following REST API endpoints:
 - `POST /api/lofi/resume` - Resume playback
 - `POST /api/lofi/volume` - Set volume level
 - `POST /api/lofi/effect` - Add/remove effects
+- `POST /api/lofi/schedule-play` - Schedule a future playback
+- `POST /api/lofi/schedule-stop` - Schedule a future stop
 - `GET /api/lofi/preset/current` - Get current preset state
 - `POST /api/lofi/preset/apply` - Apply a preset configuration
 - `GET /healthz` - Health check endpoint
