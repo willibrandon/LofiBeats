@@ -1,4 +1,5 @@
 using LofiBeats.Core.Effects;
+using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -298,5 +299,99 @@ public class AudioPlaybackServiceTests
         Assert.Throws<ArgumentException>(() => service.CurrentStyle = "");
         Assert.Throws<ArgumentException>(() => service.CurrentStyle = " ");
         Assert.Throws<ArgumentException>(() => service.CurrentStyle = null!);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void GetCurrentPreset_ReturnsCurrentState()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        service.SetSource(_sampleProviderMock.Object);
+        service.CurrentStyle = "jazzy";
+        service.SetVolume(0.8f);
+        service.AddEffect(_effectMock.Object);
+
+        // Act
+        var preset = service.GetCurrentPreset();
+
+        // Assert
+        Assert.NotNull(preset);
+        Assert.NotEmpty(preset.Name);
+        Assert.Equal("jazzy", preset.Style);
+        Assert.Equal(0.8f, preset.Volume);
+        Assert.Single(preset.Effects);
+        Assert.Equal("test_effect", preset.Effects[0]);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void ApplyPreset_SetsAllProperties()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        service.SetSource(_sampleProviderMock.Object);
+        
+        var preset = new Preset
+        {
+            Name = "Test Preset",
+            Style = "jazzy",
+            Volume = 0.7f,
+            Effects = ["test_effect"]
+        };
+
+        var effectFactoryMock = new Mock<IEffectFactory>();
+        effectFactoryMock.Setup(x => x.CreateEffect("test_effect", It.IsAny<ISampleProvider>()))
+            .Returns(_effectMock.Object);
+
+        // Act
+        service.ApplyPreset(preset, effectFactoryMock.Object);
+
+        // Assert
+        Assert.Equal("jazzy", service.CurrentStyle);
+        Assert.Equal(0.7f, service.CurrentVolume);
+        _audioOutputMock.Verify(x => x.SetVolume(0.7f), Times.Once);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void ApplyPreset_WithNoSource_OnlySetsStyleAndVolume()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        
+        var preset = new Preset
+        {
+            Name = "Test Preset",
+            Style = "jazzy",
+            Volume = 0.7f,
+            Effects = ["test_effect"]
+        };
+
+        var effectFactoryMock = new Mock<IEffectFactory>();
+
+        // Act
+        service.ApplyPreset(preset, effectFactoryMock.Object);
+
+        // Assert
+        Assert.Equal("jazzy", service.CurrentStyle);
+        Assert.Equal(0.7f, service.CurrentVolume);
+        effectFactoryMock.Verify(x => x.CreateEffect(It.IsAny<string>(), It.IsAny<ISampleProvider>()), Times.Never);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void ApplyPreset_WithInvalidPreset_ThrowsException()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var effectFactoryMock = new Mock<IEffectFactory>();
+
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => service.ApplyPreset(null!, effectFactoryMock.Object));
+        Assert.Throws<ArgumentNullException>(() => service.ApplyPreset(new Preset { Name = "Test", Style = "basic" }, null!));
+        
+        var invalidPreset = new Preset { Name = "Invalid", Style = "", Volume = -1 };
+        Assert.Throws<ArgumentException>(() => service.ApplyPreset(invalidPreset, effectFactoryMock.Object));
     }
 } 

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using LofiBeats.Core.Effects;
+using LofiBeats.Core.Models;
 
 namespace LofiBeats.Core.Playback;
 
@@ -20,6 +21,7 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
     private ISampleProvider? _currentSource;
     private SerialEffectChain? _effectChain;
     private string _currentStyle = "basic";
+    private float _currentVolume = 1.0f;
     private readonly object _stateLock = new();
 
     public ISampleProvider? CurrentSource => _currentSource;
@@ -48,6 +50,27 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
                     _currentStyle = value;
                     _logger.LogInformation("Style changed to: {Style}", value);
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the current volume level (range: 0.0 to 1.0).
+    /// </summary>
+    public float CurrentVolume
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _currentVolume;
+            }
+        }
+        private set
+        {
+            lock (_stateLock)
+            {
+                _currentVolume = value;
             }
         }
     }
@@ -235,9 +258,84 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
     public void SetVolume(float volume)
     {
         if (_isDisposed) return;
+        
         // Clamp volume between 0 and 1
         float clampedVolume = Math.Max(0f, Math.Min(1f, volume));
+        CurrentVolume = clampedVolume;
         _audioOutput.SetVolume(clampedVolume);
+    }
+
+    /// <summary>
+    /// Gets a preset object representing the current playback state.
+    /// </summary>
+    /// <returns>A preset containing the current style, volume, and effects.</returns>
+    public Preset GetCurrentPreset()
+    {
+        lock (_stateLock)
+        {
+            return new Preset
+            {
+                Name = $"Preset_{DateTime.Now:yyyyMMdd_HHmmss}",
+                Style = _currentStyle,
+                Volume = _currentVolume,
+                Effects = _effects.Keys.ToList()
+            };
+        }
+    }
+
+    /// <summary>
+    /// Applies a preset to the current playback state.
+    /// </summary>
+    /// <param name="preset">The preset to apply.</param>
+    /// <param name="effectFactory">Factory for creating effects from names.</param>
+    /// <exception cref="ArgumentNullException">Thrown when preset or effectFactory is null.</exception>
+    public void ApplyPreset(Preset preset, IEffectFactory effectFactory)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+        ArgumentNullException.ThrowIfNull(effectFactory);
+
+        // Validate the preset
+        preset.Validate();
+
+        lock (_stateLock)
+        {
+            if (_isDisposed) return;
+
+            // 1. Set style
+            CurrentStyle = preset.Style;
+
+            // 2. Set volume
+            SetVolume(preset.Volume);
+
+            // Only proceed with effects if we have a current source
+            if (_currentSource != null)
+            {
+                // 3. Clear existing effects
+                var existingEffects = _effects.Keys.ToList();
+                foreach (var effectName in existingEffects)
+                {
+                    RemoveEffect(effectName);
+                }
+
+                // 4. Add new effects from preset
+                foreach (var effectName in preset.Effects)
+                {
+                    try
+                    {
+                        var effect = effectFactory.CreateEffect(effectName, _currentSource);
+                        AddEffect(effect);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to create effect {EffectName} from preset", effectName);
+                    }
+                }
+            }
+            else
+            {
+                _logger.LogInformation("No active source - effects from preset will be applied when playback starts");
+            }
+        }
     }
 
     protected virtual void Dispose(bool disposing)

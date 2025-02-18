@@ -1,4 +1,5 @@
 using LofiBeats.Core.Effects;
+using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
 using LofiBeats.Core.Telemetry;
 using LofiBeats.Service;
@@ -164,6 +165,7 @@ public class TestAudioPlaybackService : IAudioPlaybackService
     private SerialEffectChain? _effectChain;
     private float _volume = 1.0f;
     private string _currentStyle = "basic";
+    private readonly Dictionary<string, IAudioEffect> _effects = new();
     private readonly Mock<ILoggerFactory> _loggerFactoryMock;
 
     public TestAudioPlaybackService()
@@ -181,6 +183,8 @@ public class TestAudioPlaybackService : IAudioPlaybackService
         set => _currentStyle = value ?? throw new ArgumentNullException(nameof(value));
     }
 
+    public float CurrentVolume => _volume;
+
     public void AddEffect(IAudioEffect effect)
     {
         if (_effectChain == null && _currentSource != null)
@@ -193,12 +197,14 @@ public class TestAudioPlaybackService : IAudioPlaybackService
         if (_effectChain != null)
         {
             _effectChain.AddEffect(effect);
+            _effects[effect.Name] = effect;
         }
     }
 
     public void RemoveEffect(string effectName)
     {
         _effectChain?.RemoveEffect(effectName);
+        _effects.Remove(effectName);
     }
 
     public void SetSource(ISampleProvider source)
@@ -213,7 +219,10 @@ public class TestAudioPlaybackService : IAudioPlaybackService
         }
     }
 
-    public void SetVolume(float volume) => _volume = volume;
+    public void SetVolume(float volume)
+    {
+        _volume = Math.Clamp(volume, 0.0f, 1.0f);
+    }
 
     public void StartPlayback()
     {
@@ -225,6 +234,7 @@ public class TestAudioPlaybackService : IAudioPlaybackService
         _state = PlaybackState.Stopped;
         _currentSource = null;
         _effectChain = null;
+        _effects.Clear();
     }
 
     public void StopWithEffect(IAudioEffect effect)
@@ -246,4 +256,41 @@ public class TestAudioPlaybackService : IAudioPlaybackService
     }
 
     public PlaybackState GetPlaybackState() => _state;
+
+    public Preset GetCurrentPreset()
+    {
+        return new Preset
+        {
+            Name = $"Test_Preset_{DateTime.Now:yyyyMMdd_HHmmss}",
+            Style = _currentStyle,
+            Volume = _volume,
+            Effects = _effects.Keys.ToList()
+        };
+    }
+
+    public void ApplyPreset(Preset preset, IEffectFactory effectFactory)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+        ArgumentNullException.ThrowIfNull(effectFactory);
+
+        preset.Validate();
+
+        _currentStyle = preset.Style;
+        SetVolume(preset.Volume);
+
+        var existingEffects = _effects.Keys.ToList();
+        foreach (var effectName in existingEffects)
+        {
+            RemoveEffect(effectName);
+        }
+
+        if (_currentSource != null)
+        {
+            foreach (var effectName in preset.Effects)
+            {
+                var effect = effectFactory.CreateEffect(effectName, _currentSource);
+                AddEffect(effect);
+            }
+        }
+    }
 } 
