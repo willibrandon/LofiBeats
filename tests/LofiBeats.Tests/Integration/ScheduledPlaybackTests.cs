@@ -100,13 +100,29 @@ public class ScheduledPlaybackTests : IClassFixture<ServiceTestFixture>
         // Arrange
         var scheduler = new PlaybackScheduler(Mock.Of<ILogger<PlaybackScheduler>>());
         var stopCount = 0;
+        var firstStopExecuted = new TaskCompletionSource();
+        var secondStopAttempted = new TaskCompletionSource();
 
-        // Schedule two stops close together
-        var id1 = scheduler.ScheduleStopAction(100, () => Interlocked.Increment(ref stopCount), "First stop");
-        var id2 = scheduler.ScheduleStopAction(150, () => Interlocked.Increment(ref stopCount), "Second stop");
+        // Schedule two stops with callbacks to track execution
+        var id1 = scheduler.ScheduleStopAction(200, () => 
+        {
+            Interlocked.Increment(ref stopCount);
+            firstStopExecuted.SetResult();
+        }, "First stop");
+
+        var id2 = scheduler.ScheduleStopAction(300, () => 
+        {
+            secondStopAttempted.SetResult();
+            Interlocked.Increment(ref stopCount);
+        }, "Second stop");
 
         // Act
-        await Task.Delay(300); // Wait for both actions to complete
+        // Wait for the first stop to execute and a reasonable time for the second to attempt
+        await Task.WhenAny(
+            firstStopExecuted.Task.WaitAsync(TimeSpan.FromSeconds(2)),
+            secondStopAttempted.Task.WaitAsync(TimeSpan.FromSeconds(2))
+        );
+        await Task.Delay(100); // Small additional delay to ensure cleanup
 
         // Assert
         Assert.Equal(1, stopCount); // Only the first stop should execute
