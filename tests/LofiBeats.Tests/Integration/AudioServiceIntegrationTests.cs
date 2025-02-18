@@ -163,6 +163,7 @@ public class TestAudioPlaybackService : IAudioPlaybackService
     private ISampleProvider? _currentSource;
     private SerialEffectChain? _effectChain;
     private float _volume = 1.0f;
+    private string _currentStyle = "basic";
     private readonly Mock<ILoggerFactory> _loggerFactoryMock;
 
     public TestAudioPlaybackService()
@@ -173,6 +174,12 @@ public class TestAudioPlaybackService : IAudioPlaybackService
     }
 
     public ISampleProvider? CurrentSource => _currentSource;
+    
+    public string CurrentStyle
+    {
+        get => _currentStyle;
+        set => _currentStyle = value ?? throw new ArgumentNullException(nameof(value));
+    }
 
     public void AddEffect(IAudioEffect effect)
     {

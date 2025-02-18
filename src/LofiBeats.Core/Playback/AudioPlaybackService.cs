@@ -19,8 +19,38 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
     private bool _isDisposed;
     private ISampleProvider? _currentSource;
     private SerialEffectChain? _effectChain;
+    private string _currentStyle = "basic";
+    private readonly object _stateLock = new();
 
     public ISampleProvider? CurrentSource => _currentSource;
+
+    /// <summary>
+    /// Gets or sets the current beat generation style.
+    /// </summary>
+    public string CurrentStyle
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _currentStyle;
+            }
+        }
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new ArgumentException("Style cannot be empty or null.", nameof(value));
+
+            lock (_stateLock)
+            {
+                if (_currentStyle != value)
+                {
+                    _currentStyle = value;
+                    _logger.LogInformation("Style changed to: {Style}", value);
+                }
+            }
+        }
+    }
 
     public AudioPlaybackService(ILogger<AudioPlaybackService> logger, ILoggerFactory loggerFactory)
     {

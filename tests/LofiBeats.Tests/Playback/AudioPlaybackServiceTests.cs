@@ -252,4 +252,51 @@ public class AudioPlaybackServiceTests
         service.PausePlayback();
         service.ResumePlayback();
     }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void CurrentStyle_DefaultsToBasic()
+    {
+        // Arrange & Act
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+
+        // Assert
+        Assert.Equal("basic", service.CurrentStyle);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void CurrentStyle_CanBeSetAndRetrieved()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        const string newStyle = "jazzy";
+
+        // Act
+        service.CurrentStyle = newStyle;
+
+        // Assert
+        Assert.Equal(newStyle, service.CurrentStyle);
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains("Style changed to: jazzy")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void CurrentStyle_ThrowsOnNullOrEmpty()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => service.CurrentStyle = "");
+        Assert.Throws<ArgumentException>(() => service.CurrentStyle = " ");
+        Assert.Throws<ArgumentException>(() => service.CurrentStyle = null!);
+    }
 } 
