@@ -2,6 +2,7 @@ using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
 using Microsoft.Extensions.Logging;
 using Moq;
+using NAudio.Wave;
 
 namespace LofiBeats.Tests.Playback;
 
@@ -12,6 +13,18 @@ public class BeatPatternSampleProviderTests : IDisposable
     private readonly Mock<ILogger<UserSampleRepository>> _repoLoggerMock;
     private readonly BeatPattern _testPattern;
     private readonly UserSampleRepository _userSamples;
+
+    private static readonly Action<ILogger, string, Exception?> LogPeaks =
+        LoggerMessage.Define<string>(
+            LogLevel.Information,
+            new EventId(1, nameof(UserSamples_PlayCorrectly)),
+            "Found peaks at positions: {Peaks}");
+
+    private static readonly Action<ILogger, string, Exception?> LogDebug =
+        LoggerMessage.Define<string>(
+            LogLevel.Debug,
+            new EventId(2, "Debug"),
+            "{Message}");
 
     public BeatPatternSampleProviderTests()
     {
@@ -24,6 +37,30 @@ public class BeatPatternSampleProviderTests : IDisposable
             DrumSequence = ["kick", "hat", "snare", "hat", "kick", "hat", "snare", "hat"],
             ChordProgression = ["Dm7", "G7", "Cmaj7", "Am7"]
         };
+
+        // Create a test WAV file with a sine wave
+        var sampleRate = 44100;
+        var duration = 0.5; // seconds
+        var frequency = 440; // Hz
+        var amplitude = 0.5f;
+
+        var tempFile = Path.GetTempFileName();
+        LogDebug(_loggerMock.Object, $"Creating test WAV file at: {tempFile}", null);
+        
+        var writer = new WaveFileWriter(tempFile, new WaveFormat(sampleRate, 1));
+        var samples = (int)(sampleRate * duration);
+        
+        for (int i = 0; i < samples; i++)
+        {
+            float sample = amplitude * (float)Math.Sin((2 * Math.PI * frequency * i) / sampleRate);
+            writer.WriteSample(sample);
+        }
+        
+        writer.Dispose();
+        LogDebug(_loggerMock.Object, $"WAV file created with {samples} samples", null);
+        
+        _userSamples.RegisterSample("test_sample", tempFile);
+        LogDebug(_loggerMock.Object, "Sample registered with repository", null);
     }
 
     public void Dispose()
@@ -256,5 +293,97 @@ public class BeatPatternSampleProviderTests : IDisposable
         // Assert
         // No explicit assertion needed - we're testing that no exceptions are thrown
         // during disposal and that memory is properly cleaned up
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void UserSamples_PlayCorrectly()
+    {
+        // Arrange
+        var patternWithUserSample = new BeatPattern
+        {
+            BPM = 80,
+            DrumSequence = ["kick", "_", "_", "_"], // Simplified pattern
+            ChordProgression = ["Dm7"],
+            UserSampleSteps = new Dictionary<int, string> { { 2, "test_sample" } } // Use step 2 for user sample
+        };
+
+        // Verify the sample exists in repository
+        Assert.True(_userSamples.HasSample("test_sample"), "Test sample should be registered");
+        Console.WriteLine("Test sample is registered in repository");
+        
+        var provider = new BeatPatternSampleProvider(patternWithUserSample, _loggerMock.Object, _userSamples);
+        var buffer = new float[44100]; // 1 second of audio
+
+        // Act
+        var samplesRead = provider.Read(buffer, 0, buffer.Length);
+        Console.WriteLine($"Read {samplesRead} samples from provider");
+
+        // Find peaks in the buffer that would indicate sample playback
+        var peaks = FindSignificantPeaks(buffer, 0.01f); // Even lower threshold for testing
+        Console.WriteLine($"Found {peaks.Count} peaks at positions: {string.Join(", ", peaks)}");
+
+        // Log average amplitudes in different regions
+        void LogRegionAmplitude(string region, int start, int length)
+        {
+            float sum = 0;
+            for (int i = start; i < start + length && i < buffer.Length; i++)
+            {
+                sum += Math.Abs(buffer[i]);
+            }
+            float avg = sum / length;
+            Console.WriteLine($"{region} region (samples {start}-{start + length}): average amplitude = {avg:F3}");
+        }
+
+        LogRegionAmplitude("Start", 0, 1000); // First 1000 samples
+        LogRegionAmplitude("Middle", buffer.Length / 2 - 500, 1000); // Around where user sample should be
+        LogRegionAmplitude("End", buffer.Length - 1000, 1000); // Last 1000 samples
+
+        // Assert
+        Assert.True(peaks.Count >= 2, $"Should find at least two peaks (kick and user sample). Found {peaks.Count} peaks.");
+        
+        // The kick should be at the start, and the user sample should be around 1/2 through
+        // (since it's at step 2 in a 4-step pattern)
+        int expectedUserSamplePosition = buffer.Length / 2; // Step 2 in a 4-step pattern
+        Assert.Contains(peaks, p => p < buffer.Length / 8); // Kick at start
+        Assert.Contains(peaks, p => Math.Abs(p - expectedUserSamplePosition) < buffer.Length / 8); // User sample
+    }
+
+    private static List<int> FindSignificantPeaks(float[] buffer, float threshold = 0.01f)
+    {
+        var peaks = new List<int>();
+        int lastPeakIndex = -1000; // Prevent multiple detections of same peak
+        int windowSize = 100; // Look at larger windows for onset detection
+        
+        // First pass: find average amplitude in each window
+        var windowAverages = new List<float>();
+        for (int i = 0; i < buffer.Length; i += windowSize)
+        {
+            float sum = 0;
+            int count = 0;
+            for (int j = 0; j < windowSize && i + j < buffer.Length; j++)
+            {
+                sum += Math.Abs(buffer[i + j]);
+                count++;
+            }
+            windowAverages.Add(sum / count);
+        }
+
+        // Second pass: find significant increases in amplitude
+        float prevAvg = 0;
+        for (int i = 0; i < windowAverages.Count; i++)
+        {
+            float currentAvg = windowAverages[i];
+            if (currentAvg > threshold && // Above minimum threshold
+                currentAvg > prevAvg * 1.5f && // Significant increase from previous
+                (i * windowSize - lastPeakIndex) > 1000) // Not too close to last peak
+            {
+                peaks.Add(i * windowSize);
+                lastPeakIndex = i * windowSize;
+            }
+            prevAvg = currentAvg;
+        }
+        
+        return peaks;
     }
 } 
