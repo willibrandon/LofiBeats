@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Net.Http.Json;
+using System.Text.Json.Serialization;
 
 namespace LofiBeats.Cli.Commands;
 
@@ -807,7 +808,7 @@ public class CommandLineInterface : IDisposable
             var response = await _serviceHelper.SendCommandAsync(
                 HttpMethod.Post,
                 "preset/apply",
-                JsonContent.Create(preset));
+                preset);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -816,7 +817,12 @@ public class CommandLineInterface : IDisposable
                 return;
             }
 
-            Console.WriteLine($"Preset loaded from {filePath}");
+            Console.WriteLine($"Preset '{preset.Name}' loaded successfully:");
+            Console.WriteLine($"  Style: {preset.Style}");
+            Console.WriteLine($"  Volume: {preset.Volume:P0}");
+            Console.WriteLine($"  Effects: {(preset.Effects.Count > 0 ? string.Join(", ", preset.Effects) : "none")}");
+            Console.WriteLine("\nTo start playback with these settings, run:");
+            Console.WriteLine($"  lofi play");
         }
         catch (Exception ex)
         {
@@ -963,14 +969,36 @@ public class CommandLineInterface : IDisposable
 
     private async Task StartPlayback(string style, int? bpm)
     {
-        Console.Write($"Starting playback with {style} style and {bpm} BPM... ");
-        ShowSpinner("Starting playback", 1000);
-
-        var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"play?style={Uri.EscapeDataString(style)}&bpm={bpm}");
-        var result = await response.Content.ReadFromJsonAsync<PlayResponse>();
-        if (result?.Pattern != null)
+        try
         {
-            Console.WriteLine($"Playing new {style} beat pattern: {result.Pattern}");
+            // If no style is specified (i.e. it's the default "basic"), get the current style from the service
+            if (style == "basic")
+            {
+                var currentResponse = await _serviceHelper.SendCommandAsync(HttpMethod.Get, "preset/current");
+                if (currentResponse.IsSuccessStatusCode)
+                {
+                    var currentPreset = await currentResponse.Content.ReadFromJsonAsync<Preset>();
+                    if (currentPreset != null)
+                    {
+                        style = currentPreset.Style;
+                    }
+                }
+            }
+
+            Console.Write($"Starting playback with {style} style{(bpm.HasValue ? $" at {bpm} BPM" : "")}... ");
+            ShowSpinner("Starting playback", 1000);
+
+            var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"play?style={Uri.EscapeDataString(style)}&bpm={bpm}");
+            var result = await response.Content.ReadFromJsonAsync<PlayResponse>();
+            if (result?.Pattern != null)
+            {
+                Console.WriteLine($"Playing new {style} beat pattern: {result.Pattern}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error starting playback: {ex.Message}");
+            Console.WriteLine("Please ensure the LofiBeats service is running and try again.");
         }
     }
 }
