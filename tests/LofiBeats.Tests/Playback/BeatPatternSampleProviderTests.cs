@@ -17,6 +17,7 @@ public class BeatPatternSampleProviderTests : IDisposable
     private readonly TelemetryTracker _telemetryTracker;
     private readonly BeatPattern _testPattern;
     private readonly UserSampleRepository _userSamples;
+    private string _tempFile;
 
     private static readonly Action<ILogger, string, Exception?> LogPeaks =
         LoggerMessage.Define<string>(
@@ -51,7 +52,8 @@ public class BeatPatternSampleProviderTests : IDisposable
         var frequency = 440; // Hz
         var amplitude = 0.5f;
 
-        var tempFile = Path.GetTempFileName();
+        var tempDir = Path.GetTempPath();
+        var tempFile = Path.Combine(tempDir, $"test_{Guid.NewGuid()}.wav");
         LogDebug(_loggerMock.Object, $"Creating test WAV file at: {tempFile}", null);
         
         var writer = new WaveFileWriter(tempFile, new WaveFormat(sampleRate, 1));
@@ -68,11 +70,28 @@ public class BeatPatternSampleProviderTests : IDisposable
         
         _userSamples.RegisterSample("test_sample", tempFile);
         LogDebug(_loggerMock.Object, "Sample registered with repository", null);
+        
+        // Store the temp file path so we can clean it up
+        _tempFile = tempFile;
     }
 
     public void Dispose()
     {
         _userSamples.Dispose();
+        
+        // Clean up the temporary WAV file
+        if (!string.IsNullOrEmpty(_tempFile) && File.Exists(_tempFile))
+        {
+            try
+            {
+                File.Delete(_tempFile);
+            }
+            catch (Exception ex)
+            {
+                // Log but don't throw - this is cleanup code
+                LogDebug(_loggerMock.Object, $"Failed to delete temporary file: {ex.Message}", ex);
+            }
+        }
     }
 
     [Fact]

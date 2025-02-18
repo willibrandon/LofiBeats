@@ -60,7 +60,7 @@ public class UserSampleRepository : IDisposable
 
     private static WaveFormat GetWaveFormat(string filePath)
     {
-        using var reader = new AudioFileReader(filePath);
+        using var reader = new WaveFileReader(filePath);
         return reader.WaveFormat;
     }
 
@@ -79,11 +79,13 @@ public class UserSampleRepository : IDisposable
         if (!File.Exists(filePath)) throw new ArgumentException("File does not exist", nameof(filePath));
         if (velocityLayer.HasValue && (velocityLayer.Value < 0 || velocityLayer.Value > 127))
             throw new ArgumentException("Velocity layer must be between 0 and 127", nameof(velocityLayer));
+        if (!filePath.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Only WAV files are supported", nameof(filePath));
 
         try
         {
             // Validate the audio file and get its format
-            using var reader = new AudioFileReader(filePath);
+            using var reader = new WaveFileReader(filePath);
             var format = reader.WaveFormat;
 
             // Create destination path

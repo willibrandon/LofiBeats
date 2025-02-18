@@ -43,10 +43,7 @@ Samples are stored in:
 
 ## Supported Formats
 
-- WAV files (recommended)
-- MP3 files
-- AIFF files
-- Other formats supported by NAudio
+- WAV files
 
 ## Best Practices
 
