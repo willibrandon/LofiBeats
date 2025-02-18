@@ -825,17 +825,6 @@ public class CommandLineInterface : IDisposable
         }
     }
 
-    private record ApiResponse
-    {
-        public string? Message { get; init; }
-        public string? Error { get; init; }
-    }
-
-    private sealed record PlayResponse : ApiResponse
-    {
-        public object? Pattern { get; init; }
-    }
-
     public async Task<int> ExecuteAsync(string[] args, CancellationToken cancellationToken = default)
     {
         _logExecutingCommand(_logger, string.Join(" ", args), null);
