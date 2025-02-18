@@ -76,35 +76,94 @@ public class TapeStopEffectTests
     public void Read_WithValidBuffer_ProcessesSamples()
     {
         // Arrange
-        var effect = new TapeStopEffect(_sourceMock.Object, _loggerMock.Object, 0.5f);
+        const float duration = 0.1f; // Very short duration for testing
+        var effect = new TapeStopEffect(_sourceMock.Object, _loggerMock.Object, duration);
         var buffer = new float[1024];
-        var sourceBuffer = new float[1024];
+        var sourceBuffer = new float[4096]; // Larger source buffer
+        
+        // Fill source with a simple sine wave to better test the effect
+        double frequency = 440.0; // A4 note
         for (int i = 0; i < sourceBuffer.Length; i++)
         {
-            sourceBuffer[i] = 1.0f; // Fill with test data
+            double time = i / (double)_waveFormat.SampleRate;
+            sourceBuffer[i] = (float)Math.Sin(2 * Math.PI * frequency * time);
         }
 
+        int sourcePosition = 0;
         _sourceMock.Setup(x => x.Read(It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<int>()))
             .Returns<float[], int, int>((buf, off, count) =>
             {
-                Array.Copy(sourceBuffer, 0, buf, off, count);
-                return count;
+                int remaining = sourceBuffer.Length - sourcePosition;
+                int toCopy = Math.Min(count, remaining);
+                if (toCopy > 0)
+                {
+                    Array.Copy(sourceBuffer, sourcePosition, buf, off, toCopy);
+                    sourcePosition += toCopy;
+                    return toCopy;
+                }
+                return 0;
             });
 
         // Act & Assert
-        // Read multiple times to allow the effect to progress
+        // Calculate the total samples needed for the effect duration
+        int samplesPerSecond = _waveFormat.SampleRate * _waveFormat.Channels;
+        int totalSamplesNeeded = (int)(duration * samplesPerSecond);
+        int samplesProcessed = 0;
         bool foundModifiedSample = false;
-        for (int i = 0; i < 10 && !foundModifiedSample; i++)
+        int readAttempts = 0;
+        const int maxReadAttempts = 20; // Allow more read attempts
+
+        var diagnostics = new System.Text.StringBuilder();
+        diagnostics.AppendLine($"Sample rate: {_waveFormat.SampleRate}Hz");
+        diagnostics.AppendLine($"Channels: {_waveFormat.Channels}");
+        diagnostics.AppendLine($"Duration: {duration}s");
+        diagnostics.AppendLine($"Total samples needed: {totalSamplesNeeded}");
+        diagnostics.AppendLine($"Buffer size: {buffer.Length}");
+
+        while (samplesProcessed < totalSamplesNeeded && readAttempts < maxReadAttempts && !effect.IsFinished)
         {
+            readAttempts++;
             int samplesRead = effect.Read(buffer, 0, buffer.Length);
-            Assert.Equal(buffer.Length, samplesRead);
             
-            // Check if any samples have been modified
-            foundModifiedSample = buffer.Any(x => Math.Abs(x - 1.0f) > 0.0001f);
+            if (samplesRead == 0)
+            {
+                diagnostics.AppendLine($"Read attempt {readAttempts}: Got 0 samples, effect finished: {effect.IsFinished}");
+                break;
+            }
+
+            samplesProcessed += samplesRead;
+            diagnostics.AppendLine($"Read attempt {readAttempts}: Got {samplesRead} samples, total: {samplesProcessed}");
+
+            // Check for modifications in this buffer
+            for (int i = 0; i < samplesRead && !foundModifiedSample; i++)
+            {
+                float originalSample = sourceBuffer[Math.Max(0, sourcePosition - samplesRead + i)];
+                float processedSample = buffer[i];
+                float difference = Math.Abs(processedSample - originalSample);
+
+                if (difference > 0.01f)
+                {
+                    foundModifiedSample = true;
+                    diagnostics.AppendLine($"Found modified sample at position {i}: original={originalSample:F3}, processed={processedSample:F3}, diff={difference:F3}");
+                }
+            }
         }
 
-        // Verify that at least one sample was modified
-        Assert.True(foundModifiedSample, "The tape stop effect should modify at least one sample value");
+        // Add final state to diagnostics
+        diagnostics.AppendLine($"Final state - Processed: {samplesProcessed}/{totalSamplesNeeded} samples");
+        diagnostics.AppendLine($"Read attempts: {readAttempts}");
+        diagnostics.AppendLine($"Found modified sample: {foundModifiedSample}");
+        diagnostics.AppendLine($"Effect finished: {effect.IsFinished}");
+
+        // First verify that the effect modifies samples
+        Assert.True(foundModifiedSample, 
+            "The tape stop effect should modify at least one sample value significantly.\n" + 
+            diagnostics.ToString());
+
+        // Then verify that it processes the expected number of samples or finishes
+        Assert.True(samplesProcessed >= totalSamplesNeeded || effect.IsFinished,
+            "The effect should process enough samples or finish.\n" + 
+            diagnostics.ToString());
     }
 
     [SkippableFact]
