@@ -40,7 +40,7 @@
 		<PublishReadyToRun>true</PublishReadyToRun>
 	</PropertyGroup>
 
-	<!-- Pre-build cleanup for Visual Studio -->
+	<!-- Pre-build cleanup -->
 	<Target Name="CleanupService" BeforeTargets="PreBuildEvent" Condition="'$(OS)' == 'Windows_NT'">
 		<Message Text="🧹 Cleaning up any running services..." Importance="high" />
 		<Exec Command="pwsh -NoProfile -NonInteractive -Command &quot;&amp; { Get-Process -Name dotnet | Where-Object {$_.MainWindowTitle -eq '' -and $_.CommandLine -like '*LofiBeats.Service.dll*'} | Stop-Process -Force }&quot;" IgnoreExitCode="true" />
@@ -93,7 +93,8 @@
 		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.exe" 
 			  Pack="true" 
 			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.exe" 
-			  Visible="false" />
+			  Visible="false"
+			  Condition="'$(OS)' == 'Windows_NT'" />
 		
 		<!-- Service dependencies -->
 		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\Microsoft.AspNetCore.*.dll"
