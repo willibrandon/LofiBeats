@@ -4,6 +4,8 @@ using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
 using LofiBeats.Core.Scheduling;
 using LofiBeats.Core.Telemetry;
+using LofiBeats.Core.WebSocket;
+using LofiBeats.Service.WebSocket;
 using System.Text.Json;
 
 namespace LofiBeats.Service;
@@ -65,12 +67,26 @@ public partial class Program
             });
         }
 
+        // Configure WebSocket support
+        builder.Services.Configure<WebSocketConfiguration>(
+            builder.Configuration.GetSection("WebSocket"));
+
+        builder.Services.Configure<WebSocketOptions>(options =>
+        {
+            var config = builder.Configuration
+                .GetSection("WebSocket")
+                .Get<WebSocketConfiguration>() ?? new WebSocketConfiguration();
+
+            options.KeepAliveInterval = TimeSpan.FromSeconds(config.KeepAliveIntervalSeconds);
+        });
+
         // Register our core services as singletons
         builder.Services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
         builder.Services.AddSingleton<IBeatGeneratorFactory, BeatGeneratorFactory>();
         builder.Services.AddSingleton<IEffectFactory, EffectFactory>();
         builder.Services.AddSingleton<PlaybackScheduler>();
         builder.Services.AddSingleton<UserSampleRepository>();
+        builder.Services.AddSingleton<IWebSocketHandler, WebSocketHandler>();
 
         var app = builder.Build();
 
@@ -85,6 +101,23 @@ public partial class Program
 
         // Add health check endpoint
         app.MapHealthChecks("/healthz");
+
+        // Enable WebSocket middleware
+        app.UseWebSockets();
+
+        // Add WebSocket endpoint
+        app.Map("/ws/lofi", async context =>
+        {
+            if (!context.WebSockets.IsWebSocketRequest)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            var handler = context.RequestServices.GetRequiredService<IWebSocketHandler>();
+            using var socket = await context.WebSockets.AcceptWebSocketAsync();
+            await handler.HandleClientAsync(socket, context.RequestAborted);
+        });
 
         // Define our API endpoints
         var api = app.MapGroup("/api/lofi");
