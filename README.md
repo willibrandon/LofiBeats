@@ -48,6 +48,14 @@ dotnet tool install --global LofiBeats.Cli
 # Start playing some beats
 lofi play --style jazzy
 
+# Add some effects
+lofi effect --name reverb
+lofi effect --name tapeflutter
+lofi effect --name vinyl
+
+# Control volume
+lofi volume 0.8
+
 # Play with custom BPM
 lofi play --style chillhop --bpm 82
 
@@ -62,14 +70,6 @@ lofi play --style chillhop --bpm 85 --after 30s
 
 # Generate a pattern with specific BPM
 lofi generate --style hiphop --bpm 95
-
-# Add some effects
-lofi effect --name reverb
-lofi effect --name tapeflutter
-lofi effect --name vinyl
-
-# Control volume
-lofi volume 0.8
 
 # Schedule commands
 lofi play --style jazzy --after 5m     # Start playing in 5 minutes

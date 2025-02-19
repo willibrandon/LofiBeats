@@ -2,9 +2,7 @@ using LofiBeats.Cli;
 using LofiBeats.Cli.Commands;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Moq;
 
 namespace LofiBeats.Tests;
 
