@@ -373,82 +373,127 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
                 return;
             }
 
-            _logger.LogInformation("Starting crossfade from {OldStyle} to {NewStyle} over {Duration}s", 
+            // Get the current BeatPatternSampleProvider
+            var oldBeatProvider = oldSource as BeatPatternSampleProvider;
+            if (oldBeatProvider == null)
+            {
+                _logger.LogWarning("Cannot perform synchronized crossfade - current source is not a BeatPatternSampleProvider");
+                // Fall back to immediate transition
+                var provider = CreateProviderForPattern(newPattern);
+                SetSource(provider);
+                StartPlayback();
+                return;
+            }
+
+            _logger.LogInformation("Starting synchronized crossfade from {OldStyle} to {NewStyle} over {Duration}s", 
                 _currentStyle, newPattern.DrumSequence[0], crossfadeDuration);
 
-            // Create crossfade objects
-            var xfadeManager = new CrossfadeManager(crossfadeDuration);
-            xfadeManager.BeginCrossfade();
+            // Create the new provider
+            var newBeatProvider = CreateProviderForPattern(newPattern);
 
-            // Build the new provider
-            var newProvider = CreateProviderForPattern(newPattern);
-
-            // Create crossfade provider
-            var crossfadeProvider = new CrossfadeSampleProvider(
-                oldSource, newProvider, xfadeManager
-            );
-
-            // Remove old source from the mixer
-            _mixer.RemoveAllMixerInputs();
-
-            // Add crossfade provider
-            _mixer.AddMixerInput(crossfadeProvider);
-
-            // Keep track of the crossfade provider to prevent premature disposal
-            var currentCrossfadeProvider = crossfadeProvider;
-
-            // Start a background task to watch for crossfade completion
+            // Wait for the next bar start before beginning crossfade
             Task.Run(async () =>
             {
-                try 
+                try
                 {
-                    while (!xfadeManager.IsCrossfadeComplete())
+                    // Wait for up to 2 bars for a good transition point
+                    var maxWaitMs = (int)(2 * 4 * (60000f / oldBeatProvider.Pattern.BPM));
+                    var startTime = DateTime.UtcNow;
+
+                    while (!oldBeatProvider.IsAtBarStart())
                     {
-                        await Task.Delay(100);
+                        if ((DateTime.UtcNow - startTime).TotalMilliseconds > maxWaitMs)
+                        {
+                            _logger.LogWarning("Could not find bar start for sync - starting crossfade immediately");
+                            break;
+                        }
+                        await Task.Delay(1);
                     }
 
-                    _logger.LogInformation("Crossfade complete, switching to new pattern");
-
-                    // Crossfade done
                     lock (_stateLock)
                     {
                         if (_isDisposed) return;
 
-                        // Remove crossfader from mixer
+                        // Sync the new provider with the current beat position
+                        newBeatProvider.SyncWith(oldBeatProvider);
+
+                        // Create crossfade objects
+                        var xfadeManager = new CrossfadeManager(crossfadeDuration);
+                        xfadeManager.BeginCrossfade();
+
+                        // Create crossfade provider
+                        var crossfadeProvider = new CrossfadeSampleProvider(
+                            oldBeatProvider, newBeatProvider, xfadeManager
+                        );
+
+                        // Remove old source from the mixer
                         _mixer.RemoveAllMixerInputs();
 
-                        // Add the new provider as the main source
-                        _currentSource = newProvider;
-                        _mixer.AddMixerInput(_currentSource);
+                        // Add crossfade provider
+                        _mixer.AddMixerInput(crossfadeProvider);
 
-                        // Update style
-                        _currentStyle = newPattern.DrumSequence.Length > 0 ? newPattern.DrumSequence[0] : "basic";
+                        // Keep track of the crossfade provider to prevent premature disposal
+                        var currentCrossfadeProvider = crossfadeProvider;
 
-                        // Now it's safe to dispose the crossfade provider
-                        currentCrossfadeProvider.Dispose();
+                        // Start a background task to watch for crossfade completion
+                        Task.Run(async () =>
+                        {
+                            try 
+                            {
+                                while (!xfadeManager.IsCrossfadeComplete())
+                                {
+                                    await Task.Delay(100);
+                                }
+
+                                _logger.LogInformation("Crossfade complete, switching to new pattern");
+
+                                // Crossfade done
+                                lock (_stateLock)
+                                {
+                                    if (_isDisposed) return;
+
+                                    // Remove crossfader from mixer
+                                    _mixer.RemoveAllMixerInputs();
+
+                                    // Add the new provider as the main source
+                                    _currentSource = newBeatProvider;
+                                    _mixer.AddMixerInput(_currentSource);
+
+                                    // Update style
+                                    _currentStyle = newPattern.DrumSequence.Length > 0 ? newPattern.DrumSequence[0] : "basic";
+
+                                    // Now it's safe to dispose the crossfade provider
+                                    currentCrossfadeProvider.Dispose();
+                                }
+
+                                // Telemetry event
+                                _telemetry?.TrackEvent(TelemetryConstants.Events.PlaybackStarted, new Dictionary<string, string>
+                                {
+                                    { TelemetryConstants.Properties.BeatStyle, _currentStyle },
+                                    { TelemetryConstants.Properties.BeatTempo, newPattern.BPM.ToString() }
+                                });
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Error during crossfade completion");
+                            }
+                        });
+
+                        // Telemetry event for crossfade start
+                        _telemetry?.TrackEvent("CrossfadeStarted", new Dictionary<string, string>
+                        {
+                            { "CrossfadeDuration", ((int)crossfadeDuration).ToString() }
+                        });
+
+                        // Ensure playback is running
+                        StartPlayback();
                     }
-
-                    // Telemetry event
-                    _telemetry?.TrackEvent(TelemetryConstants.Events.PlaybackStarted, new Dictionary<string, string>
-                    {
-                        { TelemetryConstants.Properties.BeatStyle, _currentStyle },
-                        { TelemetryConstants.Properties.BeatTempo, newPattern.BPM.ToString() }
-                    });
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error during crossfade completion");
+                    _logger.LogError(ex, "Error during crossfade initialization");
                 }
             });
-
-            // Telemetry event for crossfade start
-            _telemetry?.TrackEvent("CrossfadeStarted", new Dictionary<string, string>
-            {
-                { "CrossfadeDuration", ((int)crossfadeDuration).ToString() }
-            });
-
-            // Ensure playback is running
-            StartPlayback();
         }
     }
 

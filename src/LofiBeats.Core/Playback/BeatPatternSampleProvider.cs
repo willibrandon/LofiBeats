@@ -42,6 +42,7 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
     private readonly TelemetryTracker _telemetry;
     private float _phase;
     private int _currentStep;
+    private int _samplesUntilNextStep;
     private readonly float[] _frequencies = [440f, 587.33f, 659.25f, 783.99f]; // A4, D5, E5, G5
     private int _samplesPerStep;
     private int _currentSampleInStep;
@@ -76,12 +77,18 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
 
     public WaveFormat WaveFormat => _waveFormat;
 
-    public BeatPatternSampleProvider(BeatPattern pattern, ILogger logger, UserSampleRepository userSamples, TelemetryTracker telemetry)
+    public BeatPattern Pattern => _pattern;
+
+    public BeatPatternSampleProvider(
+        BeatPattern pattern,
+        ILogger logger,
+        UserSampleRepository userSampleRepository,
+        TelemetryTracker telemetryTracker)
     {
         _pattern = pattern;
         _logger = logger;
-        _userSamples = userSamples;
-        _telemetry = telemetry;
+        _userSamples = userSampleRepository;
+        _telemetry = telemetryTracker;
         _waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
 
         // Calculate samples per step based on tempo
@@ -425,5 +432,87 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
             disposable.Dispose();
         }
         GC.SuppressFinalize(this);
+    }
+
+    public int GetCurrentStep() => _currentStep;
+    
+    public int GetSamplesUntilNextStep() => _samplesUntilNextStep;
+    
+    public void SyncWith(BeatPatternSampleProvider other)
+    {
+        // Calculate the exact sample position in the bar
+        float secondsPerBeat = 60f / other.Pattern.BPM;
+        int samplesPerBeat = (int)(secondsPerBeat * _waveFormat.SampleRate);
+        int samplesPerBar = samplesPerBeat * 4; // Assuming 4 beats per bar
+
+        // Get the other provider's position within its bar
+        int otherSamplePos = (other.GetCurrentStep() * other._samplesPerStep) + other._currentSampleInStep;
+        int otherBarPos = otherSamplePos % samplesPerBar;
+
+        // Adjust our position to match
+        _currentStep = (otherBarPos / _samplesPerStep) % _pattern.DrumSequence.Length;
+        _currentSampleInStep = otherBarPos % _samplesPerStep;
+        _samplesUntilNextStep = _samplesPerStep - _currentSampleInStep;
+
+        // Reset phases to match
+        _phase = other._phase;
+        _kickPhase = other._kickPhase;
+
+        // Get style-specific beat divisions
+        int oldBeatsPerBar = GetBeatsPerBarForStyle(other.Pattern.DrumSequence[0]);
+        int newBeatsPerBar = GetBeatsPerBarForStyle(_pattern.DrumSequence[0]);
+
+        // Calculate target BPM while respecting style's range and beat interpretation
+        float targetBpm = other.Pattern.BPM * (oldBeatsPerBar / (float)newBeatsPerBar);
+
+        // Get BPM range based on style
+        var (minBpm, maxBpm) = GetBpmRangeForStyle(_pattern.DrumSequence[0]);
+        targetBpm = Math.Clamp(targetBpm, minBpm, maxBpm);
+
+        // Only adjust if the difference is significant
+        if (Math.Abs(_pattern.BPM - targetBpm) > 0.0001f)
+        {
+            _pattern.BPM = (int)Math.Round(targetBpm);
+            float secondsPerStep = 60f / (_pattern.BPM * (newBeatsPerBar / 4f));
+            _samplesPerStep = (int)(secondsPerStep * _waveFormat.SampleRate);
+        }
+
+        _logger.LogInformation(
+            "Synced patterns - BPM: {OldBPM}->{NewBPM}, BeatsPerBar: {OldBeats}->{NewBeats}, Step: {Step}", 
+            other.Pattern.BPM, 
+            _pattern.BPM,
+            oldBeatsPerBar,
+            newBeatsPerBar,
+            _currentStep);
+    }
+
+    private static (int MinBpm, int MaxBpm) GetBpmRangeForStyle(string style)
+    {
+        return style.ToLower() switch
+        {
+            "jazzy" => (75, 95),
+            "chillhop" => (65, 85),
+            "hiphop" => (80, 100),
+            _ => (70, 90) // basic
+        };
+    }
+
+    private static int GetBeatsPerBarForStyle(string style)
+    {
+        // How many beats we consider per bar for each style
+        return style.ToLower() switch
+        {
+            "jazzy" => 4,    // Standard 4/4 time
+            "chillhop" => 4, // Laid back 4/4
+            "hiphop" => 2,   // Half-time feel (makes it feel slower/heavier)
+            _ => 4           // Default 4/4 time
+        };
+    }
+
+    public bool IsAtBarStart()
+    {
+        // Use style-specific beat division
+        int beatsPerBar = GetBeatsPerBarForStyle(_pattern.DrumSequence[0]);
+        return _currentStep % (beatsPerBar * 4) == 0;
     }
 } 
