@@ -743,7 +743,7 @@ public class CommandLineInterface : IDisposable
             "  Play with custom BPM:         lofi play --style=basic --bpm=75\n" +
             "  Register a sample:            lofi sample register kick /path/to/kick.wav\n" +
             "  Register with velocity:       lofi sample register kick-soft /path/to/kick.wav --velocity 64\n" +
-            "  Unregister a sample:         lofi sample unregister kick\n" +
+            "  Unregister a sample:          lofi sample unregister kick\n" +
             "  List registered samples:      lofi sample list\n" +
             "  Enable vinyl effect:          lofi effect vinyl\n" +
             "  Adjust volume:                lofi volume --level=0.8\n" +
