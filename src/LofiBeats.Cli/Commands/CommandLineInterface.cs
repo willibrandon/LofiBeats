@@ -117,8 +117,9 @@ public class CommandLineInterface : IDisposable
         _scheduler = new PlaybackScheduler(loggerFactory.CreateLogger<PlaybackScheduler>());
         _userSamples = new UserSampleRepository(loggerFactory.CreateLogger<UserSampleRepository>());
 
-        _rootCommand = new RootCommand("Lofi Beats Generator & Player CLI")
+        _rootCommand = new RootCommand("Lofi Beats Generator & Player")
         {
+            Name = "lofi",
             Description = "A command-line application for generating and playing lofi beats"
         };
 
