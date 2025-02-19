@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Http;
 using LofiBeats.Core.BeatGeneration;
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.Models;
@@ -24,7 +25,9 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
     private readonly WebSocketConfiguration _config;
     private readonly WebSocketCommandHandler _commandHandler;
     private readonly ConcurrentDictionary<Guid, WebSocketConnection> _connections;
+    private readonly ConcurrentDictionary<Guid, ClientRateLimit> _rateLimits;
     private readonly SemaphoreSlim _broadcastLock;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private bool _disposed;
 
     private static readonly Action<ILogger, int, Exception?> _logClientConnected =
@@ -59,15 +62,30 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
         LoggerMessage.Define<string, int>(LogLevel.Debug, new EventId(6, "MessageBytes"),
             "Message bytes: {ByteString}, Count: {Count}");
 
+    private static readonly Action<ILogger, Guid, Exception?> _logRateLimitExceeded =
+        LoggerMessage.Define<Guid>(LogLevel.Warning, new EventId(7, "RateLimitExceeded"),
+            "Rate limit exceeded for client {ClientId}");
+
+    private static readonly Action<ILogger, Guid, Exception?> _logAuthenticationFailed =
+        LoggerMessage.Define<Guid>(LogLevel.Warning, new EventId(8, "AuthenticationFailed"),
+            "Authentication failed for client {ClientId}");
+
+    private static readonly Action<ILogger, Guid, int, Exception?> _logMessageSizeExceeded =
+        LoggerMessage.Define<Guid, int>(LogLevel.Warning, new EventId(9, "MessageSizeExceeded"),
+            "Message size limit exceeded for client {ClientId}. Size: {Size} bytes");
+
     public WebSocketHandler(
         ILogger<WebSocketHandler> logger,
         IOptions<WebSocketConfiguration> config,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        IHttpContextAccessor httpContextAccessor)
     {
         _logger = logger;
         _config = config.Value;
         _connections = new ConcurrentDictionary<Guid, WebSocketConnection>();
+        _rateLimits = new ConcurrentDictionary<Guid, ClientRateLimit>();
         _broadcastLock = new SemaphoreSlim(1, 1);
+        _httpContextAccessor = httpContextAccessor;
 
         // Create command handler with broadcast delegate
         _commandHandler = new WebSocketCommandHandler(
@@ -91,17 +109,41 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
         // Check connection limit
         if (_connections.Count >= _config.MaxConcurrentConnections)
         {
-            await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation, 
+            await socket.CloseOutputAsync(WebSocketCloseStatus.PolicyViolation, 
                 "Maximum connections reached", cancellationToken);
             return;
         }
 
         var clientId = Guid.NewGuid();
+
+        // Authenticate client if required
+        if (_config.RequireAuthentication)
+        {
+            var context = _httpContextAccessor.HttpContext;
+            if (context == null)
+            {
+                _logAuthenticationFailed(_logger, clientId, null);
+                await socket.CloseOutputAsync(WebSocketCloseStatus.PolicyViolation, 
+                    "Authentication required", cancellationToken);
+                return;
+            }
+
+            var token = context.Request.Query["token"].ToString();
+            if (string.IsNullOrEmpty(token) || token != _config.AuthToken)
+            {
+                _logAuthenticationFailed(_logger, clientId, null);
+                await socket.CloseOutputAsync(WebSocketCloseStatus.PolicyViolation, 
+                    "Authentication required", cancellationToken);
+                return;
+            }
+        }
+
         var connection = new WebSocketConnection(socket);
         
         if (_connections.TryAdd(clientId, connection))
         {
             _logClientConnected(_logger, _connections.Count, null);
+            _rateLimits.TryAdd(clientId, new ClientRateLimit(_config.MessageRateLimit));
         }
 
         try
@@ -122,6 +164,7 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
             {
                 _logClientDisconnected(_logger, clientId, null);
             }
+            _rateLimits.TryRemove(clientId, out _);
 
             try
             {
@@ -160,10 +203,19 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
     private async Task ReceiveMessagesAsync(Guid clientId, WebSocketConnection connection, 
         CancellationToken cancellationToken)
     {
-        var buffer = new byte[32768];
+        var buffer = new byte[_config.MaxMessageSize];
+        var rateLimit = _rateLimits[clientId];
 
         while (!cancellationToken.IsCancellationRequested)
         {
+            // Check rate limit
+            if (!rateLimit.CheckLimit())
+            {
+                _logRateLimitExceeded(_logger, clientId, null);
+                await connection.CloseAsync(cancellationToken);
+                return;
+            }
+
             var result = await connection.ReceiveAsync(buffer, cancellationToken);
             if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
             {
@@ -173,6 +225,14 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
             if (result.MessageType != System.Net.WebSockets.WebSocketMessageType.Text)
             {
                 continue;
+            }
+
+            // Check message size
+            if (result.Count > _config.MaxMessageSize)
+            {
+                _logMessageSizeExceeded(_logger, clientId, result.Count, null);
+                await connection.CloseAsync(cancellationToken);
+                return;
             }
 
             var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
@@ -224,5 +284,46 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
         }
         
         _connections.Clear();
+        _rateLimits.Clear();
+    }
+}
+
+/// <summary>
+/// Tracks rate limiting for a client
+/// </summary>
+internal sealed class ClientRateLimit
+{
+    private readonly int _maxMessagesPerSecond;
+    private readonly Queue<DateTime> _messageTimestamps;
+    private readonly object _lock = new();
+
+    public ClientRateLimit(int maxMessagesPerSecond)
+    {
+        _maxMessagesPerSecond = maxMessagesPerSecond;
+        _messageTimestamps = new Queue<DateTime>();
+    }
+
+    public bool CheckLimit()
+    {
+        lock (_lock)
+        {
+            var now = DateTime.UtcNow;
+            var cutoff = now.AddSeconds(-1);
+
+            // Remove timestamps older than 1 second
+            while (_messageTimestamps.Count > 0 && _messageTimestamps.Peek() < cutoff)
+            {
+                _messageTimestamps.Dequeue();
+            }
+
+            // Check if we're under the limit
+            if (_messageTimestamps.Count < _maxMessagesPerSecond)
+            {
+                _messageTimestamps.Enqueue(now);
+                return true;
+            }
+
+            return false;
+        }
     }
 } 

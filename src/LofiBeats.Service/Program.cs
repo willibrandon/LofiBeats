@@ -91,6 +91,9 @@ public partial class Program
         builder.Services.AddSingleton<UserSampleRepository>();
         builder.Services.AddSingleton<TelemetryTracker>();
 
+        // Add HttpContextAccessor for WebSocket authentication
+        builder.Services.AddHttpContextAccessor();
+
         // Add WebSocket configuration
         builder.Services.Configure<WebSocketConfiguration>(builder.Configuration.GetSection("WebSocket"));
 
