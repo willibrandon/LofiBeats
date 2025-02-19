@@ -25,27 +25,24 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
         {
             builder.ConfigureServices(services =>
             {
-                // Replace the real AudioPlaybackService with our test version
-                var audioDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IAudioPlaybackService));
-                if (audioDescriptor != null)
+                // Remove all existing registrations for each service type
+                foreach (var descriptor in services.Where(d => d.ServiceType == typeof(IAudioPlaybackService)).ToList())
                 {
-                    services.Remove(audioDescriptor);
+                    services.Remove(descriptor);
                 }
                 services.AddSingleton<IAudioPlaybackService, TestAudioPlaybackService>();
 
                 // Replace telemetry services with mocks
-                var telemetryDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(ITelemetryService));
-                if (telemetryDescriptor != null)
+                foreach (var descriptor in services.Where(d => d.ServiceType == typeof(ITelemetryService)).ToList())
                 {
-                    services.Remove(telemetryDescriptor);
+                    services.Remove(descriptor);
                 }
                 var mockTelemetry = new Mock<ITelemetryService>();
                 services.AddSingleton(mockTelemetry.Object);
 
-                var trackerDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(TelemetryTracker));
-                if (trackerDescriptor != null)
+                foreach (var descriptor in services.Where(d => d.ServiceType == typeof(TelemetryTracker)).ToList())
                 {
-                    services.Remove(trackerDescriptor);
+                    services.Remove(descriptor);
                 }
                 var mockLogger = new Mock<ILogger<TelemetryTracker>>();
                 services.AddSingleton(new TelemetryTracker(mockTelemetry.Object, mockLogger.Object));
