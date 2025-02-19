@@ -1,9 +1,7 @@
+using LofiBeats.Core.Playback;
+using Microsoft.Extensions.Logging;
 using Moq;
 using NAudio.Wave;
-using System;
-using System.Linq;
-using Xunit;
-using LofiBeats.Core.Playback;
 
 namespace LofiBeats.Tests.Playback;
 
@@ -14,6 +12,8 @@ public class CrossfadeSampleProviderTests : IDisposable
     private readonly Mock<ISampleProvider> _newProvider;
     private readonly CrossfadeManager _xfadeManager;
     private readonly WaveFormat _waveFormat;
+    private readonly Mock<ILogger<UserSampleRepository>> _userSampleLoggerMock;
+    private readonly UserSampleRepository _userSampleRepository;
     private bool _disposed;
 
     public CrossfadeSampleProviderTests()
@@ -23,6 +23,8 @@ public class CrossfadeSampleProviderTests : IDisposable
         _oldProvider = new Mock<ISampleProvider>();
         _newProvider = new Mock<ISampleProvider>();
         _xfadeManager = new CrossfadeManager(1.0f); // 1 second crossfade
+        _userSampleLoggerMock = new Mock<ILogger<UserSampleRepository>>();
+        _userSampleRepository = new UserSampleRepository(_userSampleLoggerMock.Object);
 
         // Setup wave format for both providers
         _oldProvider.Setup(p => p.WaveFormat).Returns(_waveFormat);
@@ -179,7 +181,7 @@ public class CrossfadeSampleProviderTests : IDisposable
         if (!_disposed)
         {
             _disposed = true;
-            // Clean up any resources if needed
+            _userSampleRepository.Dispose();
         }
     }
 } 

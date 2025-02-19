@@ -1,8 +1,9 @@
+using LofiBeats.Core.Effects;
+using LofiBeats.Core.Models;
+using LofiBeats.Core.Telemetry;
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
-using LofiBeats.Core.Effects;
-using LofiBeats.Core.Models;
 
 namespace LofiBeats.Core.Playback;
 
@@ -17,6 +18,8 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
     private readonly MixingSampleProvider _mixer;
     private readonly Dictionary<Guid, ISampleProvider> _sources;
     private readonly Dictionary<string, IAudioEffect> _effects;
+    private readonly UserSampleRepository _userSampleRepository;
+    private readonly TelemetryTracker? _telemetry;
     private bool _isDisposed;
     private ISampleProvider? _currentSource;
     private SerialEffectChain? _effectChain;
@@ -75,10 +78,16 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
         }
     }
 
-    public AudioPlaybackService(ILogger<AudioPlaybackService> logger, ILoggerFactory loggerFactory)
+    public AudioPlaybackService(
+        ILogger<AudioPlaybackService> logger, 
+        ILoggerFactory loggerFactory,
+        UserSampleRepository userSampleRepository,
+        TelemetryTracker? telemetry = null)
     {
         _logger = logger;
         _loggerFactory = loggerFactory;
+        _userSampleRepository = userSampleRepository;
+        _telemetry = telemetry;
         _sources = new Dictionary<Guid, ISampleProvider>();
         _effects = new Dictionary<string, IAudioEffect>();
         _mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
@@ -86,20 +95,27 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
         _audioOutput.Init(_mixer.ToWaveProvider());
     }
 
-    protected virtual IAudioOutput CreateAudioOutput()
-    {
-        return AudioOutputFactory.CreateForCurrentPlatform(_loggerFactory);
-    }
-
-    public AudioPlaybackService(ILogger<AudioPlaybackService> logger, ILoggerFactory loggerFactory, IAudioOutput audioOutput)
+    public AudioPlaybackService(
+        ILogger<AudioPlaybackService> logger, 
+        ILoggerFactory loggerFactory, 
+        IAudioOutput audioOutput,
+        UserSampleRepository userSampleRepository,
+        TelemetryTracker? telemetry = null)
     {
         _logger = logger;
         _loggerFactory = loggerFactory;
+        _userSampleRepository = userSampleRepository;
+        _telemetry = telemetry;
         _sources = new Dictionary<Guid, ISampleProvider>();
         _effects = new Dictionary<string, IAudioEffect>();
         _mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
         _audioOutput = audioOutput;
         _audioOutput.Init(_mixer.ToWaveProvider());
+    }
+
+    protected virtual IAudioOutput CreateAudioOutput()
+    {
+        return AudioOutputFactory.CreateForCurrentPlatform(_loggerFactory);
     }
 
     public void SetSource(ISampleProvider source)
@@ -336,6 +352,106 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
                 _logger.LogInformation("No active source - effects from preset will be applied when playback starts");
             }
         }
+    }
+
+    /// <summary>
+    /// Crossfades from the current pattern to a new pattern over the specified duration.
+    /// </summary>
+    /// <param name="newPattern">The new beat pattern to fade to.</param>
+    /// <param name="crossfadeDuration">Duration of the crossfade in seconds.</param>
+    public void CrossfadeToPattern(BeatPattern newPattern, float crossfadeDuration)
+    {
+        lock (_stateLock)
+        {
+            var oldSource = _currentSource;
+            if (oldSource == null)
+            {
+                // If nothing is playing, just set the new pattern directly.
+                this.SetSource(CreateProviderForPattern(newPattern));
+                return;
+            }
+
+            // Create crossfade objects
+            var xfadeManager = new CrossfadeManager(crossfadeDuration);
+            xfadeManager.BeginCrossfade();
+
+            // Build the new provider
+            var newProvider = CreateProviderForPattern(newPattern);
+
+            // Create crossfade provider
+            var crossfadeProvider = new CrossfadeSampleProvider(
+                oldSource, newProvider, xfadeManager
+            );
+
+            // Remove old source from the mixer
+            _mixer.RemoveMixerInput(oldSource);
+
+            // Add crossfade provider
+            _mixer.AddMixerInput(crossfadeProvider);
+
+            // Start a background task to watch for crossfade completion
+            Task.Run(async () =>
+            {
+                while (!xfadeManager.IsCrossfadeComplete())
+                {
+                    await Task.Delay(250);
+                }
+
+                // Crossfade done
+                lock (_stateLock)
+                {
+                    // Remove crossfader from mixer
+                    _mixer.RemoveMixerInput(crossfadeProvider);
+
+                    // Dispose crossfade provider so old source is freed
+                    crossfadeProvider.Dispose();
+
+                    // Add the new provider as the main source
+                    _currentSource = newProvider;
+                    _mixer.AddMixerInput(_currentSource);
+
+                    // Update style - use first drum in sequence as style
+                    _currentStyle = newPattern.DrumSequence.Length > 0 ? newPattern.DrumSequence[0] : "basic";
+                }
+
+                // Telemetry event
+                _telemetry?.TrackEvent(TelemetryConstants.Events.PlaybackStarted, new Dictionary<string, string>
+                {
+                    { TelemetryConstants.Properties.BeatStyle, _currentStyle },
+                    { TelemetryConstants.Properties.BeatTempo, newPattern.BPM.ToString() }
+                });
+            });
+
+            // Telemetry event for crossfade start
+            _telemetry?.TrackEvent("CrossfadeStarted", new Dictionary<string, string>
+            {
+                { "CrossfadeDuration", ((int)crossfadeDuration).ToString() }
+            });
+
+            // Ensure playback is running
+            _audioOutput.Play();
+        }
+    }
+
+    /// <summary>
+    /// Creates a BeatPatternSampleProvider for the given pattern.
+    /// </summary>
+    /// <param name="pattern">The beat pattern to create a provider for.</param>
+    /// <returns>A configured sample provider for the pattern.</returns>
+    private BeatPatternSampleProvider CreateProviderForPattern(BeatPattern pattern)
+    {
+        if (pattern == null)
+            throw new ArgumentNullException(nameof(pattern));
+
+        var provider = new BeatPatternSampleProvider(
+            pattern,
+            _loggerFactory.CreateLogger<BeatPatternSampleProvider>(),
+            _userSampleRepository,
+            _telemetry ?? new TelemetryTracker(
+                new NullTelemetryService(),
+                _loggerFactory.CreateLogger<TelemetryTracker>()));
+
+        return provider;
     }
 
     protected virtual void Dispose(bool disposing)

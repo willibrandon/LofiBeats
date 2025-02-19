@@ -1,6 +1,7 @@
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
+using LofiBeats.Core.Telemetry;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NAudio.Wave;
@@ -8,13 +9,18 @@ using NAudio.Wave;
 namespace LofiBeats.Tests.Playback;
 
 [Collection("AI Generated Tests")]
-public class AudioPlaybackServiceTests
+public class AudioPlaybackServiceTests : IDisposable
 {
     private readonly Mock<ILogger<AudioPlaybackService>> _loggerMock;
     private readonly Mock<ILoggerFactory> _loggerFactoryMock;
     private readonly Mock<ISampleProvider> _sampleProviderMock;
     private readonly Mock<IAudioEffect> _effectMock;
     private readonly Mock<IAudioOutput> _audioOutputMock;
+    private readonly Mock<ILogger<UserSampleRepository>> _userSampleLoggerMock;
+    private readonly UserSampleRepository _userSampleRepository;
+    private readonly Mock<ITelemetryService> _telemetryServiceMock;
+    private readonly Mock<ILogger<TelemetryTracker>> _telemetryLoggerMock;
+    private readonly TelemetryTracker _telemetryTracker;
     private PlaybackState _playbackState;
 
     public AudioPlaybackServiceTests()
@@ -24,7 +30,16 @@ public class AudioPlaybackServiceTests
         _sampleProviderMock = new Mock<ISampleProvider>();
         _effectMock = new Mock<IAudioEffect>();
         _audioOutputMock = new Mock<IAudioOutput>();
+        _userSampleLoggerMock = new Mock<ILogger<UserSampleRepository>>();
+        _telemetryServiceMock = new Mock<ITelemetryService>();
+        _telemetryLoggerMock = new Mock<ILogger<TelemetryTracker>>();
         _playbackState = PlaybackState.Stopped;
+
+        // Create UserSampleRepository with the mocked logger
+        _userSampleRepository = new UserSampleRepository(_userSampleLoggerMock.Object);
+
+        // Create TelemetryTracker with mocked dependencies
+        _telemetryTracker = new TelemetryTracker(_telemetryServiceMock.Object, _telemetryLoggerMock.Object);
 
         // Setup mock sample provider
         _sampleProviderMock.Setup(x => x.WaveFormat)
@@ -55,7 +70,12 @@ public class AudioPlaybackServiceTests
     public void SetSource_AddsSourceToMixer()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
 
         // Act - Should not throw
         service.SetSource(_sampleProviderMock.Object);
@@ -70,7 +90,12 @@ public class AudioPlaybackServiceTests
     public void AddEffect_AddsEffectToMixer()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
         service.SetSource(_sampleProviderMock.Object);
 
         // Act
@@ -85,7 +110,12 @@ public class AudioPlaybackServiceTests
     public void RemoveEffect_RemovesEffectFromMixer()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
         service.SetSource(_sampleProviderMock.Object);
         service.AddEffect(_effectMock.Object);
 
@@ -101,7 +131,12 @@ public class AudioPlaybackServiceTests
     public void StartPlayback_WithNoSource_AddsTestTone()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
 
         // Act
         service.StartPlayback();
@@ -118,7 +153,12 @@ public class AudioPlaybackServiceTests
     public void StopPlayback_RemovesSource()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
         service.SetSource(_sampleProviderMock.Object);
 
         // Act
@@ -135,7 +175,12 @@ public class AudioPlaybackServiceTests
     public void PauseAndResume_ModifiesPlaybackStateCorrectly()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
         service.SetSource(_sampleProviderMock.Object);
         
         // Act & Assert - Initial state
@@ -157,7 +202,12 @@ public class AudioPlaybackServiceTests
     public void SetVolume_ClampsBetweenValidRange()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
 
         // Act
         service.SetVolume(-0.5f); // Should clamp to 0
@@ -175,7 +225,12 @@ public class AudioPlaybackServiceTests
     public void PlaybackState_ReflectsCurrentState()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
         
         // Act & Assert - Initial state (no source)
         Assert.Equal(PlaybackState.Stopped, service.GetPlaybackState());
@@ -194,7 +249,12 @@ public class AudioPlaybackServiceTests
     public void SetSource_WithMonoInput_ConvertsToStereo()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
         var monoProviderMock = new Mock<ISampleProvider>();
         monoProviderMock.Setup(x => x.WaveFormat)
             .Returns(WaveFormat.CreateIeeeFloatWaveFormat(44100, 1)); // Mono format
@@ -212,7 +272,12 @@ public class AudioPlaybackServiceTests
     public void MultipleEffects_CanBeAddedAndRemoved()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
         var effect1Mock = new Mock<IAudioEffect>();
         var effect2Mock = new Mock<IAudioEffect>();
         
@@ -247,7 +312,12 @@ public class AudioPlaybackServiceTests
     public void PauseAndResume_WithNoSource_DoesNotThrow()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
 
         // Act & Assert - Should not throw
         service.PausePlayback();
@@ -259,7 +329,12 @@ public class AudioPlaybackServiceTests
     public void CurrentStyle_DefaultsToBasic()
     {
         // Arrange & Act
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
 
         // Assert
         Assert.Equal("basic", service.CurrentStyle);
@@ -270,7 +345,12 @@ public class AudioPlaybackServiceTests
     public void CurrentStyle_CanBeSetAndRetrieved()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
         const string newStyle = "jazzy";
 
         // Act
@@ -293,7 +373,12 @@ public class AudioPlaybackServiceTests
     public void CurrentStyle_ThrowsOnNullOrEmpty()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
 
         // Act & Assert
         Assert.Throws<ArgumentException>(() => service.CurrentStyle = "");
@@ -306,7 +391,12 @@ public class AudioPlaybackServiceTests
     public void GetCurrentPreset_ReturnsCurrentState()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
         service.SetSource(_sampleProviderMock.Object);
         service.CurrentStyle = "jazzy";
         service.SetVolume(0.8f);
@@ -329,7 +419,12 @@ public class AudioPlaybackServiceTests
     public void ApplyPreset_SetsAllProperties()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
         service.SetSource(_sampleProviderMock.Object);
         
         var preset = new Preset
@@ -358,7 +453,12 @@ public class AudioPlaybackServiceTests
     public void ApplyPreset_WithNoSource_OnlySetsStyleAndVolume()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
         
         var preset = new Preset
         {
@@ -384,7 +484,12 @@ public class AudioPlaybackServiceTests
     public void ApplyPreset_WithInvalidPreset_ThrowsException()
     {
         // Arrange
-        var service = new AudioPlaybackService(_loggerMock.Object, _loggerFactoryMock.Object, _audioOutputMock.Object);
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
         var effectFactoryMock = new Mock<IEffectFactory>();
 
         // Act & Assert
@@ -393,5 +498,103 @@ public class AudioPlaybackServiceTests
         
         var invalidPreset = new Preset { Name = "Invalid", Style = "", Volume = -1 };
         Assert.Throws<ArgumentException>(() => service.ApplyPreset(invalidPreset, effectFactoryMock.Object));
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void CrossfadeToPattern_SetupsCrossfadeCorrectly()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
+
+        // Create a mock pattern
+        var pattern = new BeatPattern
+        {
+            BPM = 90,
+            DrumSequence = ["kick", "snare", "hat"],
+            ChordProgression = ["Cm7", "Fm7", "Bb7", "Eb7"]
+        };
+
+        // Set initial source
+        service.SetSource(_sampleProviderMock.Object);
+
+        // Setup telemetry tracking verification
+        _telemetryServiceMock.Setup(t => t.TrackEvent(
+            It.IsAny<string>(),
+            It.IsAny<Dictionary<string, string>>(),
+            It.IsAny<DateTimeOffset?>()));
+
+        // Act
+        service.CrossfadeToPattern(pattern, 2.0f);
+
+        // Assert
+        // Verify that the mixer was accessed to remove old source and add new
+        _audioOutputMock.Verify(x => x.Play(), Times.AtLeastOnce);
+
+        // Verify telemetry events were tracked
+        _telemetryServiceMock.Verify(t => t.TrackEvent(
+            "CrossfadeStarted",
+            It.Is<Dictionary<string, string>>(d => 
+                d.ContainsKey("CrossfadeDuration") && 
+                d["CrossfadeDuration"] == "2"),
+            It.IsAny<DateTimeOffset?>()), 
+            Times.Once);
+
+        // Verify the service is still in a playing state
+        Assert.Equal(PlaybackState.Playing, service.GetPlaybackState());
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void CrossfadeToPattern_WithNullPattern_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
+
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => service.CrossfadeToPattern(null!, 2.0f));
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void CrossfadeToPattern_WithNoCurrentSource_SetsNewSourceDirectly()
+    {
+        // Arrange
+        var service = new AudioPlaybackService(
+            _loggerMock.Object, 
+            _loggerFactoryMock.Object, 
+            _audioOutputMock.Object,
+            _userSampleRepository,
+            _telemetryTracker);
+
+        var pattern = new BeatPattern
+        {
+            BPM = 90,
+            DrumSequence = ["kick", "snare", "hat"],
+            ChordProgression = ["Cm7", "Fm7", "Bb7", "Eb7"]
+        };
+
+        // Act
+        service.CrossfadeToPattern(pattern, 2.0f);
+
+        // Assert
+        // Verify that Play was called (indicating SetSource was used)
+        _audioOutputMock.Verify(x => x.Play(), Times.Once);
+        Assert.Equal(PlaybackState.Playing, service.GetPlaybackState());
+    }
+
+    public void Dispose()
+    {
+        // Dispose of resources
     }
 } 
