@@ -130,15 +130,16 @@ public class ServiceConnectionHelper
         _servicePath = servicePath ?? GetDefaultServicePath();
         _pidFilePath = Path.Combine(Path.GetDirectoryName(_servicePath)!, "service.pid");
 
-        // Configure Polly retry policy for health checks
+        // Configure Polly retry policy for health checks with more aggressive timing
         _healthCheckPolicy = Policy<bool>
             .Handle<HttpRequestException>()
             .Or<TaskCanceledException>()
             .WaitAndRetryAsync(
-                retryCount: 6,
+                retryCount: 20, // Increased retry count but with shorter delays
                 sleepDurationProvider: retryAttempt => 
                 {
-                    var delay = TimeSpan.FromMilliseconds(Math.Min(100 * Math.Pow(2, retryAttempt - 1), 3200));
+                    // More aggressive exponential backoff starting at 50ms
+                    var delay = TimeSpan.FromMilliseconds(Math.Min(50 * Math.Pow(1.5, retryAttempt - 1), 1000));
                     _logHealthCheckRetry(_logger, retryAttempt, delay, null);
                     return delay;
                 }
@@ -343,7 +344,8 @@ public class ServiceConnectionHelper
     {
         try
         {
-            var response = await _httpClient.GetAsync($"{_serviceUrl}/healthz");
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1)); // Add 1s timeout
+            var response = await _httpClient.GetAsync($"{_serviceUrl}/healthz", cts.Token);
             _logHealthCheckResponse(_logger, response.StatusCode.ToString(), (int)response.StatusCode, null);
 
             // Consider both OK and redirect responses as successful
