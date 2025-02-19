@@ -15,6 +15,10 @@ A cross-platform command-line tool and service for generating and playing lofi b
   - Multi-stage envelopes for realistic drum sounds
   - Velocity and timing humanization
   - Customizable synthesis parameters
+- Smooth transitions between patterns:
+  - Crossfade between styles (0.1s to 10s duration)
+  - Bar-synchronized transitions
+  - Schedule future transitions
 - User Sample Support:
   - Register your own drum samples
   - Support for velocity layers
@@ -46,6 +50,11 @@ lofi play --style jazzy
 
 # Play with custom BPM
 lofi play --style chillhop --bpm 82
+
+# Crossfade between patterns
+lofi play --style jazzy --transition crossfade              # Default 2s crossfade
+lofi play --style chillhop --transition crossfade --xfade-duration 3  # Custom duration
+lofi play --style hiphop --transition crossfade --after 30s # Scheduled crossfade
 
 # Schedule playback to start later
 lofi play --style hiphop --after 5m
@@ -184,7 +193,7 @@ Key configuration options:
 The service exposes the following REST API endpoints:
 
 - `POST /api/lofi/generate` - Generate a new beat pattern
-- `POST /api/lofi/play` - Start playback
+- `POST /api/lofi/play` - Start playback (supports crossfade with `transition` and `xfadeDuration` parameters)
 - `POST /api/lofi/stop` - Stop playback
 - `POST /api/lofi/pause` - Pause playback
 - `POST /api/lofi/resume` - Resume playback
