@@ -35,6 +35,7 @@ A cross-platform command-line tool and service for generating and playing lofi b
   - Real-time progress tracking for scheduled actions
 - Interactive mode for live control
 - RESTful API service for remote control
+- WebSocket connections for real-time control
 - Cross-platform support (Windows, macOS, Linux)
 - Telemetry support with local file and Seq logging
 - Plugin system for custom effects
