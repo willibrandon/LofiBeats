@@ -158,6 +158,7 @@ public partial class Program
                 var pattern = generator.GeneratePattern();
                 var beatSource = new BeatPatternSampleProvider(pattern, logger, userSamples, telemetryTracker);
                 playback.SetSource(beatSource);
+                playback.CurrentStyle = style;
                 playback.StartPlayback();
             });
 
