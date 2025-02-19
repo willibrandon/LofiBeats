@@ -198,6 +198,119 @@ The service exposes the following REST API endpoints:
 - `POST /api/lofi/preset/apply` - Apply a preset configuration
 - `GET /healthz` - Health check endpoint
 
+## WebSocket Support
+
+The service also provides real-time control and event notifications through WebSocket connections at `ws://localhost:5001/ws`.
+
+### Authentication
+
+When authentication is enabled, connect with a token:
+```
+ws://localhost:5001/ws?token=your_auth_token
+```
+
+### Commands
+
+Send commands as JSON messages with the following format:
+```json
+{
+  "type": "command",
+  "action": "play",
+  "payload": {
+    "style": "jazzy",
+    "bpm": 85,
+    "transition": "crossfade",
+    "xfadeDuration": 2.0
+  }
+}
+```
+
+Available commands:
+- `play` - Start playback with options
+  ```json
+  {
+    "style": "basic|jazzy|chillhop|hiphop",
+    "bpm": 80,
+    "transition": "immediate|crossfade",
+    "xfadeDuration": 2.0
+  }
+  ```
+- `stop` - Stop playback
+  ```json
+  {
+    "tapestop": false
+  }
+  ```
+- `volume` - Adjust volume
+  ```json
+  {
+    "level": 0.8
+  }
+  ```
+- `add-effect` - Add an audio effect
+  ```json
+  {
+    "name": "reverb|vinyl|tapestop|tapeflutter",
+    "parameters": {
+      "key": "value"
+    }
+  }
+  ```
+- `remove-effect` - Remove an audio effect
+  ```json
+  {
+    "name": "reverb"
+  }
+  ```
+- `sync-state` - Request current playback state
+
+### Events
+
+The server broadcasts events in the following format:
+```json
+{
+  "type": "event",
+  "action": "playback-started",
+  "payload": {
+    "style": "jazzy",
+    "bpm": 85
+  }
+}
+```
+
+Available events:
+- `volume-changed` - Volume level changed
+- `playback-started` - Playback has started
+- `playback-stopped` - Playback has stopped
+- `beat-generated` - New beat pattern generated
+- `effect-added` - Audio effect was added
+- `effect-removed` - Audio effect was removed
+- `metrics-updated` - Performance metrics update
+
+### Error Messages
+
+Error responses follow this format:
+```json
+{
+  "type": "error",
+  "action": "unknown-command",
+  "payload": {
+    "message": "Unknown command: invalid-action"
+  }
+}
+```
+
+Error types:
+- `unknown-command` - Command not recognized
+- `invalid-payload` - Invalid command parameters
+- `auth-failed` - Authentication failure
+
+### Rate Limiting
+
+- Maximum message size: 4KB
+- Rate limit: 60 messages per minute per client
+- Maximum concurrent connections: 100
+
 ## Development
 
 ### Running Tests
