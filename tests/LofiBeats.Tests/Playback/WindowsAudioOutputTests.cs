@@ -2,6 +2,7 @@ using LofiBeats.Core.Playback;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using System.Runtime.InteropServices;
 
 namespace LofiBeats.Tests.Playback;
@@ -11,7 +12,7 @@ public class WindowsAudioOutputTests : IDisposable
 {
     private readonly Mock<ILogger<WindowsAudioOutput>> _loggerMock;
     private readonly WindowsAudioOutput _audioOutput;
-    private readonly Mock<IWaveProvider> _waveProviderMock;
+    private readonly IWaveProvider _testWaveProvider;
     private bool _disposed;
     private readonly bool _isCI;
 
@@ -24,9 +25,17 @@ public class WindowsAudioOutputTests : IDisposable
         
         _loggerMock = new Mock<ILogger<WindowsAudioOutput>>();
         _audioOutput = new WindowsAudioOutput(_loggerMock.Object);
-        _waveProviderMock = new Mock<IWaveProvider>();
-        _waveProviderMock.Setup(x => x.WaveFormat)
-            .Returns(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
+        
+        // Create a real signal generator that produces a sine wave
+        var signalGenerator = new SignalGenerator()
+        {
+            Gain = 0.2f,
+            Frequency = 440,
+            Type = SignalGeneratorType.Sin
+        };
+        
+        // Convert to 16-bit PCM wave provider
+        _testWaveProvider = signalGenerator.ToWaveProvider16();
     }
 
     [SkippableFact]
@@ -43,7 +52,7 @@ public class WindowsAudioOutputTests : IDisposable
     public void Init_WithValidProvider_Succeeds()
     {
         // Act - Should not throw
-        _audioOutput.Init(_waveProviderMock.Object);
+        _audioOutput.Init(_testWaveProvider);
 
         // Assert
         Assert.Equal(PlaybackState.Stopped, _audioOutput.PlaybackState);
@@ -56,7 +65,7 @@ public class WindowsAudioOutputTests : IDisposable
         Skip.If(_isCI, "Skipping audio playback test in CI environment");
 
         // Arrange
-        _audioOutput.Init(_waveProviderMock.Object);
+        _audioOutput.Init(_testWaveProvider);
 
         // Act
         _audioOutput.Play();
@@ -72,7 +81,7 @@ public class WindowsAudioOutputTests : IDisposable
         Skip.If(_isCI, "Skipping audio playback test in CI environment");
 
         // Arrange
-        _audioOutput.Init(_waveProviderMock.Object);
+        _audioOutput.Init(_testWaveProvider);
         _audioOutput.Play();
 
         // Act
@@ -89,7 +98,7 @@ public class WindowsAudioOutputTests : IDisposable
         Skip.If(_isCI, "Skipping audio playback test in CI environment");
 
         // Arrange
-        _audioOutput.Init(_waveProviderMock.Object);
+        _audioOutput.Init(_testWaveProvider);
         _audioOutput.Play();
 
         // Act
@@ -104,7 +113,7 @@ public class WindowsAudioOutputTests : IDisposable
     public void SetVolume_ClampsToValidRange()
     {
         // Arrange
-        _audioOutput.Init(_waveProviderMock.Object);
+        _audioOutput.Init(_testWaveProvider);
 
         // Act - Should not throw
         _audioOutput.SetVolume(-0.5f); // Should clamp to 0
@@ -178,7 +187,7 @@ public class WindowsAudioOutputTests : IDisposable
         _audioOutput.Dispose();
 
         // Act - All operations should be safe after dispose
-        _audioOutput.Init(_waveProviderMock.Object);
+        _audioOutput.Init(_testWaveProvider);
         _audioOutput.Play();
         _audioOutput.Pause();
         _audioOutput.Stop();

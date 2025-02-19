@@ -12,82 +12,133 @@ public class WindowsAudioOutput : IAudioOutput
     private WaveOutEvent? _waveOut;
     private bool _isDisposed;
     private bool _isInitialized;
+    private readonly object _lock = new();
 
     public WindowsAudioOutput(ILogger<WindowsAudioOutput> logger)
     {
         _logger = logger;
-        _waveOut = new WaveOutEvent();
     }
 
-    public PlaybackState PlaybackState => _waveOut?.PlaybackState ?? PlaybackState.Stopped;
+    public PlaybackState PlaybackState 
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _waveOut?.PlaybackState ?? PlaybackState.Stopped;
+            }
+        }
+    }
 
     public void Init(IWaveProvider waveProvider)
     {
         if (_isDisposed) return;
-        try
+
+        lock (_lock)
         {
-            _waveOut?.Init(waveProvider);
-            _isInitialized = true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to initialize audio output");
-            _isInitialized = false;
+            try
+            {
+                // Cleanup any existing instance
+                if (_waveOut != null)
+                {
+                    _waveOut.Stop();
+                    _waveOut.Dispose();
+                    _waveOut = null;
+                }
+
+                _waveOut = new WaveOutEvent();
+                _waveOut.Init(waveProvider);
+                _isInitialized = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to initialize audio output");
+                _isInitialized = false;
+                _waveOut?.Dispose();
+                _waveOut = null;
+            }
         }
     }
 
     public void Play()
     {
-        if (_isDisposed || !_isInitialized) return;
-        try
+        if (_isDisposed) return;
+
+        lock (_lock)
         {
-            _waveOut?.Play();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to start playback");
+            if (!_isInitialized || _waveOut == null) return;
+
+            try
+            {
+                if (_waveOut.PlaybackState != PlaybackState.Playing)
+                {
+                    _waveOut.Play();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to start playback");
+            }
         }
     }
 
     public void Pause()
     {
-        if (_isDisposed || !_isInitialized) return;
-        try
+        if (_isDisposed) return;
+
+        lock (_lock)
         {
-            _waveOut?.Pause();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to pause playback");
+            if (!_isInitialized || _waveOut == null) return;
+
+            try
+            {
+                if (_waveOut.PlaybackState == PlaybackState.Playing)
+                {
+                    _waveOut.Pause();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to pause playback");
+            }
         }
     }
 
     public void Stop()
     {
-        if (_isDisposed || !_isInitialized) return;
-        try
+        if (_isDisposed) return;
+
+        lock (_lock)
         {
-            _waveOut?.Stop();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to stop playback");
+            if (!_isInitialized || _waveOut == null) return;
+
+            try
+            {
+                _waveOut.Stop();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to stop playback");
+            }
         }
     }
 
     public void SetVolume(float volume)
     {
-        if (_isDisposed || !_isInitialized) return;
-        try
+        if (_isDisposed) return;
+
+        lock (_lock)
         {
-            if (_waveOut != null)
+            if (!_isInitialized || _waveOut == null) return;
+
+            try
             {
                 _waveOut.Volume = Math.Clamp(volume, 0.0f, 1.0f);
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to set volume to {Volume}", volume);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to set volume to {Volume}", volume);
+            }
         }
     }
 
@@ -97,15 +148,22 @@ public class WindowsAudioOutput : IAudioOutput
         {
             if (disposing)
             {
-                try
+                lock (_lock)
                 {
-                    _waveOut?.Dispose();
+                    try
+                    {
+                        if (_waveOut != null)
+                        {
+                            _waveOut.Stop();
+                            _waveOut.Dispose();
+                            _waveOut = null;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error disposing WaveOutEvent");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error disposing WaveOutEvent");
-                }
-                _waveOut = null;
             }
             _isDisposed = true;
             _isInitialized = false;
