@@ -1,6 +1,6 @@
+using LofiBeats.Core.WebSocket;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using LofiBeats.Core.WebSocket;
 
 namespace LofiBeats.Service.WebSocket;
 

@@ -1,5 +1,3 @@
-using System.Net.WebSockets;
-
 namespace LofiBeats.Core.WebSocket;
 
 /// <summary>

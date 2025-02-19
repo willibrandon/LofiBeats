@@ -1,18 +1,14 @@
-using System.Collections.Concurrent;
-using System.Net.WebSockets;
-using System.Text;
-using System.Text.Json;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
-using Microsoft.AspNetCore.Http;
 using LofiBeats.Core.BeatGeneration;
 using LofiBeats.Core.Effects;
-using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
 using LofiBeats.Core.Scheduling;
 using LofiBeats.Core.Telemetry;
 using LofiBeats.Core.WebSocket;
+using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
 
 namespace LofiBeats.Service.WebSocket;
 
