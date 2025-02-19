@@ -66,8 +66,8 @@ lofi stop --tapestop
 lofi play --style chillhop --bpm 82
 
 # Crossfade between patterns
-lofi play --style jazzy --transition crossfade              # Default 2s crossfade
-lofi play --style chillhop --transition crossfade --xfade-duration 3  # Custom duration
+lofi play --style jazzy --transition crossfade # Default 2s crossfade
+lofi play --style chillhop --transition crossfade --xfade-duration 3 # Custom duration
 lofi play --style hiphop --transition crossfade --after 30s # Scheduled crossfade
 
 # Schedule playback to start later
