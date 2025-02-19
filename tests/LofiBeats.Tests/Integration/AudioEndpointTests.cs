@@ -131,8 +131,31 @@ public class AudioEndpointTests : LofiBeatsTestBase
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(PlaybackState.Stopped, AudioService.GetPlaybackState());
 
-        // Wait for scheduled play and style change to take effect
-        await Task.Delay(1200);
+        // Wait for scheduled play with timeout
+        var timeout = TimeSpan.FromSeconds(5);
+        var pollInterval = TimeSpan.FromMilliseconds(100);
+        var startTime = DateTime.UtcNow;
+
+        var playbackStarted = false;
+        var styleChanged = false;
+
+        while (DateTime.UtcNow - startTime < timeout)
+        {
+            if (AudioService.GetPlaybackState() == PlaybackState.Playing)
+            {
+                playbackStarted = true;
+            }
+            if (AudioService.CurrentStyle == "jazz")
+            {
+                styleChanged = true;
+            }
+            if (playbackStarted && styleChanged)
+            {
+                break;
+            }
+            await Task.Delay(pollInterval);
+        }
+
         Assert.Equal(PlaybackState.Playing, AudioService.GetPlaybackState());
         Assert.Equal("jazz", AudioService.CurrentStyle);
     }
