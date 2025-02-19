@@ -136,14 +136,14 @@ public class CommandLineInterface : IDisposable
         var updateCommand = new Command("update", "Update the CLI tool to the latest version");
         updateCommand.Description = "Updates the LofiBeats CLI tool to the latest version.\n\n" +
                                   "Since this is distributed as a .NET tool, you can update it using:\n" +
-                                  "  dotnet tool update --global lofi\n\n" +
+                                  "  dotnet tool update --global LofiBeats.Cli\n\n" +
                                   "This will fetch and install the latest version from NuGet.";
         
         updateCommand.SetHandler(() =>
         {
             _logExecutingUpdateCommand(_logger, null);
             Console.WriteLine("To update the LofiBeats CLI tool, run:");
-            Console.WriteLine("  dotnet tool update --global lofi");
+            Console.WriteLine("  dotnet tool update --global LofiBeats.Cli");
             Console.WriteLine("\nThis will update to the latest version from NuGet.");
         });
         _rootCommand.AddCommand(updateCommand);
