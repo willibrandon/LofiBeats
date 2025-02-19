@@ -120,7 +120,7 @@ For detailed information about sample management, velocity layers, supported for
 LofiBeats consists of three main components:
 
 1. **LofiBeats.Cli**: Command-line interface tool
-2. **LofiBeats.Service**: Background service with REST API
+2. **LofiBeats.Service**: Background service with REST API and WebSockets support
 3. **LofiBeats.Core**: Core audio processing and effect implementation
 
 ## Build Requirements
