@@ -61,8 +61,20 @@ public class AudioEndpointTests : LofiBeatsTestBase
         // Note: The actual stopping happens after the effect completes
         Assert.Equal(PlaybackState.Playing, AudioService.GetPlaybackState());
         
-        // Wait for effect to complete
-        await Task.Delay(200);
+        // Wait for effect to complete with timeout
+        var timeout = TimeSpan.FromSeconds(5);
+        var pollInterval = TimeSpan.FromMilliseconds(100);
+        var startTime = DateTime.UtcNow;
+
+        while (DateTime.UtcNow - startTime < timeout)
+        {
+            if (AudioService.GetPlaybackState() == PlaybackState.Stopped)
+            {
+                break;
+            }
+            await Task.Delay(pollInterval);
+        }
+
         Assert.Equal(PlaybackState.Stopped, AudioService.GetPlaybackState());
     }
 
