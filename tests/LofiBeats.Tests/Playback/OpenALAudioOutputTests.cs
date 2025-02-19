@@ -77,6 +77,7 @@ namespace LofiBeats.Tests.Playback
             _openAL.Play();
             Thread.Sleep(50);
             var readCountBeforePause = _waveProvider.ReadCount;
+            Assert.True(readCountBeforePause > 0, "No audio data was read before pause");
 
             // Act
             _openAL.Pause();
@@ -84,14 +85,17 @@ namespace LofiBeats.Tests.Playback
 
             // Assert
             Assert.Equal(PlaybackState.Paused, _openAL.PlaybackState);
-            Assert.Equal(readCountBeforePause, _waveProvider.ReadCount);
+            
+            // Check that no more reads occurred after pause
+            var message = $"Audio processing continued after pause (before: {readCountBeforePause}, after: {_waveProvider.ReadCount})";
+            Assert.True(readCountBeforePause == _waveProvider.ReadCount, message);
             
             // Verify OpenAL state
             var state = AL.GetSource(_openAL.SourceId, ALGetSourcei.SourceState);
-            Assert.Equal((int)ALSourceState.Paused, state);
+            Assert.True(state == (int)ALSourceState.Paused, "OpenAL source state was not paused");
             
             var error = AL.GetError();
-            Assert.Equal(ALError.NoError, error);
+            Assert.True(error == ALError.NoError, "OpenAL reported an error");
         }
 
         [SkippableFact]
