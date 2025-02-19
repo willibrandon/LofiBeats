@@ -87,28 +87,25 @@ public class OpenALAudioOutput : IAudioOutput
                     int processed = AL.GetSource(_source, ALGetSourcei.BuffersProcessed);
                     AL.GetError(); // Clear any error
                     
-                    if (!_isPaused)
+                    for (int i = 0; i < processed; i++)
                     {
-                        for (int i = 0; i < processed; i++)
-                        {
-                            int buffer = AL.SourceUnqueueBuffer(_source);
-                            AL.GetError(); // Clear any error
-                            
-                            if (QueueBuffer(buffer))
-                            {
-                                AL.SourceQueueBuffer(_source, buffer);
-                                AL.GetError(); // Clear any error
-                            }
-                        }
-
-                        var state = AL.GetSource(_source, ALGetSourcei.SourceState);
+                        int buffer = AL.SourceUnqueueBuffer(_source);
                         AL.GetError(); // Clear any error
                         
-                        if (state == (int)ALSourceState.Stopped)
+                        if (QueueBuffer(buffer))
                         {
-                            AL.SourcePlay(_source);
+                            AL.SourceQueueBuffer(_source, buffer);
                             AL.GetError(); // Clear any error
                         }
+                    }
+
+                    var state = AL.GetSource(_source, ALGetSourcei.SourceState);
+                    AL.GetError(); // Clear any error
+                    
+                    if (state == (int)ALSourceState.Stopped)
+                    {
+                        AL.SourcePlay(_source);
+                        AL.GetError(); // Clear any error
                     }
                 }
             }
@@ -193,8 +190,22 @@ public class OpenALAudioOutput : IAudioOutput
     {
         if (!_isPlaying || _isPaused) return;
 
-        AL.SourcePause(_source);
-        _isPaused = true;
+        lock (_lock)
+        {
+            AL.SourcePause(_source);
+            AL.GetError(); // Clear any error
+            _isPaused = true;
+            
+            // Ensure any in-progress buffer processing is complete
+            int processed = AL.GetSource(_source, ALGetSourcei.BuffersProcessed);
+            if (processed > 0)
+            {
+                // Unqueue any processed buffers without re-queuing them
+                int[] unqueuedBuffers = new int[processed];
+                AL.SourceUnqueueBuffers(_source, processed, unqueuedBuffers);
+                AL.GetError(); // Clear any error
+            }
+        }
     }
 
     public void Stop()

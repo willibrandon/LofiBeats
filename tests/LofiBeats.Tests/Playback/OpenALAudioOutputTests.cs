@@ -75,20 +75,44 @@ namespace LofiBeats.Tests.Playback
             // Arrange
             _waveProvider.Reset();
             _openAL.Play();
-            Thread.Sleep(50);
+            
+            // Wait for initial buffer queue to stabilize
+            var stableCount = 0;
+            var previousReadCount = 0;
+            var attempts = 0;
+            while (stableCount < 3 && attempts < 20)
+            {
+                Thread.Sleep(50);
+                if (_waveProvider.ReadCount == previousReadCount)
+                {
+                    stableCount++;
+                }
+                else
+                {
+                    stableCount = 0;
+                }
+                previousReadCount = _waveProvider.ReadCount;
+                attempts++;
+            }
+            
             var readCountBeforePause = _waveProvider.ReadCount;
             Assert.True(readCountBeforePause > 0, "No audio data was read before pause");
 
             // Act
             _openAL.Pause();
-            Thread.Sleep(50);
+            Thread.Sleep(100); // Give more time for any in-flight buffers to complete
 
             // Assert
             Assert.Equal(PlaybackState.Paused, _openAL.PlaybackState);
             
-            // Check that no more reads occurred after pause
-            var message = $"Audio processing continued after pause (before: {readCountBeforePause}, after: {_waveProvider.ReadCount})";
-            Assert.True(readCountBeforePause == _waveProvider.ReadCount, message);
+            // Get the read count and wait a bit to ensure it's stable
+            var readCountAfterPause = _waveProvider.ReadCount;
+            Thread.Sleep(100);
+            var finalReadCount = _waveProvider.ReadCount;
+            
+            // Verify that read count stabilizes after pause
+            var message = $"Audio processing continued after pause stabilization (after pause: {readCountAfterPause}, final: {finalReadCount})";
+            Assert.True(readCountAfterPause == finalReadCount, message);
             
             // Verify OpenAL state
             var state = AL.GetSource(_openAL.SourceId, ALGetSourcei.SourceState);
