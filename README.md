@@ -199,7 +199,7 @@ The service exposes the following REST API endpoints:
 - `POST /api/lofi/preset/apply` - Apply a preset configuration
 - `GET /healthz` - Health check endpoint
 
-## WebSocket Support
+## WebSockets Support
 
 The service also provides real-time control and event notifications through WebSocket connections at `ws://localhost:5001/ws`.
 
