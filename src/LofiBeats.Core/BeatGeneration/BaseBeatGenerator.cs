@@ -135,7 +135,7 @@ public abstract class BaseBeatGenerator : IBeatGenerator
         return chord;
     }
 
-    private static (string Root, string Quality) ParseChord(string chord)
+    protected static (string Root, string Quality) ParseChord(string chord)
     {
         // Basic chord parsing
         if (string.IsNullOrEmpty(chord)) return ("", "");
@@ -143,7 +143,7 @@ public abstract class BaseBeatGenerator : IBeatGenerator
         // Get root note (first character, or two characters if sharp/flat)
         string root = chord[0].ToString();
         int qualityStart = 1;
-        
+
         if (chord.Length > 1 && (chord[1] == '#' || chord[1] == 'b'))
         {
             root += chord[1];
@@ -154,10 +154,20 @@ public abstract class BaseBeatGenerator : IBeatGenerator
         return (root, quality);
     }
 
-    private static string[] GetPossibleBassNotes(string root, string quality)
+    protected static string[] GetPossibleBassNotes(string root, string quality)
     {
+        // Handle special case for invalid chords
+        if (root == "X") return ["X"];
+
         // Define possible bass notes based on chord quality
-        if (quality.StartsWith('m'))
+        if (quality.StartsWith("maj"))
+        {
+            // Major chord - use major triad notes
+            var third = GetMajorThird(root);
+            var fifth = GetFifth(root);
+            return [third, fifth];
+        }
+        else if (quality.StartsWith('m'))
         {
             // Minor chord - use minor triad notes
             var third = GetMinorThird(root);
@@ -166,14 +176,14 @@ public abstract class BaseBeatGenerator : IBeatGenerator
         }
         else
         {
-            // Major chord - use major triad notes
+            // Dominant chord - use major triad notes by default
             var third = GetMajorThird(root);
             var fifth = GetFifth(root);
             return [third, fifth];
         }
     }
 
-    private static string GetMinorThird(string root)
+    protected static string GetMinorThird(string root)
     {
         // Simplified - just handle basic cases
         return root switch
@@ -189,7 +199,7 @@ public abstract class BaseBeatGenerator : IBeatGenerator
         };
     }
 
-    private static string GetMajorThird(string root)
+    protected static string GetMajorThird(string root)
     {
         // Simplified - just handle basic cases
         return root switch
@@ -205,7 +215,7 @@ public abstract class BaseBeatGenerator : IBeatGenerator
         };
     }
 
-    private static string GetFifth(string root)
+    protected static string GetFifth(string root)
     {
         // Simplified - just handle basic cases
         return root switch
