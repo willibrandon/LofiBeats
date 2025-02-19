@@ -375,4 +375,19 @@ public class TestAudioPlaybackService : IAudioPlaybackService
             }
         }
     }
+
+    public void CrossfadeToPattern(BeatPattern newPattern, float crossfadeDuration)
+    {
+        // For testing purposes, we'll just set the new pattern directly
+        var provider = new BeatPatternSampleProvider(
+            newPattern,
+            _loggerFactoryMock.Object.CreateLogger<BeatPatternSampleProvider>(),
+            new UserSampleRepository(_loggerFactoryMock.Object.CreateLogger<UserSampleRepository>()),
+            new TelemetryTracker(
+                new NullTelemetryService(),
+                _loggerFactoryMock.Object.CreateLogger<TelemetryTracker>()));
+
+        SetSource(provider);
+        _currentStyle = newPattern.DrumSequence.Length > 0 ? newPattern.DrumSequence[0] : "basic";
+    }
 } 

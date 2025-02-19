@@ -9,6 +9,7 @@ public abstract class BaseBeatGenerator : IBeatGenerator
     protected readonly ILogger _logger;
     protected readonly string[][] _chordProgressions;
     protected readonly string[][] _drumPatterns;
+    protected int _bpm;
 
     public abstract string Style { get; }
     public abstract (int MinBpm, int MaxBpm) BpmRange { get; }
@@ -19,7 +20,25 @@ public abstract class BaseBeatGenerator : IBeatGenerator
         _rnd = new Random((int)(DateTime.Now.Ticks & 0xFFFFFFFF));
         _chordProgressions = DefineChordProgressions();
         _drumPatterns = DefineDrumPatterns();
+        _bpm = GetDefaultBPM();
         _logger.LogInformation("{Style} beat generator initialized", Style);
+    }
+
+    protected virtual int GetDefaultBPM()
+    {
+        var (min, max) = BpmRange;
+        return _rnd.Next(min, max + 1);
+    }
+
+    public void SetBPM(int value)
+    {
+        var (min, max) = BpmRange;
+        if (value < min || value > max)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value), 
+                $"BPM must be between {min} and {max} for {Style} style");
+        }
+        _bpm = value;
     }
 
     public BeatPattern GeneratePattern()

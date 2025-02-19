@@ -179,9 +179,13 @@ public partial class Program
         });
 
         // Play endpoint
-        api.MapPost("/play", (HttpContext context, IAudioPlaybackService playback, IBeatGeneratorFactory factory, UserSampleRepository userSamples) =>
+        api.MapPost("/play", (HttpContext context, IAudioPlaybackService playback, IBeatGeneratorFactory factory, UserSampleRepository userSamples, TelemetryTracker telemetryTracker) =>
         {
             var style = context.Request.Query["style"].FirstOrDefault() ?? "basic";
+            var transition = context.Request.Query["transition"].FirstOrDefault() ?? "immediate";
+            var xfadeDuration = double.TryParse(context.Request.Query["xfadeDuration"].FirstOrDefault(), out var val) ? val : 2.0;
+            
+            // Parse BPM
             int? bpm = null;
             if (context.Request.Query.TryGetValue("bpm", out var bpmValue) && !string.IsNullOrEmpty(bpmValue))
             {
@@ -191,6 +195,7 @@ public partial class Program
                 }
             }
 
+            // Track playback started event
             telemetryTracker.TrackEvent(TelemetryConstants.Events.PlaybackStarted, new Dictionary<string, string>
             {
                 { TelemetryConstants.Properties.BeatStyle, style },
@@ -198,7 +203,11 @@ public partial class Program
             });
 
             var generator = factory.GetGenerator(style);
-            var pattern = generator.GeneratePattern(bpm);
+            if (bpm.HasValue)
+            {
+                generator.SetBPM(bpm.Value);
+            }
+            var pattern = generator.GeneratePattern();
 
             // Add user samples to pattern
             for (int i = 0; i < pattern.DrumSequence.Length; i++)
@@ -210,11 +219,25 @@ public partial class Program
                 }
             }
 
-            var beatSource = new BeatPatternSampleProvider(pattern, app.Logger, userSamples, telemetryTracker);
+            if (transition == "crossfade")
+            {
+                playback.CrossfadeToPattern(pattern, (float)xfadeDuration);
+            }
+            else
+            {
+                // Create and set the provider for immediate transition
+                var provider = new BeatPatternSampleProvider(
+                    pattern,
+                    app.Services.GetRequiredService<ILogger<BeatPatternSampleProvider>>(),
+                    userSamples,
+                    telemetryTracker);
+                playback.SetSource(provider);
+            }
+
             playback.CurrentStyle = style;
-            playback.SetSource(beatSource);
             playback.StartPlayback();
-            return Results.Text(JsonSerializer.Serialize(new { message = "Playback started", pattern = pattern }), "application/json");
+
+            return Results.Ok(new { message = "Playback started", pattern });
         });
 
         // Stop endpoint

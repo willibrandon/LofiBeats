@@ -223,15 +223,18 @@ public class CommandLineInterface : IDisposable
         var playCommand = new Command("play", "Plays a new lofi beat");
         playCommand.Description = "Plays a new lofi beat with the specified style.\n\n" +
                                 "Options:\n" +
-                                "  --style    Beat style (basic, jazzy, chillhop, hiphop)\n" +
-                                "  --bpm      Tempo in beats per minute (BPM)\n" +
-                                "  --after    Specify a delay (e.g. '10m' or '30s') before starting\n\n" +
+                                "  --style           Beat style (basic, jazzy, chillhop, hiphop)\n" +
+                                "  --bpm             Tempo in beats per minute (BPM)\n" +
+                                "  --after           Specify a delay (e.g. '10m' or '30s') before starting\n" +
+                                "  --transition      Transition type: immediate or crossfade\n" +
+                                "  --xfade-duration  Crossfade duration in seconds\n\n" +
                                 "Examples:\n" +
                                 "  play                     Play with default style\n" +
                                 "  play --style=chillhop    Play chillhop style\n" +
                                 "  play --style=jazzy --bpm=85  Play jazzy style at 85 BPM\n" +
                                 "  play --after 5m          Start playing in 5 minutes\n" +
-                                "  play --style=hiphop --after 30s  Play hiphop style in 30 seconds";
+                                "  play --style=hiphop --after 30s  Play hiphop style in 30 seconds\n" +
+                                "  play --transition=crossfade --xfade-duration=3  Crossfade to new pattern in 3 seconds";
 
         var styleOption = new Option<string>("--style", () => "basic", "Beat style (basic, jazzy, chillhop, hiphop)");
         var bpmOption = new Option<int?>(
@@ -250,11 +253,39 @@ public class CommandLineInterface : IDisposable
             "--after",
             description: "Specify a delay (e.g. '10m' or '30s') before starting");
 
+        var transitionOption = new Option<string>(
+            "--transition",
+            () => "immediate",
+            "Transition type: immediate or crossfade");
+        transitionOption.AddValidator(result =>
+        {
+            var value = result.GetValueOrDefault<string>();
+            if (value != "immediate" && value != "crossfade")
+            {
+                result.ErrorMessage = "Transition must be either 'immediate' or 'crossfade'";
+            }
+        });
+
+        var crossfadeDurationOption = new Option<double>(
+            "--xfade-duration",
+            () => 2.0,
+            "Crossfade duration in seconds");
+        crossfadeDurationOption.AddValidator(result =>
+        {
+            var value = result.GetValueOrDefault<double>();
+            if (value < 0.1 || value > 10.0)
+            {
+                result.ErrorMessage = "Crossfade duration must be between 0.1 and 10.0 seconds";
+            }
+        });
+
         playCommand.AddOption(styleOption);
         playCommand.AddOption(bpmOption);
         playCommand.AddOption(afterOption);
+        playCommand.AddOption(transitionOption);
+        playCommand.AddOption(crossfadeDurationOption);
 
-        playCommand.SetHandler(async (string style, int? bpm, string? afterValue) =>
+        playCommand.SetHandler(async (string style, int? bpm, string? afterValue, string transition, double xfadeDuration) =>
         {
             _logExecutingPlayCommand(_logger, null);
             try
@@ -275,15 +306,15 @@ public class CommandLineInterface : IDisposable
                 }
                 else
                 {
-                    // immediate play
-                    await StartPlayback(style, bpm);
+                    // immediate play with transition handling
+                    await StartPlayback(style, bpm, transition, xfadeDuration);
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error: {ex.Message}");
             }
-        }, styleOption, bpmOption, afterOption);
+        }, styleOption, bpmOption, afterOption, transitionOption, crossfadeDurationOption);
         _rootCommand.AddCommand(playCommand);
 
         // Add stop command
@@ -946,7 +977,7 @@ public class CommandLineInterface : IDisposable
             {
                 try
                 {
-                    await StartPlayback(style, bpm);
+                    await StartPlayback(style, bpm, "immediate", 0.0);
                     tcs.SetResult(); // Signal completion
                 }
                 catch (Exception ex)
@@ -980,7 +1011,7 @@ public class CommandLineInterface : IDisposable
         await tcs.Task;
     }
 
-    private async Task StartPlayback(string style, int? bpm)
+    private async Task StartPlayback(string style, int? bpm, string transition, double xfadeDuration)
     {
         try
         {
@@ -998,10 +1029,25 @@ public class CommandLineInterface : IDisposable
                 }
             }
 
-            Console.Write($"Starting playback with {style} style{(bpm.HasValue ? $" at {bpm} BPM" : "")}... ");
+            var transitionMsg = transition == "crossfade" ? $" with {xfadeDuration:F1}s crossfade" : "";
+            Console.Write($"Starting playback with {style} style{(bpm.HasValue ? $" at {bpm} BPM" : "")}{transitionMsg}... ");
             ShowSpinner("Starting playback", 1000);
 
-            var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"play?style={Uri.EscapeDataString(style)}&bpm={bpm}");
+            var queryParams = new List<string>
+            {
+                $"style={Uri.EscapeDataString(style)}"
+            };
+            if (bpm.HasValue) queryParams.Add($"bpm={bpm}");
+            if (transition == "crossfade")
+            {
+                queryParams.Add("transition=crossfade");
+                queryParams.Add($"xfadeDuration={xfadeDuration}");
+            }
+
+            var response = await _serviceHelper.SendCommandAsync(
+                HttpMethod.Post, 
+                $"play?{string.Join("&", queryParams)}");
+
             var result = await response.Content.ReadFromJsonAsync<PlayResponse>();
             if (result?.Pattern != null)
             {
