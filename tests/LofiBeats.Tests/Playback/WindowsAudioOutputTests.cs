@@ -13,10 +13,14 @@ public class WindowsAudioOutputTests : IDisposable
     private readonly WindowsAudioOutput _audioOutput;
     private readonly Mock<IWaveProvider> _waveProviderMock;
     private bool _disposed;
+    private readonly bool _isCI;
 
     public WindowsAudioOutputTests()
     {
         Skip.IfNot(RuntimeInformation.IsOSPlatform(OSPlatform.Windows), "These tests only run on Windows");
+        
+        // Check if we're running in CI (GitHub Actions)
+        _isCI = Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
         
         _loggerMock = new Mock<ILogger<WindowsAudioOutput>>();
         _audioOutput = new WindowsAudioOutput(_loggerMock.Object);
@@ -49,6 +53,8 @@ public class WindowsAudioOutputTests : IDisposable
     [Trait("Category", "AI_Generated")]
     public void Play_AfterInit_ChangesStateToPlaying()
     {
+        Skip.If(_isCI, "Skipping audio playback test in CI environment");
+
         // Arrange
         _audioOutput.Init(_waveProviderMock.Object);
 
@@ -63,6 +69,8 @@ public class WindowsAudioOutputTests : IDisposable
     [Trait("Category", "AI_Generated")]
     public void Pause_WhilePlaying_ChangesStateToPaused()
     {
+        Skip.If(_isCI, "Skipping audio playback test in CI environment");
+
         // Arrange
         _audioOutput.Init(_waveProviderMock.Object);
         _audioOutput.Play();
@@ -78,6 +86,8 @@ public class WindowsAudioOutputTests : IDisposable
     [Trait("Category", "AI_Generated")]
     public void Stop_WhilePlaying_ChangesStateToStopped()
     {
+        Skip.If(_isCI, "Skipping audio playback test in CI environment");
+
         // Arrange
         _audioOutput.Init(_waveProviderMock.Object);
         _audioOutput.Play();
