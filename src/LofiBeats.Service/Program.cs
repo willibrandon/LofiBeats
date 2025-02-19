@@ -30,6 +30,22 @@ public partial class Program
         };
     }
 
+    private static readonly Action<ILogger, Exception> _logWebSocketError =
+        LoggerMessage.Define(LogLevel.Error, new EventId(100, "WebSocketError"),
+            "Error handling WebSocket connection");
+
+    private static readonly Action<ILogger, Exception?> _logWebSocketRequest =
+        LoggerMessage.Define(LogLevel.Information, new EventId(101, "WebSocketRequest"),
+            "Received WebSocket request");
+
+    private static readonly Action<ILogger, Exception?> _logWebSocketUpgraded =
+        LoggerMessage.Define(LogLevel.Information, new EventId(102, "WebSocketUpgraded"),
+            "WebSocket connection upgraded successfully");
+
+    private static readonly Action<ILogger, string, Exception?> _logWebSocketHeaders =
+        LoggerMessage.Define<string>(LogLevel.Debug, new EventId(103, "WebSocketHeaders"),
+            "WebSocket request headers: {Headers}");
+
     public static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
@@ -67,26 +83,35 @@ public partial class Program
             });
         }
 
-        // Configure WebSocket support
-        builder.Services.Configure<WebSocketConfiguration>(
-            builder.Configuration.GetSection("WebSocket"));
-
-        builder.Services.Configure<WebSocketOptions>(options =>
-        {
-            var config = builder.Configuration
-                .GetSection("WebSocket")
-                .Get<WebSocketConfiguration>() ?? new WebSocketConfiguration();
-
-            options.KeepAliveInterval = TimeSpan.FromSeconds(config.KeepAliveIntervalSeconds);
-        });
-
         // Register our core services as singletons
         builder.Services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
         builder.Services.AddSingleton<IBeatGeneratorFactory, BeatGeneratorFactory>();
         builder.Services.AddSingleton<IEffectFactory, EffectFactory>();
         builder.Services.AddSingleton<PlaybackScheduler>();
         builder.Services.AddSingleton<UserSampleRepository>();
-        builder.Services.AddSingleton<IWebSocketHandler, WebSocketHandler>();
+        builder.Services.AddSingleton<TelemetryTracker>();
+
+        // Add WebSocket configuration
+        builder.Services.Configure<WebSocketConfiguration>(builder.Configuration.GetSection("WebSocket"));
+
+        // Register WebSocket services
+        builder.Services.AddSingleton<WebSocketHandler>();
+        builder.Services.AddSingleton<IWebSocketHandler>(sp => sp.GetRequiredService<WebSocketHandler>());
+        builder.Services.AddSingleton<IWebSocketBroadcaster>(sp => sp.GetRequiredService<WebSocketHandler>());
+        builder.Services.AddSingleton<WebSocketCommandHandler>(sp =>
+        {
+            var handler = sp.GetRequiredService<WebSocketHandler>();
+            return new WebSocketCommandHandler(
+                sp.GetRequiredService<ILogger<WebSocketCommandHandler>>(),
+                sp.GetRequiredService<IAudioPlaybackService>(),
+                sp.GetRequiredService<IBeatGeneratorFactory>(),
+                sp.GetRequiredService<IEffectFactory>(),
+                sp.GetRequiredService<PlaybackScheduler>(),
+                sp.GetRequiredService<UserSampleRepository>(),
+                sp.GetRequiredService<TelemetryTracker>(),
+                handler.BroadcastEventAsync
+            );
+        });
 
         var app = builder.Build();
 
@@ -102,21 +127,47 @@ public partial class Program
         // Add health check endpoint
         app.MapHealthChecks("/healthz");
 
-        // Enable WebSocket middleware
-        app.UseWebSockets();
+        // Configure WebSocket options
+        app.UseWebSockets(new WebSocketOptions
+        {
+            KeepAliveInterval = TimeSpan.FromSeconds(30)
+        });
 
         // Add WebSocket endpoint
-        app.Map("/ws/lofi", async context =>
+        app.Map("/ws/lofi", builder =>
         {
-            if (!context.WebSockets.IsWebSocketRequest)
+            builder.Use(async (HttpContext context, RequestDelegate next) =>
             {
-                context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                return;
-            }
+                if (!context.WebSockets.IsWebSocketRequest)
+                {
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    await context.Response.WriteAsync("Not a WebSocket request");
+                    return;
+                }
 
-            var handler = context.RequestServices.GetRequiredService<IWebSocketHandler>();
-            using var socket = await context.WebSockets.AcceptWebSocketAsync();
-            await handler.HandleClientAsync(socket, context.RequestAborted);
+                var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+                _logWebSocketRequest(logger, null);
+
+                // Log headers for debugging
+                var headersList = context.Request.Headers.Select(h => $"{h.Key}={string.Join(";", h.Value.ToArray())}").ToArray();
+                var headers = string.Join(", ", headersList);
+                _logWebSocketHeaders(logger, headers, null);
+
+                try
+                {
+                    using var scope = app.Services.CreateScope();
+                    var handler = scope.ServiceProvider.GetRequiredService<WebSocketHandler>();
+                    var socket = await context.WebSockets.AcceptWebSocketAsync();
+                    _logWebSocketUpgraded(logger, null);
+                    await handler.HandleClientAsync(socket, context.RequestAborted);
+                }
+                catch (Exception ex)
+                {
+                    _logWebSocketError(logger, ex);
+                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                    await context.Response.WriteAsync("WebSocket error occurred");
+                }
+            });
         });
 
         // Define our API endpoints

@@ -1,24 +1,30 @@
-using LofiBeats.Core.WebSocket;
-using Microsoft.Extensions.Options;
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using LofiBeats.Core.BeatGeneration;
+using LofiBeats.Core.Effects;
+using LofiBeats.Core.Models;
+using LofiBeats.Core.Playback;
+using LofiBeats.Core.Scheduling;
+using LofiBeats.Core.Telemetry;
+using LofiBeats.Core.WebSocket;
 
 namespace LofiBeats.Service.WebSocket;
 
 /// <summary>
 /// Handles WebSocket connections and message routing.
 /// </summary>
-public sealed class WebSocketHandler : IWebSocketHandler, IDisposable
+public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster, IDisposable
 {
-    private readonly ConcurrentDictionary<Guid, System.Net.WebSockets.WebSocket> _clients = new();
     private readonly ILogger<WebSocketHandler> _logger;
     private readonly WebSocketConfiguration _config;
-    private readonly IServiceProvider _services;
-    private readonly SemaphoreSlim _broadcastLock = new(1, 1);
-    private readonly ArrayPool<byte> _arrayPool = ArrayPool<byte>.Shared;
+    private readonly WebSocketCommandHandler _commandHandler;
+    private readonly ConcurrentDictionary<Guid, WebSocketConnection> _connections;
+    private readonly SemaphoreSlim _broadcastLock;
     private bool _disposed;
 
     private static readonly Action<ILogger, int, Exception?> _logClientConnected =
@@ -30,43 +36,60 @@ public sealed class WebSocketHandler : IWebSocketHandler, IDisposable
             "WebSocket client {ClientId} disconnected");
 
     private static readonly Action<ILogger, string, Exception?> _logMessageReceived =
-        LoggerMessage.Define<string>(LogLevel.Debug, new EventId(3, "MessageReceived"), 
+        LoggerMessage.Define<string>(LogLevel.Debug, new EventId(4, "MessageReceived"), 
             "Received WebSocket message: {Message}");
 
     private static readonly Action<ILogger, string, Exception?> _logBroadcastEvent =
-        LoggerMessage.Define<string>(LogLevel.Debug, new EventId(4, "BroadcastEvent"), 
+        LoggerMessage.Define<string>(LogLevel.Debug, new EventId(5, "BroadcastEvent"), 
             "Broadcasting WebSocket event: {Action}");
 
     private static readonly Action<ILogger, Guid, Exception> _logClientError =
-        LoggerMessage.Define<Guid>(LogLevel.Error, new EventId(5, "ClientError"), 
+        LoggerMessage.Define<Guid>(LogLevel.Error, new EventId(1, "ClientError"),
             "Error handling WebSocket client {ClientId}");
 
     private static readonly Action<ILogger, Guid, Exception> _logClientCloseError =
-        LoggerMessage.Define<Guid>(LogLevel.Warning, new EventId(6, "ClientCloseError"), 
-            "Error closing WebSocket for client {ClientId}");
+        LoggerMessage.Define<Guid>(LogLevel.Warning, new EventId(2, "ClientCloseError"),
+            "Error closing WebSocket client {ClientId}");
 
-    private static readonly Action<ILogger, Guid, Exception> _logInvalidJsonMessage =
-        LoggerMessage.Define<Guid>(LogLevel.Warning, new EventId(7, "InvalidJsonMessage"), 
-            "Invalid JSON message from client {ClientId}");
+    private static readonly Action<ILogger, Guid, string, Exception?> _logInvalidJsonMessage =
+        LoggerMessage.Define<Guid, string>(LogLevel.Warning, new EventId(3, "InvalidJsonMessage"),
+            "Invalid JSON message from client {ClientId}: {Error}");
+
+    private static readonly Action<ILogger, string, int, Exception?> _logMessageBytes =
+        LoggerMessage.Define<string, int>(LogLevel.Debug, new EventId(6, "MessageBytes"),
+            "Message bytes: {ByteString}, Count: {Count}");
 
     public WebSocketHandler(
         ILogger<WebSocketHandler> logger,
         IOptions<WebSocketConfiguration> config,
-        IServiceProvider services)
+        IServiceProvider serviceProvider)
     {
         _logger = logger;
         _config = config.Value;
-        _services = services;
+        _connections = new ConcurrentDictionary<Guid, WebSocketConnection>();
+        _broadcastLock = new SemaphoreSlim(1, 1);
+
+        // Create command handler with broadcast delegate
+        _commandHandler = new WebSocketCommandHandler(
+            serviceProvider.GetRequiredService<ILogger<WebSocketCommandHandler>>(),
+            serviceProvider.GetRequiredService<IAudioPlaybackService>(),
+            serviceProvider.GetRequiredService<IBeatGeneratorFactory>(),
+            serviceProvider.GetRequiredService<IEffectFactory>(),
+            serviceProvider.GetRequiredService<PlaybackScheduler>(),
+            serviceProvider.GetRequiredService<UserSampleRepository>(),
+            serviceProvider.GetRequiredService<TelemetryTracker>(),
+            BroadcastEventAsync
+        );
     }
 
     /// <inheritdoc />
-    public int ConnectedClientCount => _clients.Count;
+    public int ConnectedClientCount => _connections.Count;
 
     /// <inheritdoc />
     public async Task HandleClientAsync(System.Net.WebSockets.WebSocket socket, CancellationToken cancellationToken)
     {
         // Check connection limit
-        if (_clients.Count >= _config.MaxConcurrentConnections)
+        if (_connections.Count >= _config.MaxConcurrentConnections)
         {
             await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation, 
                 "Maximum connections reached", cancellationToken);
@@ -74,12 +97,16 @@ public sealed class WebSocketHandler : IWebSocketHandler, IDisposable
         }
 
         var clientId = Guid.NewGuid();
-        _clients[clientId] = socket;
-        _logClientConnected(_logger, _clients.Count, null);
+        var connection = new WebSocketConnection(socket);
+        
+        if (_connections.TryAdd(clientId, connection))
+        {
+            _logClientConnected(_logger, _connections.Count, null);
+        }
 
         try
         {
-            await ReceiveMessagesAsync(clientId, socket, cancellationToken);
+            await ReceiveMessagesAsync(clientId, connection, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -91,17 +118,14 @@ public sealed class WebSocketHandler : IWebSocketHandler, IDisposable
         }
         finally
         {
-            _clients.TryRemove(clientId, out _);
-            _logClientDisconnected(_logger, clientId, null);
+            if (_connections.TryRemove(clientId, out _))
+            {
+                _logClientDisconnected(_logger, clientId, null);
+            }
 
             try
             {
-                // Only try to close if not already closing/closed
-                if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
-                {
-                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, 
-                        "Closing", cancellationToken);
-                }
+                await connection.CloseAsync(cancellationToken);
             }
             catch (Exception ex)
             {
@@ -117,112 +141,63 @@ public sealed class WebSocketHandler : IWebSocketHandler, IDisposable
 
         _logBroadcastEvent(_logger, action, null);
 
-        var message = new WebSocketMessage(Core.WebSocket.WebSocketMessageType.Event, action, payload);
-        var json = JsonSerializer.Serialize(message);
+        var message = JsonSerializer.Serialize(new { action, payload });
+        var messageBytes = Encoding.UTF8.GetBytes(message);
 
-        // Get buffer from pool
-        var maxSize = Encoding.UTF8.GetMaxByteCount(json.Length);
-        var buffer = _arrayPool.Rent(maxSize);
-        var bytesWritten = Encoding.UTF8.GetBytes(json, buffer);
-
+        await _broadcastLock.WaitAsync(cancellationToken);
         try
         {
-            // Ensure only one broadcast at a time to prevent memory spikes
-            await _broadcastLock.WaitAsync(cancellationToken);
-            try
-            {
-                var tasks = _clients.Values
-                    .Where(ws => ws.State == WebSocketState.Open)
-                    .Select(ws => ws.SendAsync(
-                        new ArraySegment<byte>(buffer, 0, bytesWritten),
-                        System.Net.WebSockets.WebSocketMessageType.Text,
-                        true,
-                        cancellationToken));
-
-                await Task.WhenAll(tasks);
-            }
-            finally
-            {
-                _broadcastLock.Release();
-            }
+            var tasks = _connections.Values.Select(connection =>
+                connection.SendAsync(messageBytes, System.Net.WebSockets.WebSocketMessageType.Text, true, cancellationToken));
+            await Task.WhenAll(tasks);
         }
         finally
         {
-            // Return buffer to pool
-            _arrayPool.Return(buffer);
+            _broadcastLock.Release();
         }
     }
 
-    private async Task ReceiveMessagesAsync(Guid clientId, System.Net.WebSockets.WebSocket socket, 
+    private async Task ReceiveMessagesAsync(Guid clientId, WebSocketConnection connection, 
         CancellationToken cancellationToken)
     {
-        var buffer = _arrayPool.Rent(_config.MaxMessageSize);
-        try
+        var buffer = new byte[32768];
+
+        while (!cancellationToken.IsCancellationRequested)
         {
-            while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+            var result = await connection.ReceiveAsync(buffer, cancellationToken);
+            if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
             {
-                var result = await socket.ReceiveAsync(
-                    new ArraySegment<byte>(buffer), cancellationToken);
-
-                if (result.CloseStatus.HasValue)
-                {
-                    break;
-                }
-
-                if (result.Count > _config.MaxMessageSize)
-                {
-                    await socket.CloseAsync(WebSocketCloseStatus.MessageTooBig,
-                        "Message exceeds size limit", cancellationToken);
-                    break;
-                }
-
-                var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                _logMessageReceived(_logger, json, null);
-
-                await ProcessMessageAsync(clientId, json, cancellationToken);
+                return;
             }
-        }
-        finally
-        {
-            _arrayPool.Return(buffer);
-        }
-    }
 
-    private async Task ProcessMessageAsync(Guid clientId, string json, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var message = JsonSerializer.Deserialize<WebSocketMessage>(json);
-            if (message == null) return;
-
-            // TODO: Implement command routing based on message.Type and message.Action
-            // This will be implemented in the next chunk
-        }
-        catch (JsonException ex)
-        {
-            _logInvalidJsonMessage(_logger, clientId, ex);
-            if (_clients.TryGetValue(clientId, out var socket))
+            if (result.MessageType != System.Net.WebSockets.WebSocketMessageType.Text)
             {
-                var errorMessage = new WebSocketMessage(
-                    Core.WebSocket.WebSocketMessageType.Error,
-                    WebSocketActions.Errors.InvalidPayload,
-                    new ErrorPayload("Invalid JSON message format"));
+                continue;
+            }
 
-                var errorJson = JsonSerializer.Serialize(errorMessage);
-                var buffer = _arrayPool.Rent(Encoding.UTF8.GetMaxByteCount(errorJson.Length));
-                try
+            var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+            _logMessageReceived(_logger, message, null);
+            
+            // Log the raw bytes for debugging
+            var byteString = BitConverter.ToString(buffer, 0, result.Count);
+            _logMessageBytes(_logger, byteString, result.Count, null);
+
+            try
+            {
+                var command = JsonSerializer.Deserialize<WebSocketCommand>(message);
+                if (command != null && command.Type == Core.WebSocket.WebSocketMessageType.Command)
                 {
-                    var bytesWritten = Encoding.UTF8.GetBytes(errorJson, buffer);
-                    await socket.SendAsync(
-                        new ArraySegment<byte>(buffer, 0, bytesWritten),
-                        System.Net.WebSockets.WebSocketMessageType.Text,
-                        true,
-                        cancellationToken);
+                    await _commandHandler.HandleCommandAsync(clientId, command.Action, 
+                        command.Payload, cancellationToken);
                 }
-                finally
+                else
                 {
-                    _arrayPool.Return(buffer);
+                    _logInvalidJsonMessage(_logger, clientId, "Invalid message type or null command", null);
                 }
+            }
+            catch (JsonException ex)
+            {
+                _logInvalidJsonMessage(_logger, clientId, ex.Message, null);
             }
         }
     }
@@ -235,13 +210,12 @@ public sealed class WebSocketHandler : IWebSocketHandler, IDisposable
         _broadcastLock.Dispose();
         
         // Close all WebSocket connections
-        foreach (var socket in _clients.Values)
+        foreach (var (id, connection) in _connections)
         {
             try
             {
                 // Fire and forget close
-                _ = socket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, 
-                    "Server shutting down", CancellationToken.None);
+                _ = connection.CloseAsync(CancellationToken.None);
             }
             catch
             {
@@ -249,6 +223,6 @@ public sealed class WebSocketHandler : IWebSocketHandler, IDisposable
             }
         }
         
-        _clients.Clear();
+        _connections.Clear();
     }
 } 
