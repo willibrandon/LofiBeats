@@ -56,6 +56,12 @@ lofi effect --name vinyl
 # Control volume
 lofi volume 0.8
 
+# Stop playback
+lofi stop
+
+# Stop with tapestop effect
+lofi stop --tapestop
+
 # Play with custom BPM
 lofi play --style chillhop --bpm 82
 
@@ -65,15 +71,12 @@ lofi play --style chillhop --transition crossfade --xfade-duration 3  # Custom d
 lofi play --style hiphop --transition crossfade --after 30s # Scheduled crossfade
 
 # Schedule playback to start later
-lofi play --style hiphop --after 5m
-lofi play --style chillhop --bpm 85 --after 30s
-
-# Generate a pattern with specific BPM
-lofi generate --style hiphop --bpm 95
-
-# Schedule commands
 lofi play --style jazzy --after 5m     # Start playing in 5 minutes
 lofi stop --tapestop --after 30s       # Stop with effect in 30 seconds
+
+# Schedule playback to stop later
+lofi stop --after 10m
+lofi stop --tapestop --after 30s
 
 # Manage scheduled actions
 lofi schedule list                      # View all scheduled actions
@@ -87,16 +90,6 @@ lofi preset load mypreset.json
 
 # Save presets in a custom directory
 lofi preset save presets/chillvibes.json
-
-# Stop playback
-lofi stop
-
-# Stop with tapestop effect
-lofi stop --tapestop
-
-# Schedule playback to stop later
-lofi stop --after 10m
-lofi stop --tapestop --after 30s
 
 # Register your own samples
 lofi sample register kick /path/to/kick.wav
