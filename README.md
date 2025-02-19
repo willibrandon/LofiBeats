@@ -219,7 +219,7 @@ dotnet test --filter "Category=AI_Generated"
 
 ### Test Container
 
-For running tests in CI or containerized environments, we provide a Docker container with a pre-configured audio testing environment. See [CONTAINER.md](CONTAINER.md) for details.
+For running tests in CI or containerized environments, we provide a Docker container with a pre-configured audio testing environment. See [CONTAINER.md](docs/CONTAINER.md) for details.
 
 ## Contributing
 
