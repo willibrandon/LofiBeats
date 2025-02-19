@@ -96,6 +96,7 @@ public static class WebSocketActions
         public const string BeatGenerated = "beat-generated";
         public const string EffectAdded = "effect-added";
         public const string EffectRemoved = "effect-removed";
+        public const string MetricsUpdated = "metrics-updated";
     }
 
     public static class Errors

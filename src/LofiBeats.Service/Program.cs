@@ -95,9 +95,10 @@ public partial class Program
         builder.Services.Configure<WebSocketConfiguration>(builder.Configuration.GetSection("WebSocket"));
 
         // Register WebSocket services
+        builder.Services.AddSingleton<IWebSocketBroadcaster, WebSocketHandler>();
+        builder.Services.AddSingleton<IWebSocketHandler, WebSocketHandler>();
         builder.Services.AddSingleton<WebSocketHandler>();
-        builder.Services.AddSingleton<IWebSocketHandler>(sp => sp.GetRequiredService<WebSocketHandler>());
-        builder.Services.AddSingleton<IWebSocketBroadcaster>(sp => sp.GetRequiredService<WebSocketHandler>());
+        builder.Services.AddHostedService<RealTimeMetricsService>();
         builder.Services.AddSingleton<WebSocketCommandHandler>(sp =>
         {
             var handler = sp.GetRequiredService<WebSocketHandler>();
