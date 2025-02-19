@@ -497,7 +497,7 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
         };
     }
 
-    private static int GetBeatsPerBarForStyle(string style)
+    public static int GetBeatsPerBarForStyle(string style)
     {
         // How many beats we consider per bar for each style
         return style.ToLower() switch

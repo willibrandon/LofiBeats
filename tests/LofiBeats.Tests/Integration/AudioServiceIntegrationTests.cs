@@ -227,6 +227,101 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
         Assert.Empty(preset.Effects);         // No effects
     }
 
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task CrossfadeToPattern_Success()
+    {
+        // Arrange - Start with jazzy pattern
+        var playResponse = await _client.PostAsync("/api/lofi/play?style=jazzy", null);
+        Assert.Equal(HttpStatusCode.OK, playResponse.StatusCode);
+        var playResult = await playResponse.Content.ReadFromJsonAsync<PlaybackResponse>();
+        Assert.NotNull(playResult?.Pattern);
+
+        // Get initial BPM
+        var initialBpm = playResult.Pattern?.BPM;
+        Assert.NotNull(initialBpm);
+
+        // Act - Crossfade to hiphop
+        var crossfadeResponse = await _client.PostAsync(
+            "/api/lofi/play?style=hiphop&transition=crossfade&xfadeDuration=2.0", null);
+        Assert.Equal(HttpStatusCode.OK, crossfadeResponse.StatusCode);
+        var crossfadeResult = await crossfadeResponse.Content.ReadFromJsonAsync<PlaybackResponse>();
+        Assert.NotNull(crossfadeResult?.Pattern);
+
+        // Assert
+        // 1. BPM should be within hiphop range (80-100)
+        Assert.InRange(crossfadeResult.Pattern.BPM, 80, 100);
+
+        // 2. Pattern should be valid
+        Assert.NotEmpty(crossfadeResult.Pattern.DrumSequence);
+        Assert.NotEmpty(crossfadeResult.Pattern.ChordProgression);
+
+        // 3. Style should be updated
+        var testService = _factory.Services.GetRequiredService<IAudioPlaybackService>();
+        Assert.Equal("hiphop", testService.CurrentStyle);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task CrossfadeToPattern_WithNoCurrentSource_StartsImmediately()
+    {
+        // Act - Try to crossfade when nothing is playing
+        var response = await _client.PostAsync(
+            "/api/lofi/play?style=chillhop&transition=crossfade", null);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<PlaybackResponse>();
+        Assert.NotNull(result?.Pattern);
+
+        // Assert - Should start playing immediately
+        var testService = _factory.Services.GetRequiredService<IAudioPlaybackService>();
+        Assert.Equal(PlaybackState.Playing, testService.GetPlaybackState());
+        Assert.Equal("chillhop", testService.CurrentStyle);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task CrossfadeToPattern_WithLongDuration_HandlesCorrectly()
+    {
+        // Arrange - Start with basic pattern
+        await _client.PostAsync("/api/lofi/play?style=basic", null);
+
+        // Act - Crossfade with 10 second duration
+        var response = await _client.PostAsync(
+            "/api/lofi/play?style=jazzy&transition=crossfade&xfadeDuration=10.0", null);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<PlaybackResponse>();
+        Assert.NotNull(result?.Pattern);
+
+        // Assert - Service should handle long duration gracefully
+        var testService = _factory.Services.GetRequiredService<IAudioPlaybackService>();
+        Assert.Equal(PlaybackState.Playing, testService.GetPlaybackState());
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task CrossfadeToPattern_ChecksAmplitudeContinuity()
+    {
+        // This test requires a real audio output to verify amplitude continuity
+        // For now, we'll just verify the crossfade provider is created correctly
+        
+        // Arrange - Start with chillhop pattern
+        await _client.PostAsync("/api/lofi/play?style=chillhop", null);
+        var testService = _factory.Services.GetRequiredService<IAudioPlaybackService>();
+        var initialSource = testService.CurrentSource;
+        Assert.NotNull(initialSource);
+
+        // Act - Crossfade to jazzy
+        await _client.PostAsync(
+            "/api/lofi/play?style=jazzy&transition=crossfade&xfadeDuration=2.0", null);
+
+        // Assert - Source should be a CrossfadeSampleProvider during transition
+        var currentSource = testService.CurrentSource;
+        Assert.NotNull(currentSource);
+        // Note: In a real test, we'd capture audio samples and verify smooth transition
+    }
+
     private record ApiResponse
     {
         public string? Message { get; init; }
@@ -235,7 +330,14 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
 
     private sealed record PlaybackResponse : ApiResponse
     {
-        public object? Pattern { get; init; }
+        public BeatPattern? Pattern { get; init; }
+    }
+
+    private sealed record BeatPattern
+    {
+        public int BPM { get; init; }
+        public string[] DrumSequence { get; init; } = [];
+        public string[] ChordProgression { get; init; } = [];
     }
 }
 

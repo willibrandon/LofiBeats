@@ -480,9 +480,15 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
                         });
 
                         // Telemetry event for crossfade start
-                        _telemetry?.TrackEvent("CrossfadeStarted", new Dictionary<string, string>
+                        _telemetry?.TrackEvent(TelemetryConstants.Events.PlaybackTransition, new Dictionary<string, string>
                         {
-                            { "CrossfadeDuration", ((int)crossfadeDuration).ToString() }
+                            { TelemetryConstants.Properties.OldStyle, _currentStyle },
+                            { TelemetryConstants.Properties.NewStyle, newPattern.DrumSequence[0] },
+                            { TelemetryConstants.Properties.OldBPM, oldBeatProvider.Pattern.BPM.ToString() },
+                            { TelemetryConstants.Properties.NewBPM, newPattern.BPM.ToString() },
+                            { TelemetryConstants.Properties.CrossfadeDuration, crossfadeDuration.ToString("F1") },
+                            { TelemetryConstants.Properties.BeatsPerBar, BeatPatternSampleProvider.GetBeatsPerBarForStyle(newPattern.DrumSequence[0]).ToString() },
+                            { TelemetryConstants.Properties.TransitionType, "crossfade" }
                         });
 
                         // Ensure playback is running

@@ -14,6 +14,7 @@ public static class TelemetryConstants
         public const string PlaybackPaused = "PlaybackPaused";
         public const string PlaybackResumed = "PlaybackResumed";
         public const string PlaybackScheduled = "PlaybackScheduled";
+        public const string PlaybackTransition = "PlaybackTransition";
         
         // Effect Events
         public const string EffectAdded = "EffectAdded";
@@ -134,5 +135,14 @@ public static class TelemetryConstants
         public const string SampleFileSize = "SampleFileSize";
         public const string SampleVelocity = "SampleVelocity";
         public const string SamplePosition = "SamplePosition";
+
+        // New crossfade properties
+        public const string CrossfadeDuration = "CrossfadeDuration";
+        public const string OldBPM = "OldBPM";
+        public const string NewBPM = "NewBPM";
+        public const string OldStyle = "OldStyle";
+        public const string NewStyle = "NewStyle";
+        public const string BeatsPerBar = "BeatsPerBar";
+        public const string TransitionType = "TransitionType";
     }
 } 

@@ -152,15 +152,15 @@ public class CrossfadeSampleProviderTests : IDisposable
 
     [Fact]
     [Trait("Category", "AI_Generated")]
-    public void Dispose_DisposesUnderlyingProviders()
+    public void Dispose_DisposesOldProviderOnly()
     {
         // Arrange
         var disposableOld = new Mock<ISampleProvider>();
-        disposableOld.As<IDisposable>().Setup(d => d.Dispose());
+        disposableOld.As<IDisposable>();  // This ensures the mock implements IDisposable
         disposableOld.Setup(p => p.WaveFormat).Returns(_waveFormat);
 
         var disposableNew = new Mock<ISampleProvider>();
-        disposableNew.As<IDisposable>().Setup(d => d.Dispose());
+        disposableNew.As<IDisposable>();  // This ensures the mock implements IDisposable
         disposableNew.Setup(p => p.WaveFormat).Returns(_waveFormat);
 
         var provider = new CrossfadeSampleProvider(
@@ -172,8 +172,11 @@ public class CrossfadeSampleProviderTests : IDisposable
         provider.Dispose();
 
         // Assert
+        // Old provider should be disposed
         disposableOld.As<IDisposable>().Verify(d => d.Dispose(), Times.Once);
-        disposableNew.As<IDisposable>().Verify(d => d.Dispose(), Times.Once);
+        
+        // New provider should NOT be disposed since we want to keep it playing
+        disposableNew.As<IDisposable>().Verify(d => d.Dispose(), Times.Never);
     }
 
     public void Dispose()
