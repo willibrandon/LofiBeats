@@ -367,9 +367,14 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
             if (oldSource == null)
             {
                 // If nothing is playing, just set the new pattern directly.
-                this.SetSource(CreateProviderForPattern(newPattern));
+                var provider = CreateProviderForPattern(newPattern);
+                SetSource(provider);
+                StartPlayback();
                 return;
             }
+
+            _logger.LogInformation("Starting crossfade from {OldStyle} to {NewStyle} over {Duration}s", 
+                _currentStyle, newPattern.DrumSequence[0], crossfadeDuration);
 
             // Create crossfade objects
             var xfadeManager = new CrossfadeManager(crossfadeDuration);
@@ -384,42 +389,56 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
             );
 
             // Remove old source from the mixer
-            _mixer.RemoveMixerInput(oldSource);
+            _mixer.RemoveAllMixerInputs();
 
             // Add crossfade provider
             _mixer.AddMixerInput(crossfadeProvider);
 
+            // Keep track of the crossfade provider to prevent premature disposal
+            var currentCrossfadeProvider = crossfadeProvider;
+
             // Start a background task to watch for crossfade completion
             Task.Run(async () =>
             {
-                while (!xfadeManager.IsCrossfadeComplete())
+                try 
                 {
-                    await Task.Delay(250);
+                    while (!xfadeManager.IsCrossfadeComplete())
+                    {
+                        await Task.Delay(100);
+                    }
+
+                    _logger.LogInformation("Crossfade complete, switching to new pattern");
+
+                    // Crossfade done
+                    lock (_stateLock)
+                    {
+                        if (_isDisposed) return;
+
+                        // Remove crossfader from mixer
+                        _mixer.RemoveAllMixerInputs();
+
+                        // Add the new provider as the main source
+                        _currentSource = newProvider;
+                        _mixer.AddMixerInput(_currentSource);
+
+                        // Update style
+                        _currentStyle = newPattern.DrumSequence.Length > 0 ? newPattern.DrumSequence[0] : "basic";
+
+                        // Now it's safe to dispose the crossfade provider
+                        currentCrossfadeProvider.Dispose();
+                    }
+
+                    // Telemetry event
+                    _telemetry?.TrackEvent(TelemetryConstants.Events.PlaybackStarted, new Dictionary<string, string>
+                    {
+                        { TelemetryConstants.Properties.BeatStyle, _currentStyle },
+                        { TelemetryConstants.Properties.BeatTempo, newPattern.BPM.ToString() }
+                    });
                 }
-
-                // Crossfade done
-                lock (_stateLock)
+                catch (Exception ex)
                 {
-                    // Remove crossfader from mixer
-                    _mixer.RemoveMixerInput(crossfadeProvider);
-
-                    // Dispose crossfade provider so old source is freed
-                    crossfadeProvider.Dispose();
-
-                    // Add the new provider as the main source
-                    _currentSource = newProvider;
-                    _mixer.AddMixerInput(_currentSource);
-
-                    // Update style - use first drum in sequence as style
-                    _currentStyle = newPattern.DrumSequence.Length > 0 ? newPattern.DrumSequence[0] : "basic";
+                    _logger.LogError(ex, "Error during crossfade completion");
                 }
-
-                // Telemetry event
-                _telemetry?.TrackEvent(TelemetryConstants.Events.PlaybackStarted, new Dictionary<string, string>
-                {
-                    { TelemetryConstants.Properties.BeatStyle, _currentStyle },
-                    { TelemetryConstants.Properties.BeatTempo, newPattern.BPM.ToString() }
-                });
             });
 
             // Telemetry event for crossfade start
@@ -429,7 +448,7 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
             });
 
             // Ensure playback is running
-            _audioOutput.Play();
+            StartPlayback();
         }
     }
 

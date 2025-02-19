@@ -113,14 +113,10 @@ public sealed class CrossfadeSampleProvider : ISampleProvider, IDisposable
     {
         if (_disposed) return;
         
+        // Only dispose the old provider since we need to keep the new one playing
         if (_oldProvider is IDisposable d1)
         {
             d1.Dispose();
-        }
-        
-        if (_newProvider is IDisposable d2)
-        {
-            d2.Dispose();
         }
         
         _disposed = true;

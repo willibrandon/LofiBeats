@@ -52,7 +52,9 @@ public class CrossfadeManager
             if (!_isCrossfading) return 1.0f;
             var elapsed = (float)(DateTime.UtcNow - _startTime).TotalSeconds;
             if (elapsed >= _crossfadeDurationSeconds) return 0.0f;
-            return 1.0f - (elapsed / _crossfadeDurationSeconds);
+            // Use cosine interpolation for smoother fade
+            var t = elapsed / _crossfadeDurationSeconds;
+            return (float)(Math.Cos(t * Math.PI / 2));
         }
     }
 
@@ -72,7 +74,9 @@ public class CrossfadeManager
             if (!_isCrossfading) return 0.0f;
             var elapsed = (float)(DateTime.UtcNow - _startTime).TotalSeconds;
             if (elapsed >= _crossfadeDurationSeconds) return 1.0f;
-            return elapsed / _crossfadeDurationSeconds;
+            // Use cosine interpolation for smoother fade
+            var t = elapsed / _crossfadeDurationSeconds;
+            return (float)(Math.Sin(t * Math.PI / 2));
         }
     }
 
