@@ -1031,7 +1031,7 @@ public class CommandLineInterface : IDisposable
             }
 
             var transitionMsg = transition == "crossfade" ? $" with {xfadeDuration:F1}s crossfade" : "";
-            Console.Write($"Starting playback with {style} style{(bpm.HasValue ? $" at {bpm} BPM" : "")}{transitionMsg}... ");
+            Console.Write($"Starting playback with {style} style{(bpm.HasValue ? $" at {bpm} BPM" : "")}{transitionMsg}... " + Environment.NewLine);
             ShowSpinner("Starting playback", 1000);
 
             var queryParams = new List<string>
