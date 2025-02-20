@@ -141,7 +141,7 @@ public class ServiceConnectionHelper
             .Handle<HttpRequestException>()
             .Or<TaskCanceledException>()
             .WaitAndRetryAsync(
-                retryCount: 8, // Reduced from 20 to 8 for quicker failover
+                retryCount: 20, // Increased from 8 to improve reliability of cold starts
                 sleepDurationProvider: retryAttempt =>
                 {
                     var delay = TimeSpan.FromMilliseconds(100 * retryAttempt);
