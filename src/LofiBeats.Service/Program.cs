@@ -102,7 +102,7 @@ public partial class Program
         builder.Services.AddSingleton<IWebSocketHandler, WebSocketHandler>();
         builder.Services.AddSingleton<WebSocketHandler>();
         builder.Services.AddHostedService<RealTimeMetricsService>();
-        builder.Services.AddSingleton<WebSocketCommandHandler>(sp =>
+        builder.Services.AddSingleton(sp =>
         {
             var handler = sp.GetRequiredService<WebSocketHandler>();
             return new WebSocketCommandHandler(
