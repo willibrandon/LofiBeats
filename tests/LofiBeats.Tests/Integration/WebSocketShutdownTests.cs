@@ -178,7 +178,6 @@ public class WebSocketShutdownTests : IClassFixture<WebApplicationFactory<Progra
 
                             if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
                             {
-                                Interlocked.Increment(ref disconnectEvents);
                                 break;
                             }
                         }
@@ -192,17 +191,17 @@ public class WebSocketShutdownTests : IClassFixture<WebApplicationFactory<Progra
                 catch (WebSocketException)
                 {
                     // Connection closed
-                    Interlocked.Increment(ref disconnectEvents);
+                    _output.WriteLine("WebSocket connection closed");
                 }
                 catch (Exception ex)
                 {
                     _output.WriteLine($"Error in receive loop: {ex.Message}");
-                    Interlocked.Increment(ref disconnectEvents);
                 }
                 finally
                 {
-                    // Always increment disconnect events when the loop exits
+                    // Only increment disconnect events once when the loop exits
                     Interlocked.Increment(ref disconnectEvents);
+                    _output.WriteLine($"Incremented disconnect events to: {disconnectEvents}");
                 }
             });
 
@@ -313,7 +312,6 @@ public class WebSocketShutdownTests : IClassFixture<WebApplicationFactory<Progra
 
                             if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
                             {
-                                Interlocked.Increment(ref disconnectEvents);
                                 break;
                             }
                             Interlocked.Increment(ref receivedMessages);
@@ -328,17 +326,17 @@ public class WebSocketShutdownTests : IClassFixture<WebApplicationFactory<Progra
                 catch (WebSocketException)
                 {
                     // Connection closed
-                    Interlocked.Increment(ref disconnectEvents);
+                    _output.WriteLine("WebSocket connection closed");
                 }
                 catch (Exception ex)
                 {
                     _output.WriteLine($"Error in receive loop: {ex.Message}");
-                    Interlocked.Increment(ref disconnectEvents);
                 }
                 finally
                 {
-                    // Always increment disconnect events when the loop exits
+                    // Only increment disconnect events once when the loop exits
                     Interlocked.Increment(ref disconnectEvents);
+                    _output.WriteLine($"Incremented disconnect events to: {disconnectEvents}");
                 }
             });
         }
