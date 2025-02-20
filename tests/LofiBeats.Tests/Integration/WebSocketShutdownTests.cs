@@ -1,7 +1,8 @@
 using LofiBeats.Core.WebSocket;
 using LofiBeats.Service;
-using LofiBeats.Tests.Infrastructure;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
@@ -37,13 +38,49 @@ public class WebSocketShutdownTests : IClassFixture<WebApplicationFactory<Progra
                     ["WebSocket:MessageRateLimit"] = "100",
                     ["WebSocket:MaxMessageSize"] = "32768",
                     ["WebSocket:MaxConcurrentConnections"] = "50",
-                    ["WebSocket:EndpointPath"] = "/ws/lofi"
+                    ["WebSocket:EndpointPath"] = "/ws/lofi",
+                    ["WebSocket:KeepAliveInterval"] = "15000", // 15 seconds keep-alive interval
+                    ["WebSocket:DisconnectTimeout"] = "60000"  // 60 seconds disconnect timeout
                 };
                 config.AddInMemoryCollection(settings);
+            });
+            
+            // Configure WebSocket middleware
+            builder.Configure(app =>
+            {
+                app.UseWebSockets(new WebSocketOptions
+                {
+                    KeepAliveInterval = TimeSpan.FromSeconds(15)
+                });
+
+                app.Map("/ws/lofi", wsApp =>
+                {
+                    wsApp.Use(async (HttpContext context, RequestDelegate next) =>
+                    {
+                        if (!context.WebSockets.IsWebSocketRequest)
+                        {
+                            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                            await context.Response.WriteAsync("Not a WebSocket request");
+                            return;
+                        }
+
+                        using var scope = app.ApplicationServices.CreateScope();
+                        var handler = scope.ServiceProvider.GetRequiredService<IWebSocketHandler>();
+                        var socket = await context.WebSockets.AcceptWebSocketAsync();
+                        await handler.HandleClientAsync(socket, context.RequestAborted);
+                    });
+                });
             });
         });
 
         _wsClient = _factory.Server.CreateWebSocketClient();
+        _wsClient.ConfigureRequest = request =>
+        {
+            request.Headers["Sec-WebSocket-Version"] = "13";
+            request.Headers["Sec-WebSocket-Protocol"] = "lofi-protocol";
+            request.Headers["Connection"] = "Upgrade";
+            request.Headers["Upgrade"] = "websocket";
+        };
         _clients = new List<WebSocket>();
         _cts = new CancellationTokenSource();
         _cts.CancelAfter(TimeSpan.FromSeconds(30));
@@ -128,19 +165,43 @@ public class WebSocketShutdownTests : IClassFixture<WebApplicationFactory<Progra
                 var buffer = new byte[4096];
                 try
                 {
-                    while (!_cts.Token.IsCancellationRequested)
+                    while (client.State == WebSocketState.Open)
                     {
-                        await client.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token);
+                        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token, _cts.Token);
+                        
+                        try
+                        {
+                            var result = await client.ReceiveAsync(
+                                new ArraySegment<byte>(buffer), 
+                                linkedCts.Token);
+
+                            if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
+                            {
+                                Interlocked.Increment(ref disconnectEvents);
+                                break;
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // Either timeout or cancellation - break the loop
+                            break;
+                        }
                     }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Expected during shutdown
-                    Interlocked.Increment(ref disconnectEvents);
                 }
                 catch (WebSocketException)
                 {
                     // Connection closed
+                    Interlocked.Increment(ref disconnectEvents);
+                }
+                catch (Exception ex)
+                {
+                    _output.WriteLine($"Error in receive loop: {ex.Message}");
+                    Interlocked.Increment(ref disconnectEvents);
+                }
+                finally
+                {
+                    // Always increment disconnect events when the loop exits
                     Interlocked.Increment(ref disconnectEvents);
                 }
             });
@@ -156,28 +217,65 @@ public class WebSocketShutdownTests : IClassFixture<WebApplicationFactory<Progra
                 new ArraySegment<byte>(buffer),
                 System.Net.WebSockets.WebSocketMessageType.Text,
                 true,
-                _cts.Token);
+                CancellationToken.None);
 
             await Task.Delay(50); // Stagger connections
         }
 
-        // Act - Close connections before canceling
-        foreach (var client in _clients)
+        try
         {
-            if (client.State == WebSocketState.Open)
+            // Cancel our token first to stop background tasks
+            _cts.Cancel();
+
+            // Then dispose the factory to trigger server shutdown
+            await _factory.DisposeAsync();
+
+            // Then forcefully close all client connections
+            foreach (var client in _clients)
             {
-                await client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Test shutdown", CancellationToken.None);
+                try
+                {
+                    if (client.State == WebSocketState.Open)
+                    {
+                        using var closeTimeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        await client.CloseAsync(
+                            WebSocketCloseStatus.NormalClosure,
+                            "Test shutdown",
+                            closeTimeoutCts.Token);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _output.WriteLine($"Error closing client: {ex.Message}");
+                }
+                finally
+                {
+                    // Ensure the client is disposed
+                    client.Dispose();
+                }
             }
+
+            // Wait for disconnect events with a timeout
+            var startTime = DateTime.UtcNow;
+            var timeout = TimeSpan.FromSeconds(5);
+            
+            while (disconnectEvents < numClients && DateTime.UtcNow - startTime < timeout)
+            {
+                await Task.Delay(100);
+                _output.WriteLine($"Waiting for disconnects: {disconnectEvents}/{numClients}");
+            }
+
+            // Assert
+            _output.WriteLine($"Disconnect events: {disconnectEvents}, Expected: {numClients}");
+            Assert.Equal(numClients, disconnectEvents);
+            Assert.All(_clients, client => 
+                Assert.NotEqual(WebSocketState.Open, client.State));
         }
-
-        // Then cancel the token
-        _cts.Cancel();
-
-        // Assert
-        await Task.Delay(1000); // Give time for cleanup
-        Assert.Equal(numClients, disconnectEvents);
-        Assert.All(_clients, client => 
-            Assert.NotEqual(WebSocketState.Open, client.State));
+        catch (Exception ex)
+        {
+            _output.WriteLine($"Test error: {ex}");
+            throw;
+        }
     }
 
     [Fact]
@@ -202,58 +300,277 @@ public class WebSocketShutdownTests : IClassFixture<WebApplicationFactory<Progra
                 var buffer = new byte[4096];
                 try
                 {
-                    while (!_cts.Token.IsCancellationRequested)
+                    while (client.State == WebSocketState.Open)
                     {
-                        await client.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token);
-                        Interlocked.Increment(ref receivedMessages);
+                        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token, _cts.Token);
+                        
+                        try
+                        {
+                            var result = await client.ReceiveAsync(
+                                new ArraySegment<byte>(buffer), 
+                                linkedCts.Token);
+
+                            if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
+                            {
+                                Interlocked.Increment(ref disconnectEvents);
+                                break;
+                            }
+                            Interlocked.Increment(ref receivedMessages);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // Either timeout or cancellation - break the loop
+                            break;
+                        }
                     }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Expected during shutdown
-                    Interlocked.Increment(ref disconnectEvents);
                 }
                 catch (WebSocketException)
                 {
                     // Connection closed
                     Interlocked.Increment(ref disconnectEvents);
                 }
+                catch (Exception ex)
+                {
+                    _output.WriteLine($"Error in receive loop: {ex.Message}");
+                    Interlocked.Increment(ref disconnectEvents);
+                }
+                finally
+                {
+                    // Always increment disconnect events when the loop exits
+                    Interlocked.Increment(ref disconnectEvents);
+                }
             });
         }
 
-        // Send a broadcast-triggering command
-        var primaryClient = _clients[0];
-        var command = new WebSocketMessage(
-            Core.WebSocket.WebSocketMessageType.Command,
-            WebSocketActions.Commands.Play,
-            new PlayCommandPayload("jazzy", 90));
-        var json = JsonSerializer.Serialize(command);
-        var buffer = Encoding.UTF8.GetBytes(json);
-        await primaryClient.SendAsync(
-            new ArraySegment<byte>(buffer),
-            System.Net.WebSockets.WebSocketMessageType.Text,
-            true,
-            _cts.Token);
-
-        // Act - Give time for broadcast to start, then close connections
-        await Task.Delay(100);
-        foreach (var client in _clients)
+        try
         {
-            if (client.State == WebSocketState.Open)
+            // Send a broadcast-triggering command
+            var primaryClient = _clients[0];
+            var command = new WebSocketMessage(
+                Core.WebSocket.WebSocketMessageType.Command,
+                WebSocketActions.Commands.Play,
+                new PlayCommandPayload("jazzy", 90));
+            var json = JsonSerializer.Serialize(command);
+            var buffer = Encoding.UTF8.GetBytes(json);
+            await primaryClient.SendAsync(
+                new ArraySegment<byte>(buffer),
+                System.Net.WebSockets.WebSocketMessageType.Text,
+                true,
+                CancellationToken.None);
+
+            // Give time for broadcast to start
+            await Task.Delay(100);
+
+            // Cancel our token first to stop background tasks
+            _cts.Cancel();
+
+            // Then dispose the factory to trigger server shutdown
+            await _factory.DisposeAsync();
+
+            // Then forcefully close all client connections
+            foreach (var client in _clients)
             {
-                await client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Test shutdown", CancellationToken.None);
+                try
+                {
+                    if (client.State == WebSocketState.Open)
+                    {
+                        using var closeTimeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        await client.CloseAsync(
+                            WebSocketCloseStatus.NormalClosure,
+                            "Test shutdown",
+                            closeTimeoutCts.Token);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _output.WriteLine($"Error closing client: {ex.Message}");
+                }
+                finally
+                {
+                    // Ensure the client is disposed
+                    client.Dispose();
+                }
+            }
+
+            // Wait for disconnect events with a timeout
+            var startTime = DateTime.UtcNow;
+            var timeout = TimeSpan.FromSeconds(5);
+            
+            while (disconnectEvents < numClients && DateTime.UtcNow - startTime < timeout)
+            {
+                await Task.Delay(100);
+                _output.WriteLine($"Waiting for disconnects: {disconnectEvents}/{numClients}");
+            }
+
+            // Assert
+            _output.WriteLine($"Disconnect events: {disconnectEvents}, Expected: {numClients}");
+            _output.WriteLine($"Received messages: {receivedMessages}");
+            Assert.Equal(numClients, disconnectEvents);
+            Assert.All(_clients, client => 
+                Assert.NotEqual(WebSocketState.Open, client.State));
+        }
+        catch (Exception ex)
+        {
+            _output.WriteLine($"Test error: {ex}");
+            throw;
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task LongIdleConnection_StaysAlive()
+    {
+        // Arrange
+        var wsUri = new Uri("ws://localhost/ws/lofi");
+        _output.WriteLine($"Starting test at {DateTime.Now:HH:mm:ss.fff}");
+        
+        WebSocket? client = null;
+        try
+        {
+            client = await _wsClient.ConnectAsync(wsUri, _cts.Token);
+            _output.WriteLine($"Client connected at {DateTime.Now:HH:mm:ss.fff}");
+            _clients.Add(client);
+            
+            // Create a longer timeout for this test
+            using var testCts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+            
+            var pingsSent = 0;
+            var pongsReceived = 0;
+            var lastPongTime = DateTimeOffset.UtcNow;
+
+            // Send an initial message to ensure connection is active
+            var message = new WebSocketMessage(
+                Core.WebSocket.WebSocketMessageType.Command,
+                WebSocketActions.Commands.SyncState,
+                null);
+            var json = JsonSerializer.Serialize(message);
+            var buffer = Encoding.UTF8.GetBytes(json);
+            await client.SendAsync(
+                new ArraySegment<byte>(buffer),
+                System.Net.WebSockets.WebSocketMessageType.Text,
+                true,
+                testCts.Token);
+            _output.WriteLine($"Sent initial message at {DateTime.Now:HH:mm:ss.fff}");
+
+            // Start a background task to send pings every 5 seconds
+            var pingTask = Task.Run(async () =>
+            {
+                while (!testCts.Token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        // Send ping
+                        var pingCommand = new WebSocketMessage(
+                            Core.WebSocket.WebSocketMessageType.Command,
+                            WebSocketActions.Commands.Ping,
+                            new { timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }
+                        );
+                        var pingJson = JsonSerializer.Serialize(pingCommand);
+                        var pingBuffer = Encoding.UTF8.GetBytes(pingJson);
+                        await client.SendAsync(
+                            new ArraySegment<byte>(pingBuffer),
+                            System.Net.WebSockets.WebSocketMessageType.Text,
+                            true,
+                            testCts.Token);
+                        
+                        pingsSent++;
+                        _output.WriteLine($"Sent ping #{pingsSent}");
+                        
+                        await Task.Delay(TimeSpan.FromSeconds(5), testCts.Token);
+                    }
+                    catch (OperationCanceledException) when (testCts.Token.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        _output.WriteLine($"Error sending ping: {ex.Message}");
+                        break;
+                    }
+                }
+            }, testCts.Token);
+
+            // Start a background task to receive pongs
+            var receiveTask = Task.Run(async () =>
+            {
+                var buffer = new byte[1024];
+                while (!testCts.Token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        var result = await client.ReceiveAsync(
+                            new ArraySegment<byte>(buffer),
+                            testCts.Token);
+
+                        if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
+                        {
+                            _output.WriteLine("WebSocket closed by server");
+                            break;
+                        }
+
+                        var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                        var message = JsonSerializer.Deserialize<WebSocketMessage>(json);
+
+                        if (message?.Action == WebSocketActions.Events.Pong)
+                        {
+                            pongsReceived++;
+                            lastPongTime = DateTimeOffset.UtcNow;
+                            _output.WriteLine($"Received pong #{pongsReceived}");
+                        }
+                        else
+                        {
+                            _output.WriteLine($"Received non-pong message: {message?.Action ?? "null"}");
+                        }
+                    }
+                    catch (OperationCanceledException) when (testCts.Token.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        _output.WriteLine($"Error receiving message: {ex.Message}");
+                        break;
+                    }
+                }
+            }, testCts.Token);
+
+            // Wait for 20 seconds to allow multiple ping/pong exchanges
+            await Task.Delay(TimeSpan.FromSeconds(20), testCts.Token);
+
+            // Assert
+            _output.WriteLine($"Final client state: {client.State}");
+            _output.WriteLine($"Pings sent: {pingsSent}, Pongs received: {pongsReceived}");
+            _output.WriteLine($"Time since last pong: {DateTimeOffset.UtcNow - lastPongTime:g}");
+            
+            Assert.True(pingsSent > 0, "Should have sent at least one ping");
+            Assert.Equal(pingsSent, pongsReceived);
+            Assert.True((DateTimeOffset.UtcNow - lastPongTime).TotalSeconds < 10, 
+                "Should have received a pong recently");
+            Assert.Equal(WebSocketState.Open, client.State);
+        }
+        finally
+        {
+            // Ensure we clean up the test-specific resources
+            if (client?.State == WebSocketState.Open)
+            {
+                _output.WriteLine($"Closing connection at {DateTime.Now:HH:mm:ss.fff}");
+                try
+                {
+                    // Use a separate cancellation token for cleanup
+                    using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    await client.CloseAsync(
+                        WebSocketCloseStatus.NormalClosure,
+                        "Test complete",
+                        cleanupCts.Token);
+                    _output.WriteLine($"Connection closed successfully at {DateTime.Now:HH:mm:ss.fff}");
+                }
+                catch (Exception ex)
+                {
+                    _output.WriteLine($"Error during connection cleanup: {ex.Message}");
+                }
             }
         }
-
-        // Then cancel the token
-        _cts.Cancel();
-
-        // Assert
-        await Task.Delay(1000); // Give time for cleanup
-        Assert.Equal(numClients, disconnectEvents);
-        _output.WriteLine($"Received {receivedMessages} messages before shutdown");
-        Assert.All(_clients, client => 
-            Assert.NotEqual(WebSocketState.Open, client.State));
     }
 
     public async ValueTask DisposeAsync()

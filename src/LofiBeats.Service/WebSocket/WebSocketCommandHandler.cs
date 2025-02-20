@@ -98,6 +98,10 @@ public sealed class WebSocketCommandHandler
                     await HandleSyncStateCommandAsync(cancellationToken);
                     break;
 
+                case WebSocketActions.Commands.Ping:
+                    await HandlePingCommandAsync(clientId, cancellationToken);
+                    break;
+
                 default:
                     _logUnknownCommand(_logger, action, null);
                     await SendErrorAsync(clientId, WebSocketActions.Errors.UnknownCommand,
@@ -242,6 +246,15 @@ public sealed class WebSocketCommandHandler
         await _broadcast(
             "sync-state",
             state,
+            cancellationToken);
+    }
+
+    private async Task HandlePingCommandAsync(Guid clientId, CancellationToken cancellationToken)
+    {
+        // Simply respond with a pong event
+        await _broadcast(
+            WebSocketActions.Events.Pong,
+            new { timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() },
             cancellationToken);
     }
 

@@ -86,6 +86,7 @@ public static class WebSocketActions
         public const string AddEffect = "add-effect";
         public const string RemoveEffect = "remove-effect";
         public const string SyncState = "sync-state";
+        public const string Ping = "ping";
     }
 
     public static class Events
@@ -97,6 +98,7 @@ public static class WebSocketActions
         public const string EffectAdded = "effect-added";
         public const string EffectRemoved = "effect-removed";
         public const string MetricsUpdated = "metrics-updated";
+        public const string Pong = "pong";
     }
 
     public static class Errors
