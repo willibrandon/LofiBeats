@@ -135,11 +135,11 @@ public class ServiceConnectionHelper
             .Handle<HttpRequestException>()
             .Or<TaskCanceledException>()
             .WaitAndRetryAsync(
-                retryCount: 20, // Increased retry count but with shorter delays
+                retryCount: 8, // Reduced from 20 to 8 retries
                 sleepDurationProvider: retryAttempt => 
                 {
-                    // More aggressive exponential backoff starting at 50ms
-                    var delay = TimeSpan.FromMilliseconds(Math.Min(50 * Math.Pow(1.5, retryAttempt - 1), 1000));
+                    // Linear backoff starting at 100ms
+                    var delay = TimeSpan.FromMilliseconds(100 * retryAttempt);
                     _logHealthCheckRetry(_logger, retryAttempt, delay, null);
                     return delay;
                 }
@@ -152,8 +152,8 @@ public class ServiceConnectionHelper
 
         for (int attempt = 1; attempt <= maxStartupRetries; attempt++)
         {
-            // 1. Check if service is running using exponential backoff
-            if (await _healthCheckPolicy.ExecuteAsync(IsServiceRunningAsync))
+            // 1. Quick initial health check without retries
+            if (await IsServiceRunningAsync())
             {
                 _logServiceAlreadyRunning(_logger, null);
                 return;
@@ -165,8 +165,8 @@ public class ServiceConnectionHelper
             {
                 _logFoundExistingProcesses(_logger, null);
                 
-                // Check if process is responding
-                if (await _healthCheckPolicy.ExecuteAsync(IsServiceRunningAsync))
+                // Quick check if process is responding
+                if (await IsServiceRunningAsync())
                 {
                     _logConnectedToExistingService(_logger, null);
                     return;
@@ -200,7 +200,8 @@ public class ServiceConnectionHelper
             _logStartingService(_logger, null);
             await StartServiceAsync();
 
-            // 4. Wait for service to respond using exponential backoff
+            // 4. Wait for service to respond with full retry policy
+            // This is the only place we need the full retry policy
             if (await _healthCheckPolicy.ExecuteAsync(IsServiceRunningAsync))
             {
                 _logServiceStartedSuccessfully(_logger, null);
@@ -344,7 +345,7 @@ public class ServiceConnectionHelper
     {
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1)); // Add 1s timeout
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(250)); // Quick check timeout
             var response = await _httpClient.GetAsync($"{_serviceUrl}/healthz", cts.Token);
             _logHealthCheckResponse(_logger, response.StatusCode.ToString(), (int)response.StatusCode, null);
 
@@ -366,7 +367,7 @@ public class ServiceConnectionHelper
             var serviceDirectory = Path.GetDirectoryName(_servicePath)!;
             var serviceFileName = Path.GetFileName(_servicePath);
 
-            // Copy service appsettings if they don't exist
+            // Copy service settings if needed
             await CopyServiceSettingsAsync(serviceDirectory);
 
             // Log the service path and directory for debugging
@@ -441,7 +442,7 @@ public class ServiceConnectionHelper
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-            bool exitedQuickly = process.WaitForExit(2000);
+            bool exitedQuickly = process.WaitForExit(1000); // Reduced from 2000ms to 1000ms
             if (exitedQuickly)
             {
                 // Child died almost instantly; log the exit code
