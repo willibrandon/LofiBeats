@@ -2,13 +2,13 @@ using LofiBeats.Core.Playback;
 using LofiBeats.Core.Telemetry;
 using LofiBeats.Core.WebSocket;
 using LofiBeats.Service;
+using LofiBeats.Tests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Moq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -22,6 +22,7 @@ public class WebSocketIntegrationTests : IClassFixture<WebApplicationFactory<Pro
     private readonly WebSocketClient _wsClient;
     private WebSocket? _webSocket;
     private readonly CancellationTokenSource _cts;
+    private bool _disposed;
 
     public WebSocketIntegrationTests(WebApplicationFactory<Program> factory)
     {
@@ -43,26 +44,15 @@ public class WebSocketIntegrationTests : IClassFixture<WebApplicationFactory<Pro
             builder.ConfigureServices(services =>
             {
                 // Remove existing services and replace with test versions
-                foreach (var descriptor in services.Where(d => d.ServiceType == typeof(IAudioPlaybackService)).ToList())
-                {
-                    services.Remove(descriptor);
-                }
+                services.RemoveAll(typeof(IAudioPlaybackService));
                 services.AddSingleton<IAudioPlaybackService, TestAudioPlaybackService>();
 
-                // Replace telemetry with mocks
-                foreach (var descriptor in services.Where(d => d.ServiceType == typeof(ITelemetryService)).ToList())
-                {
-                    services.Remove(descriptor);
-                }
-                var mockTelemetry = new Mock<ITelemetryService>();
-                services.AddSingleton(mockTelemetry.Object);
+                // Replace telemetry with test double
+                services.RemoveAll(typeof(ITelemetryService));
+                services.AddSingleton<ITelemetryService, NullTelemetryService>();
 
-                foreach (var descriptor in services.Where(d => d.ServiceType == typeof(TelemetryTracker)).ToList())
-                {
-                    services.Remove(descriptor);
-                }
-                var mockLogger = new Mock<ILogger<TelemetryTracker>>();
-                services.AddSingleton(new TelemetryTracker(mockTelemetry.Object, mockLogger.Object));
+                services.RemoveAll(typeof(TelemetryTracker));
+                services.AddSingleton<TelemetryTracker>();
             });
         });
 
@@ -252,15 +242,33 @@ public class WebSocketIntegrationTests : IClassFixture<WebApplicationFactory<Pro
 
     public async ValueTask DisposeAsync()
     {
+        if (_disposed) return;
+        _disposed = true;
+
         if (_webSocket?.State == WebSocketState.Open)
         {
-            await _webSocket.CloseAsync(
-                WebSocketCloseStatus.NormalClosure,
-                "Test completed",
-                CancellationToken.None);
+            try
+            {
+                await _webSocket.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure,
+                    "Test completed",
+                    CancellationToken.None);
+            }
+            catch
+            {
+                // Ignore errors during cleanup
+            }
         }
         _webSocket?.Dispose();
         _cts.Dispose();
-        await _factory.DisposeAsync();
+
+        try
+        {
+            await _factory.DisposeAsync();
+        }
+        catch
+        {
+            // Ignore disposal errors
+        }
     }
 } 
