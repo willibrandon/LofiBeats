@@ -4,11 +4,14 @@ using Polly;
 using Polly.Retry;
 using System.Diagnostics;
 using System.Net.Http.Json;
+using System.Runtime.InteropServices;
 
 namespace LofiBeats.Cli;
 
 public class ServiceConnectionHelper
 {
+    private static readonly SemaphoreSlim _serviceLock = new(1, 1);
+
     private readonly ILogger<ServiceConnectionHelper> _logger;
     private readonly HttpClient _httpClient;
     private readonly string _serviceUrl;
@@ -16,6 +19,7 @@ public class ServiceConnectionHelper
     private readonly AsyncRetryPolicy<bool> _healthCheckPolicy;
     private readonly string _pidFilePath;
 
+    // Logging definitions remain the same as in the original code.
     private static readonly Action<ILogger, Exception?> _logServiceAlreadyRunning =
         LoggerMessage.Define(LogLevel.Debug, new EventId(1, "ServiceAlreadyRunning"), "LofiBeats service is already running.");
 
@@ -77,8 +81,8 @@ public class ServiceConnectionHelper
         LoggerMessage.Define<int>(LogLevel.Debug, new EventId(21, "RetryingServiceCheck"), "Retrying service check (attempt {Attempt})");
 
     private static readonly Action<ILogger, int, TimeSpan, Exception?> _logHealthCheckRetry =
-        LoggerMessage.Define<int, TimeSpan>(LogLevel.Debug, new EventId(22, "HealthCheckRetry"), 
-            "Health check failed, retrying in {RetryNumber} with delay {Delay}...");
+        LoggerMessage.Define<int, TimeSpan>(LogLevel.Debug, new EventId(22, "HealthCheckRetry"),
+            "Health check failed (attempt {RetryNumber}); retrying in {Delay}...");
 
     private static readonly Action<ILogger, int, Exception?> _logFoundPidFile =
         LoggerMessage.Define<int>(LogLevel.Debug, new EventId(23, "FoundPidFile"), "Found PID file with process ID {ProcessId}");
@@ -90,27 +94,30 @@ public class ServiceConnectionHelper
         LoggerMessage.Define(LogLevel.Debug, new EventId(25, "PidFileInvalid"), "PID file is invalid or process is no longer running");
 
     private static readonly Action<ILogger, string, string, Exception?> _logStartingServiceDetails =
-        LoggerMessage.Define<string, string>(LogLevel.Debug, new EventId(26, "StartingServiceDetails"), 
+        LoggerMessage.Define<string, string>(LogLevel.Debug, new EventId(26, "StartingServiceDetails"),
             "Starting service with path: '{ServicePath}' in directory: '{ServiceDirectory}'");
 
     private static readonly Action<ILogger, string, Exception?> _logExecutingCommand =
-        LoggerMessage.Define<string>(LogLevel.Debug, new EventId(27, "ExecutingCommand"), 
+        LoggerMessage.Define<string>(LogLevel.Debug, new EventId(27, "ExecutingCommand"),
             "Executing command: dotnet {Arguments}");
 
     private static readonly Action<ILogger, string, string, string, string, Exception?> _logServiceStartupDetails =
-        LoggerMessage.Define<string, string, string, string>(LogLevel.Debug, new EventId(28, "ServiceStartupDetails"), 
+        LoggerMessage.Define<string, string, string, string>(LogLevel.Debug, new EventId(28, "ServiceStartupDetails"),
             "[DEBUG] About to start service:\n[DEBUG]   FileName: {FileName}\n[DEBUG]   Arguments: {Arguments}\n[DEBUG]   WorkingDirectory: {WorkingDirectory}\n[DEBUG]   ServicePath: {ServicePath}");
 
     private static readonly Action<ILogger, Exception> _logChmodError =
         LoggerMessage.Define(LogLevel.Warning, new EventId(29, "ChmodError"), "Failed to set executable permissions");
 
     private static readonly Action<ILogger, int, Exception?> _logServiceExitedQuickly =
-        LoggerMessage.Define<int>(LogLevel.Debug, new EventId(30, "ServiceExitedQuickly"), 
+        LoggerMessage.Define<int>(LogLevel.Debug, new EventId(30, "ServiceExitedQuickly"),
             "Service exited immediately with code {ExitCode}");
 
     private static readonly Action<ILogger, Exception?> _logServiceStillRunning =
-        LoggerMessage.Define(LogLevel.Debug, new EventId(31, "ServiceStillRunning"), 
+        LoggerMessage.Define(LogLevel.Debug, new EventId(31, "ServiceStillRunning"),
             "Service is still running after initial startup check");
+
+    // Configuration for how long we wait to see if the process exits immediately.
+    private const int QuickExitCheckMilliseconds = 800;
 
     public ServiceConnectionHelper(
         ILogger<ServiceConnectionHelper> logger,
@@ -121,11 +128,10 @@ public class ServiceConnectionHelper
     {
         _logger = logger;
         _httpClient = httpClient ?? new HttpClient();
-        
-        // Read service URL from configuration, falling back to parameter, then default
-        _serviceUrl = configuration["ServiceUrl"] ?? 
-                     serviceUrl ?? 
-                     "http://localhost:5000";
+
+        _serviceUrl = configuration["ServiceUrl"]
+                      ?? serviceUrl
+                      ?? "http://localhost:5000";
 
         _servicePath = servicePath ?? GetDefaultServicePath();
         _pidFilePath = Path.Combine(Path.GetDirectoryName(_servicePath)!, "service.pid");
@@ -135,10 +141,9 @@ public class ServiceConnectionHelper
             .Handle<HttpRequestException>()
             .Or<TaskCanceledException>()
             .WaitAndRetryAsync(
-                retryCount: 8, // Reduced from 20 to 8 retries
-                sleepDurationProvider: retryAttempt => 
+                retryCount: 8, // Reduced from 20 to 8 for quicker failover
+                sleepDurationProvider: retryAttempt =>
                 {
-                    // Linear backoff starting at 100ms
                     var delay = TimeSpan.FromMilliseconds(100 * retryAttempt);
                     _logHealthCheckRetry(_logger, retryAttempt, delay, null);
                     return delay;
@@ -146,85 +151,116 @@ public class ServiceConnectionHelper
             );
     }
 
+    /// <summary>
+    /// Ensures the LofiBeats service is running.
+    /// Uses a concurrency guard to prevent multiple simultaneous starts.
+    /// </summary>
     public async Task EnsureServiceRunningAsync()
     {
-        const int maxStartupRetries = 3;
-
-        for (int attempt = 1; attempt <= maxStartupRetries; attempt++)
+        await _serviceLock.WaitAsync();
+        try
         {
-            // 1. Quick initial health check without retries
+            // Double-check inside lock to ensure no other caller started it in the meantime.
             if (await IsServiceRunningAsync())
             {
                 _logServiceAlreadyRunning(_logger, null);
                 return;
             }
 
-            // 2. Look for existing processes
-            var existingProcesses = GetExistingServiceProcesses();
-            if (existingProcesses.Count != 0)
+            const int maxStartupRetries = 3;
+
+            for (int attempt = 1; attempt <= maxStartupRetries; attempt++)
             {
-                _logFoundExistingProcesses(_logger, null);
-                
-                // Quick check if process is responding
+                // 1. Quick initial health check
                 if (await IsServiceRunningAsync())
                 {
-                    _logConnectedToExistingService(_logger, null);
+                    _logServiceAlreadyRunning(_logger, null);
                     return;
                 }
 
-                // Only clean up processes on the last attempt
-                if (attempt == maxStartupRetries)
+                // 2. Look for existing processes
+                var existingProcesses = GetExistingServiceProcesses();
+                if (existingProcesses.Count != 0)
                 {
-                    foreach (var proc in existingProcesses)
+                    _logFoundExistingProcesses(_logger, null);
+
+                    // Quick check if process is responding
+                    if (await IsServiceRunningAsync())
                     {
-                        try
+                        _logConnectedToExistingService(_logger, null);
+                        return;
+                    }
+
+                    // Clean up stale only on last attempt
+                    if (attempt == maxStartupRetries)
+                    {
+                        foreach (var proc in existingProcesses)
                         {
-                            proc.Kill();
-                            _logCleanedUpStaleProcess(_logger, proc.Id, null);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logFailedToCleanupProcess(_logger, proc.Id, ex);
+                            try
+                            {
+                                proc.Kill();
+                                proc.WaitForExit(3000); // Give it some time to exit
+                                _logCleanedUpStaleProcess(_logger, proc.Id, null);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logFailedToCleanupProcess(_logger, proc.Id, ex);
+                            }
                         }
                     }
                 }
+
+                if (attempt < maxStartupRetries)
+                {
+                    _logRetryingServiceCheck(_logger, attempt, null);
+                    continue;
+                }
+
+                // 3. Start new service process
+                _logStartingService(_logger, null);
+                await StartServiceAsync();
+
+                // 4. Wait for service to respond with full retry policy
+                var isRunning = await _healthCheckPolicy.ExecuteAsync(IsServiceRunningAsync);
+                if (isRunning)
+                {
+                    _logServiceStartedSuccessfully(_logger, null);
+                    return;
+                }
+
+                // If service fails after final attempt, throw.
+                throw new ServiceStartException("Unable to start LofiBeats service after multiple retries.");
             }
-
-            if (attempt < maxStartupRetries)
-            {
-                _logRetryingServiceCheck(_logger, attempt, null);
-                continue;
-            }
-
-            // 3. Start new service process
-            _logStartingService(_logger, null);
-            await StartServiceAsync();
-
-            // 4. Wait for service to respond with full retry policy
-            // This is the only place we need the full retry policy
-            if (await _healthCheckPolicy.ExecuteAsync(IsServiceRunningAsync))
-            {
-                _logServiceStartedSuccessfully(_logger, null);
-                return;
-            }
-
-            throw new Exception("Unable to start LofiBeats service after multiple retries.");
+        }
+        finally
+        {
+            _serviceLock.Release();
         }
     }
 
+    /// <summary>
+    /// Attempts to read the PID file safely, returning a running Process
+    /// if it matches our service. Otherwise returns null.
+    /// </summary>
     private Process? GetProcessFromPidFile()
     {
+        // Use a file stream with shared read to avoid partial reads when another process writes the PID file.
+        FileStream? fs = null;
         try
         {
             if (!File.Exists(_pidFilePath))
                 return null;
 
-            var pidContent = File.ReadAllText(_pidFilePath).Trim();
+            fs = new FileStream(_pidFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var reader = new StreamReader(fs);
+            fs = null; // Ownership has moved to StreamReader
+
+            var pidContent = reader.ReadToEnd().Trim();
             if (int.TryParse(pidContent, out var pid))
             {
                 _logFoundPidFile(_logger, pid, null);
                 var process = Process.GetProcessById(pid);
-                
+
                 // Verify it's our service process
                 if (!process.HasExited && IsLofiBeatsServiceProcess(process))
                 {
@@ -241,15 +277,23 @@ public class ServiceConnectionHelper
             _logPidFileInvalid(_logger, null);
             try { File.Delete(_pidFilePath); } catch { }
         }
+        finally
+        {
+            fs?.Dispose();
+        }
 
         return null;
     }
 
+    /// <summary>
+    /// Determines if the given process is a LofiBeats service process.
+    /// Uses OS-specific logic for command-line checks.
+    /// </summary>
     private bool IsLofiBeatsServiceProcess(Process process)
     {
         try
         {
-            if (OperatingSystem.IsWindows())
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 var wmiQuery = $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {process.Id}";
                 using var searcher = new System.Management.ManagementObjectSearcher(wmiQuery);
@@ -265,10 +309,10 @@ public class ServiceConnectionHelper
                 {
                     var commandLine = item["CommandLine"]?.ToString();
                     if (commandLine == null) continue;
-                    
-                    // Check for both DLL and executable
-                    if (commandLine.Contains("LofiBeats.Service.dll") || 
-                        commandLine.Contains("LofiBeats.Service.exe"))
+
+                    // Check for both DLL and executable references
+                    if (commandLine.Contains("LofiBeats.Service.dll", StringComparison.OrdinalIgnoreCase) ||
+                        commandLine.Contains("LofiBeats.Service.exe", StringComparison.OrdinalIgnoreCase))
                     {
                         return true;
                     }
@@ -276,31 +320,38 @@ public class ServiceConnectionHelper
 
                 return false;
             }
-            else if (OperatingSystem.IsLinux())
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                var cmdline = File.ReadAllText($"/proc/{process.Id}/cmdline");
-                // Check for both DLL and executable
-                return cmdline.Contains("LofiBeats.Service.dll") || 
-                       cmdline.Contains("LofiBeats.Service");
+                var cmdlinePath = $"/proc/{process.Id}/cmdline";
+                if (File.Exists(cmdlinePath))
+                {
+                    var cmdline = File.ReadAllText(cmdlinePath);
+                    return cmdline.Contains("LofiBeats.Service.dll", StringComparison.OrdinalIgnoreCase)
+                        || cmdline.Contains("LofiBeats.Service", StringComparison.OrdinalIgnoreCase);
+                }
             }
-            else if (OperatingSystem.IsMacOS())
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 var psi = new ProcessStartInfo
                 {
                     FileName = "ps",
                     Arguments = $"-p {process.Id} -o command",
                     RedirectStandardOutput = true,
-                    UseShellExecute = false
+                    UseShellExecute = false,
+                    CreateNoWindow = true
                 };
-                var ps = Process.Start(psi);
+                using var ps = Process.Start(psi);
                 if (ps != null)
                 {
                     var output = ps.StandardOutput.ReadToEnd();
                     ps.WaitForExit();
-                    // Check for both DLL and executable
-                    return output.Contains("LofiBeats.Service.dll") || 
-                           output.Contains("LofiBeats.Service");
+                    return output.Contains("LofiBeats.Service.dll", StringComparison.OrdinalIgnoreCase)
+                           || output.Contains("LofiBeats.Service", StringComparison.OrdinalIgnoreCase);
                 }
+            }
+            else
+            {
+                _logUnsupportedOs(_logger, null);
             }
         }
         catch (Exception ex)
@@ -311,19 +362,22 @@ public class ServiceConnectionHelper
         return false;
     }
 
+    /// <summary>
+    /// Enumerate existing LofiBeats service processes. Tries PID file first, then falls back to system enumeration.
+    /// </summary>
     private List<Process> GetExistingServiceProcesses()
     {
         // First check the PID file
         var pidProcess = GetProcessFromPidFile();
         if (pidProcess != null)
         {
-            return [pidProcess];
+            return new List<Process> { pidProcess };
         }
 
-        // For test environment
+        // For test environment - mock process
         if (Environment.GetEnvironmentVariable("MOCK_PROCESS_TEST") == "true")
         {
-            return [Process.GetCurrentProcess()];
+            return new List<Process> { Process.GetCurrentProcess() };
         }
 
         // Fall back to full process enumeration
@@ -332,8 +386,11 @@ public class ServiceConnectionHelper
             .Where(IsLofiBeatsServiceProcess)
             .ToList();
 
-        // Only log unsupported OS if we're not on a supported platform
-        if (processes.Count == 0 && !OperatingSystem.IsWindows() && !OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+        // Log unsupported OS only if no results found
+        if (processes.Count == 0 &&
+            !RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
+            !RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+            !RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
             _logUnsupportedOs(_logger, null);
         }
@@ -341,25 +398,38 @@ public class ServiceConnectionHelper
         return processes;
     }
 
+    /// <summary>
+    /// Checks if the service is running by doing a quick HTTP health check.
+    /// </summary>
     private async Task<bool> IsServiceRunningAsync()
     {
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(250)); // Quick check timeout
-            var response = await _httpClient.GetAsync($"{_serviceUrl}/healthz", cts.Token);
-            _logHealthCheckResponse(_logger, response.StatusCode.ToString(), (int)response.StatusCode, null);
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(250)); // Quick check
+            var response = await _httpClient.GetAsync($"{_serviceUrl}/healthz",
+                HttpCompletionOption.ResponseHeadersRead, // Do not buffer content
+                cts.Token);
 
-            // Consider both OK and redirect responses as successful
-            return response.IsSuccessStatusCode || 
-                   (int)response.StatusCode is >= 300 and < 400;
+            _logHealthCheckResponse(_logger,
+                response.StatusCode.ToString(),
+                (int)response.StatusCode,
+                null);
+
+            // Consider both OK and redirect responses as success
+            return response.IsSuccessStatusCode ||
+                   ((int)response.StatusCode >= 300 && (int)response.StatusCode < 400);
         }
         catch (Exception ex)
         {
+            // 0 used when we fail to get an actual PID in this context
             _logErrorCheckingProcess(_logger, 0, ex);
             return false;
         }
     }
 
+    /// <summary>
+    /// Starts the service process (if not running). Copies settings, sets executable bits, etc.
+    /// </summary>
     private async Task StartServiceAsync()
     {
         try
@@ -374,9 +444,8 @@ public class ServiceConnectionHelper
             _logStartingServiceDetails(_logger, _servicePath, serviceDirectory, null);
 
             // Determine if we're running a published single-file executable
-            bool isPublishedExecutable = !_servicePath.EndsWith(".dll");
+            bool isPublishedExecutable = !_servicePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
 
-            // Start the service process
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
@@ -393,11 +462,11 @@ public class ServiceConnectionHelper
             // Only add the DLL path as an argument when using dotnet
             if (!isPublishedExecutable)
             {
-                process.StartInfo.Arguments = _servicePath;
+                process.StartInfo.Arguments = $"\"{_servicePath}\"";
             }
 
-            // Make sure the file is executable on Linux/macOS for published single-file
-            if (isPublishedExecutable && !OperatingSystem.IsWindows())
+            // Ensure the file is executable on non-Windows
+            if (isPublishedExecutable && !RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 try
                 {
@@ -417,19 +486,19 @@ public class ServiceConnectionHelper
                 }
             }
 
-            _logServiceStartupDetails(_logger, 
+            _logServiceStartupDetails(_logger,
                 process.StartInfo.FileName,
                 process.StartInfo.Arguments,
                 serviceDirectory,
                 _servicePath,
                 null);
 
-            process.OutputDataReceived += (sender, e) => 
+            process.OutputDataReceived += (sender, e) =>
             {
                 if (!string.IsNullOrEmpty(e.Data))
                     _logServiceOutput(_logger, e.Data, null);
             };
-            process.ErrorDataReceived += (sender, e) => 
+            process.ErrorDataReceived += (sender, e) =>
             {
                 if (!string.IsNullOrEmpty(e.Data))
                     _logServiceError(_logger, e.Data, null);
@@ -438,24 +507,30 @@ public class ServiceConnectionHelper
             // Log the final command that will be executed
             _logExecutingCommand(_logger, $"{process.StartInfo.FileName} {process.StartInfo.Arguments}", null);
 
+            // Start the process
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-            bool exitedQuickly = process.WaitForExit(1000); // Reduced from 2000ms to 1000ms
+            // Check quickly if it exited
+            bool exitedQuickly = process.WaitForExit(QuickExitCheckMilliseconds);
             if (exitedQuickly)
             {
                 // Child died almost instantly; log the exit code
                 _logServiceExitedQuickly(_logger, process.ExitCode, null);
-                throw new Exception($"Service process exited immediately with code {process.ExitCode}.");
+                throw new ServiceStartException($"Service process exited immediately with code {process.ExitCode}.");
             }
             else
             {
                 _logServiceStillRunning(_logger, null);
             }
 
-            // Write PID file
-            File.WriteAllText(_pidFilePath, process.Id.ToString());
+            // Write PID file (with file-sharing turned off to avoid concurrency issues)
+            using (var fs = new FileStream(_pidFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(fs))
+            {
+                await writer.WriteAsync(process.Id.ToString());
+            }
             _logPidFileCreated(_logger, process.Id, null);
 
             _logServiceStarted(_logger, _servicePath, null);
@@ -463,15 +538,20 @@ public class ServiceConnectionHelper
         catch (Exception ex)
         {
             _logFailedToStartService(_logger, ex);
-            throw new Exception($"Failed to start LofiBeats service: {ex.Message}", ex);
+            throw new ServiceStartException($"Failed to start LofiBeats service: {ex.Message}", ex);
         }
     }
 
+    /// <summary>
+    /// Copies the service's appsettings files (production & development) if source is newer or doesn't exist.
+    /// </summary>
     private static async Task CopyServiceSettingsAsync(string serviceDirectory)
     {
         var cliDirectory = AppContext.BaseDirectory;
+
         var serviceSettings = Path.Combine(cliDirectory, "service.appsettings.json");
         var serviceDevSettings = Path.Combine(cliDirectory, "service.appsettings.Development.json");
+
         var targetSettings = Path.Combine(serviceDirectory, "appsettings.json");
         var targetDevSettings = Path.Combine(serviceDirectory, "appsettings.Development.json");
 
@@ -504,12 +584,12 @@ public class ServiceConnectionHelper
     {
         // Get the directory where the CLI is running
         var cliDirectory = AppContext.BaseDirectory;
-        
-        // For development, try looking in the service's output directory first
+
+        // For development, try the typical bin/Debug path
         var serviceDevPath = Path.GetFullPath(Path.Combine(
-            cliDirectory, // bin/Debug/net9.0
-            "..", "..", "..", // back to src/LofiBeats.Cli
-            "..", "LofiBeats.Service", // to src/LofiBeats.Service
+            cliDirectory,           // e.g. bin/Debug/net9.0
+            "..", "..", "..",       // up to src/LofiBeats.Cli
+            "..", "LofiBeats.Service", // into src/LofiBeats.Service
             "bin", "Debug", "net9.0",
             "LofiBeats.Service.dll"
         ));
@@ -519,12 +599,14 @@ public class ServiceConnectionHelper
             return serviceDevPath;
         }
 
-        // For published mode, check both executable and DLL
-        var publishedExe = Path.Combine(cliDirectory, 
-            OperatingSystem.IsWindows() ? "LofiBeats.Service.exe" : "LofiBeats.Service");
+        // For published mode, check both exe and DLL
+        var publishedExe = Path.Combine(cliDirectory,
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? "LofiBeats.Service.exe"
+                : "LofiBeats.Service");
+
         var publishedDll = Path.Combine(cliDirectory, "LofiBeats.Service.dll");
 
-        // Prefer the executable if it exists (single-file publish)
         if (File.Exists(publishedExe))
         {
             return publishedExe;
@@ -533,13 +615,16 @@ public class ServiceConnectionHelper
         return publishedDll;
     }
 
+    /// <summary>
+    /// Sends a command to the LofiBeats service. Ensures service is running first.
+    /// </summary>
     public async Task<HttpResponseMessage> SendCommandAsync(HttpMethod method, string endpoint, object? content = null)
     {
         await EnsureServiceRunningAsync();
 
         var requestUri = $"{_serviceUrl}/api/lofi/{endpoint.TrimStart('/')}";
         using var request = new HttpRequestMessage(method, requestUri);
-        
+
         if (content != null)
         {
             request.Content = JsonContent.Create(content);
@@ -550,9 +635,11 @@ public class ServiceConnectionHelper
         return response;
     }
 
+    /// <summary>
+    /// Requests service shutdown via HTTP endpoint, if the service is running.
+    /// </summary>
     public async Task ShutdownServiceAsync()
     {
-        // Check if service is running first
         if (!await IsServiceRunningAsync())
         {
             _logNoRunningService(_logger, null);
@@ -571,4 +658,4 @@ public class ServiceConnectionHelper
             throw;
         }
     }
-} 
+}
