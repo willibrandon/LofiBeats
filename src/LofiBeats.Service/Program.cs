@@ -6,29 +6,35 @@ using LofiBeats.Core.Scheduling;
 using LofiBeats.Core.Telemetry;
 using LofiBeats.Core.WebSocket;
 using LofiBeats.Service.WebSocket;
+using Microsoft.AspNetCore.Http.Json;
+using System.Buffers;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace LofiBeats.Service;
 
 public partial class Program
 {
-    static Program()
+    // Singleton JsonSerializerOptions for reuse
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        // Set up global exception handling
-        AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
-        {
-            var ex = args.ExceptionObject as Exception;
-            var logger = LoggerFactory.Create(logging => logging.AddConsole()).CreateLogger("GlobalExceptionHandler");
-            LoggerMessages.LogUnhandledException(logger, ex?.Message, ex);
-            
-            // Ensure the error is written to console in case logging fails
-            Console.Error.WriteLine($"FATAL ERROR: {ex?.Message}");
-            Console.Error.WriteLine(ex?.StackTrace);
-            
-            // Force exit with error code
-            Environment.Exit(1);
-        };
-    }
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        WriteIndented = false // Optimize for performance over readability
+    };
+
+    // High-performance structured logging using LoggerMessage.Define
+    private static readonly Action<ILogger, Exception?> _logUnhandledException =
+        LoggerMessage.Define(LogLevel.Critical, new EventId(1000, "UnhandledException"),
+            "Unhandled exception occurred in application");
+
+    private static readonly Action<ILogger, bool, string?, Exception?> _logTelemetryConfig =
+        LoggerMessage.Define<bool, string?>(LogLevel.Information, new EventId(1001, "TelemetryConfig"),
+            "Telemetry configuration: Seq enabled: {SeqEnabled}, Server URL: {SeqUrl}");
+
+    private static readonly Action<ILogger, Exception?> _logNoTelemetryConfig =
+        LoggerMessage.Define(LogLevel.Warning, new EventId(1002, "NoTelemetryConfig"),
+            "No telemetry configuration found, using defaults");
 
     private static readonly Action<ILogger, Exception> _logWebSocketError =
         LoggerMessage.Define(LogLevel.Error, new EventId(100, "WebSocketError"),
@@ -46,50 +52,76 @@ public partial class Program
         LoggerMessage.Define<string>(LogLevel.Debug, new EventId(103, "WebSocketHeaders"),
             "WebSocket request headers: {Headers}");
 
+    static Program()
+    {
+        // Set up global exception handling with structured logging
+        AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+        {
+            var ex = args.ExceptionObject as Exception;
+            var logger = LoggerFactory.Create(logging => logging.AddConsole()).CreateLogger("GlobalExceptionHandler");
+            _logUnhandledException(logger, ex);
+
+            // Ensure the error is written to console in case logging fails
+            Console.Error.WriteLine($"FATAL ERROR: {ex?.Message}");
+            Console.Error.WriteLine(ex?.StackTrace);
+
+            Environment.Exit(1);
+        };
+
+        // Optimize thread pool settings for audio processing
+        ThreadPool.SetMinThreads(Environment.ProcessorCount * 2, Environment.ProcessorCount);
+    }
+
     public static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // Add services to the container.
-        // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+        // Configure services with minimal startup work
         builder.Services.AddOpenApi();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddHealthChecks();
 
-        // Configure telemetry from settings
+        // Configure telemetry with structured logging
         var telemetryConfig = builder.Configuration.GetSection("Telemetry").Get<TelemetryConfiguration>();
+        var logger = LoggerFactory.Create(logging => logging.AddConsole()).CreateLogger("Program");
+
         if (telemetryConfig != null)
         {
-            builder.Services.AddLogging(logging =>
-            {
-                logging.AddConsole();
-                logging.AddDebug();
-            });
-            var logger = LoggerFactory.Create(logging => logging.AddConsole()).CreateLogger("Program");
-            LoggerMessages.LogTelemetryConfig(logger, telemetryConfig.EnableSeq, telemetryConfig.SeqServerUrl, null);
-
+            _logTelemetryConfig(logger, telemetryConfig.EnableSeq, telemetryConfig.SeqServerUrl, null);
             builder.Services.AddLofiTelemetry(telemetryConfig);
         }
         else
         {
-            var logger = LoggerFactory.Create(logging => logging.AddConsole()).CreateLogger("Program");
-            LoggerMessages.LogNoTelemetryConfig(logger, null);
-
-            // Fallback to default configuration if settings are missing
+            _logNoTelemetryConfig(logger, null);
             builder.Services.AddLofiTelemetry(new TelemetryConfiguration
             {
                 EnableLocalFile = true,
-                EnableSeq = false // Disable Seq by default if no configuration is provided
+                EnableSeq = false
             });
         }
 
-        // Register our core services as singletons
+        // Configure resource pooling for audio buffers
+        builder.Services.AddSingleton(ArrayPool<byte>.Shared);
+
+        // Register core services as singletons for performance
         builder.Services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
         builder.Services.AddSingleton<IBeatGeneratorFactory, BeatGeneratorFactory>();
         builder.Services.AddSingleton<IEffectFactory, EffectFactory>();
         builder.Services.AddSingleton<PlaybackScheduler>();
         builder.Services.AddSingleton<UserSampleRepository>();
         builder.Services.AddSingleton<TelemetryTracker>();
+        builder.Services.AddSingleton<IWebSocketBroadcaster, WebSocketHandler>();
+        builder.Services.AddSingleton<IWebSocketHandler, WebSocketHandler>();
+        builder.Services.AddSingleton<WebSocketHandler>();
+        builder.Services.AddHostedService<RealTimeMetricsService>();
+
+        // Configure JSON options for better performance
+        builder.Services.Configure<JsonOptions>(options =>
+        {
+            options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+            options.SerializerOptions.WriteIndented = false;
+        });
 
         // Add HttpContextAccessor for WebSocket authentication
         builder.Services.AddHttpContextAccessor();
@@ -97,11 +129,7 @@ public partial class Program
         // Add WebSocket configuration
         builder.Services.Configure<WebSocketConfiguration>(builder.Configuration.GetSection("WebSocket"));
 
-        // Register WebSocket services
-        builder.Services.AddSingleton<IWebSocketBroadcaster, WebSocketHandler>();
-        builder.Services.AddSingleton<IWebSocketHandler, WebSocketHandler>();
-        builder.Services.AddSingleton<WebSocketHandler>();
-        builder.Services.AddHostedService<RealTimeMetricsService>();
+        // Register WebSocket command handler
         builder.Services.AddSingleton(sp =>
         {
             var handler = sp.GetRequiredService<WebSocketHandler>();
@@ -122,13 +150,11 @@ public partial class Program
         // Get telemetry tracker for API endpoints
         var telemetryTracker = app.Services.GetRequiredService<TelemetryTracker>();
 
-        // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
         {
             app.MapOpenApi();
         }
 
-        // Add health check endpoint
         app.MapHealthChecks("/healthz");
 
         // Configure WebSocket options
@@ -174,11 +200,11 @@ public partial class Program
             });
         });
 
-        // Define our API endpoints
+        // Define API endpoints
         var api = app.MapGroup("/api/lofi");
 
         // Schedule stop endpoint
-        api.MapPost("/schedule-stop", (IAudioPlaybackService playback, IEffectFactory effectFactory, 
+        api.MapPost("/schedule-stop", async (IAudioPlaybackService playback, IEffectFactory effectFactory,
                                      PlaybackScheduler scheduler, bool tapeStop, string delay) =>
         {
             telemetryTracker.TrackEvent(TelemetryConstants.Events.PlaybackScheduled, new Dictionary<string, string>
@@ -193,12 +219,11 @@ public partial class Program
                 return Results.BadRequest(new { error = $"Invalid delay format: {delay}" });
             }
 
-            // Schedule the stop
             var totalMs = (int)timespan.Value.TotalMilliseconds;
             var description = $"Stop playback{(tapeStop ? " with tape effect" : "")} at {DateTime.Now + timespan.Value:HH:mm:ss}";
-            var id = scheduler.ScheduleStopAction(totalMs, () =>
+
+            var id = await Task.Run(() => scheduler.ScheduleStopAction(totalMs, () =>
             {
-                // In callback: call the service's stop logic
                 if (tapeStop)
                 {
                     var currentSource = playback.CurrentSource;
@@ -216,13 +241,13 @@ public partial class Program
                 {
                     playback.StopPlayback();
                 }
-            }, description);
+            }, description));
 
-            return Results.Ok(new { message = $"Scheduled stop in {timespan.Value.TotalSeconds:F1} seconds", actionId = id });
+            return Results.Json(new { message = $"Scheduled stop in {timespan.Value.TotalSeconds:F1} seconds", actionId = id }, JsonOptions);
         });
 
         // Schedule play endpoint
-        api.MapPost("/schedule-play", (IBeatGeneratorFactory factory, IAudioPlaybackService playback,
+        api.MapPost("/schedule-play", async (IBeatGeneratorFactory factory, IAudioPlaybackService playback,
                                      PlaybackScheduler scheduler, ILogger<Program> logger, UserSampleRepository userSamples,
                                      string style = "basic", string delay = "0s") =>
         {
@@ -238,9 +263,8 @@ public partial class Program
                 return Results.BadRequest(new { error = $"Invalid delay format: {delay}" });
             }
 
-            // Schedule the play action
             var totalMs = (int)timespan.Value.TotalMilliseconds;
-            var id = scheduler.ScheduleAction(totalMs, () =>
+            var id = await Task.Run(() => scheduler.ScheduleAction(totalMs, () =>
             {
                 var generator = factory.GetGenerator(style);
                 var pattern = generator.GeneratePattern();
@@ -248,7 +272,7 @@ public partial class Program
                 playback.SetSource(beatSource);
                 playback.CurrentStyle = style;
                 playback.StartPlayback();
-            });
+            }));
 
             return Results.Ok(new { message = $"Scheduled {style} beat to play in {timespan.Value.TotalSeconds:F1} seconds", actionId = id });
         });
@@ -264,17 +288,17 @@ public partial class Program
 
             var generator = factory.GetGenerator(style);
             var pattern = generator.GeneratePattern(bpm);
-            return Results.Text(JsonSerializer.Serialize(new { message = "Pattern generated", pattern = pattern }), "application/json");
+            return Results.Json(new { message = "Pattern generated", pattern = pattern }, JsonOptions);
         });
 
         // Play endpoint
-        api.MapPost("/play", (HttpContext context, IAudioPlaybackService playback, IBeatGeneratorFactory factory, UserSampleRepository userSamples, TelemetryTracker telemetryTracker) =>
+        api.MapPost("/play", async (HttpContext context, IAudioPlaybackService playback, IBeatGeneratorFactory factory,
+            UserSampleRepository userSamples, TelemetryTracker telemetryTracker) =>
         {
             var style = context.Request.Query["style"].FirstOrDefault() ?? "basic";
             var transition = context.Request.Query["transition"].FirstOrDefault() ?? "immediate";
             var xfadeDuration = double.TryParse(context.Request.Query["xfadeDuration"].FirstOrDefault(), out var val) ? val : 2.0;
-            
-            // Parse BPM
+
             int? bpm = null;
             if (context.Request.Query.TryGetValue("bpm", out var bpmValue) && !string.IsNullOrEmpty(bpmValue))
             {
@@ -284,7 +308,6 @@ public partial class Program
                 }
             }
 
-            // Track playback started event
             telemetryTracker.TrackEvent(TelemetryConstants.Events.PlaybackStarted, new Dictionary<string, string>
             {
                 { TelemetryConstants.Properties.BeatStyle, style },
@@ -296,16 +319,26 @@ public partial class Program
             {
                 generator.SetBPM(bpm.Value);
             }
-            var pattern = generator.GeneratePattern();
 
-            // Add user samples to pattern
-            for (int i = 0; i < pattern.DrumSequence.Length; i++)
+            var pattern = await Task.Run(() => generator.GeneratePattern());
+
+            // Add user samples to pattern using a rented buffer
+            var userSampleBuffer = ArrayPool<string>.Shared.Rent(pattern.DrumSequence.Length);
+            try
             {
-                var drum = pattern.DrumSequence[i];
-                if (userSamples.HasSample(drum))
+                for (int i = 0; i < pattern.DrumSequence.Length; i++)
                 {
-                    pattern.UserSampleSteps[i] = drum;
+                    var drum = pattern.DrumSequence[i];
+                    if (userSamples.HasSample(drum))
+                    {
+                        pattern.UserSampleSteps[i] = drum;
+                        userSampleBuffer[i] = drum;
+                    }
                 }
+            }
+            finally
+            {
+                ArrayPool<string>.Shared.Return(userSampleBuffer);
             }
 
             if (transition == "crossfade")
@@ -314,7 +347,6 @@ public partial class Program
             }
             else
             {
-                // Create and set the provider for immediate transition
                 var provider = new BeatPatternSampleProvider(
                     pattern,
                     app.Services.GetRequiredService<ILogger<BeatPatternSampleProvider>>(),
@@ -326,7 +358,7 @@ public partial class Program
             playback.CurrentStyle = style;
             playback.StartPlayback();
 
-            return Results.Ok(new { message = "Playback started", pattern });
+            return Results.Json(new { message = "Playback started", pattern }, JsonOptions);
         });
 
         // Stop endpoint
@@ -355,7 +387,7 @@ public partial class Program
                 playback.StopPlayback();
             }
 
-            return Results.Text(JsonSerializer.Serialize(new { message = "Playback stopped" }), "application/json");
+            return Results.Json(new { message = "Playback stopped" }, JsonOptions);
         });
 
         // Pause endpoint
@@ -364,12 +396,12 @@ public partial class Program
             var state = playback.GetPlaybackState();
             if (state != NAudio.Wave.PlaybackState.Playing)
             {
-                return Results.Text(JsonSerializer.Serialize(new { error = "No active playback to pause" }), "application/json", statusCode: 400);
+                return Results.Json(new { error = "No active playback to pause" }, JsonOptions, statusCode: 400);
             }
 
             telemetryTracker.TrackEvent(TelemetryConstants.Events.PlaybackPaused);
             playback.PausePlayback();
-            return Results.Text(JsonSerializer.Serialize(new { message = "Playback paused" }), "application/json");
+            return Results.Json(new { message = "Playback paused" }, JsonOptions);
         });
 
         // Resume endpoint
@@ -378,23 +410,23 @@ public partial class Program
             var state = playback.GetPlaybackState();
             if (state != NAudio.Wave.PlaybackState.Paused)
             {
-                return Results.Text(JsonSerializer.Serialize(new { error = "Playback is not paused" }), "application/json", statusCode: 400);
+                return Results.Json(new { error = "Playback is not paused" }, JsonOptions, statusCode: 400);
             }
 
             telemetryTracker.TrackEvent(TelemetryConstants.Events.PlaybackResumed);
             playback.ResumePlayback();
-            return Results.Text(JsonSerializer.Serialize(new { message = "Playback resumed" }), "application/json");
+            return Results.Json(new { message = "Playback resumed" }, JsonOptions);
         });
 
         // Volume endpoint
         api.MapPost("/volume", (IAudioPlaybackService playback, float level) =>
         {
             if (level < 0 || level > 1)
-                return Results.Text(JsonSerializer.Serialize(new { error = "Volume must be between 0.0 and 1.0" }), "application/json", statusCode: 400);
+                return Results.Json(new { error = "Volume must be between 0.0 and 1.0" }, JsonOptions, statusCode: 400);
 
             telemetryTracker.TrackMetric("Audio.Volume", level);
             playback.SetVolume(level);
-            return Results.Text(JsonSerializer.Serialize(new { message = $"Volume set to {level:F2}" }), "application/json");
+            return Results.Json(new { message = $"Volume set to {level:F2}" }, JsonOptions);
         });
 
         // Effect endpoint
@@ -404,11 +436,11 @@ public partial class Program
             {
                 var currentSource = playback.CurrentSource;
                 if (currentSource == null)
-                    return Results.Text(JsonSerializer.Serialize(new { error = "No audio source is currently playing" }), "application/json", statusCode: 400);
+                    return Results.Json(new { error = "No audio source is currently playing" }, JsonOptions, statusCode: 400);
 
                 var effect = effectFactory.CreateEffect(name, currentSource);
                 if (effect == null)
-                    return Results.Text(JsonSerializer.Serialize(new { error = $"Unknown effect: {name}" }), "application/json", statusCode: 400);
+                    return Results.Json(new { error = $"Unknown effect: {name}" }, JsonOptions, statusCode: 400);
 
                 telemetryTracker.TrackEvent(TelemetryConstants.Events.EffectAdded, new Dictionary<string, string>
                 {
@@ -416,7 +448,7 @@ public partial class Program
                 });
 
                 playback.AddEffect(effect);
-                return Results.Text(JsonSerializer.Serialize(new { message = $"{name} effect enabled" }), "application/json");
+                return Results.Json(new { message = $"{name} effect enabled" }, JsonOptions);
             }
             else
             {
@@ -426,7 +458,7 @@ public partial class Program
                 });
 
                 playback.RemoveEffect(name);
-                return Results.Text(JsonSerializer.Serialize(new { message = $"{name} effect disabled" }), "application/json");
+                return Results.Json(new { message = $"{name} effect disabled" }, JsonOptions);
             }
         });
 
@@ -434,7 +466,7 @@ public partial class Program
         api.MapGet("/preset/current", (IAudioPlaybackService playback) =>
         {
             var preset = playback.GetCurrentPreset();
-            return Results.Ok(preset);
+            return Results.Json(preset, JsonOptions);
         });
 
         // Apply preset endpoint
@@ -442,23 +474,20 @@ public partial class Program
         {
             try
             {
-                // Validate the preset
                 preset.Validate();
 
-                // Track preset application
                 telemetryTracker.TrackEvent(TelemetryConstants.Events.PresetLoaded, new Dictionary<string, string>
                 {
                     { TelemetryConstants.Properties.PreferredBeatStyle, preset.Style },
                     { TelemetryConstants.Properties.PreferredEffects, string.Join(",", preset.Effects) }
                 });
 
-                // Apply the preset
                 playback.ApplyPreset(preset, effectFactory);
-                return Results.Ok(new { message = $"Preset '{preset.Name}' applied successfully" });
+                return Results.Json(new { message = $"Preset '{preset.Name}' applied successfully" }, JsonOptions);
             }
             catch (ArgumentException ex)
             {
-                return Results.BadRequest(new { error = ex.Message });
+                return Results.Json(new { error = ex.Message }, JsonOptions, statusCode: 400);
             }
         });
 
@@ -468,21 +497,20 @@ public partial class Program
             telemetryTracker.TrackEvent(TelemetryConstants.Events.ApplicationStopped);
             await telemetryTracker.TrackApplicationStop();
 
-            // Use a separate task for shutdown, but await the delay
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await Task.Delay(500); // Small delay to allow response to be sent
+                    await Task.Delay(500);
                     Environment.Exit(0);
                 }
                 catch
                 {
-                    Environment.Exit(1); // Exit with error if shutdown task fails
+                    Environment.Exit(1);
                 }
             });
-            
-            return Results.Text(JsonSerializer.Serialize(new { message = "Service shutting down..." }), "application/json");
+
+            return Results.Json(new { message = "Service shutting down..." }, JsonOptions);
         });
 
         // Configure to run on port 5001 since 5000 is used by ControlCenter
