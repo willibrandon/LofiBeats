@@ -148,7 +148,15 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
         }
         catch (OperationCanceledException)
         {
-            // Normal cancellation, ignore
+            // Normal cancellation, try to close gracefully
+            try
+            {
+                await connection.CloseAsync(WebSocketCloseStatus.NormalClosure, "Server shutdown", CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logClientCloseError(_logger, clientId, ex);
+            }
         }
         catch (Exception ex)
         {
@@ -164,7 +172,8 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
 
             try
             {
-                await connection.CloseAsync(cancellationToken);
+                // Use a new token to ensure we can close even if canceled
+                await connection.CloseAsync(WebSocketCloseStatus.NormalClosure, "Connection closed", CancellationToken.None);
             }
             catch (Exception ex)
             {

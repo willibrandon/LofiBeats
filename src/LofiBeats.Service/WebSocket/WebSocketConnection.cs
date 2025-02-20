@@ -29,9 +29,14 @@ public sealed class WebSocketConnection
 
     public async Task CloseAsync(CancellationToken cancellationToken)
     {
+        await CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", cancellationToken);
+    }
+
+    public async Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
+    {
         if (_socket.State == WebSocketState.Open)
         {
-            await _socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", cancellationToken);
+            await _socket.CloseAsync(closeStatus, statusDescription, cancellationToken);
         }
     }
 } 
