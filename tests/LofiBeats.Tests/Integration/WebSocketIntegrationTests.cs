@@ -15,8 +15,8 @@ using System.Text.Json;
 
 namespace LofiBeats.Tests.Integration;
 
-[Collection("AI Generated Tests")]
-public class WebSocketIntegrationTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
+[Collection("WebSocket Tests")]
+public class WebSocketIntegrationTests : IClassFixture<WebApplicationFactory<Program>>, IAsyncDisposable
 {
     private readonly WebApplicationFactory<Program> _factory;
     private readonly WebSocketClient _wsClient;
@@ -250,9 +250,17 @@ public class WebSocketIntegrationTests : IClassFixture<WebApplicationFactory<Pro
             ?? throw new JsonException("Failed to deserialize WebSocket message");
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        if (_webSocket?.State == WebSocketState.Open)
+        {
+            await _webSocket.CloseAsync(
+                WebSocketCloseStatus.NormalClosure,
+                "Test completed",
+                CancellationToken.None);
+        }
         _webSocket?.Dispose();
         _cts.Dispose();
+        await _factory.DisposeAsync();
     }
 } 

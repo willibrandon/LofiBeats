@@ -183,17 +183,22 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
         var message = JsonSerializer.Serialize(new { action, payload });
         var messageBytes = Encoding.UTF8.GetBytes(message);
 
+        // 1. Acquire lock briefly, just to snapshot current connections
         await _broadcastLock.WaitAsync(cancellationToken);
+        WebSocketConnection[] snapshot;
         try
         {
-            var tasks = _connections.Values.Select(connection =>
-                connection.SendAsync(messageBytes, System.Net.WebSockets.WebSocketMessageType.Text, true, cancellationToken));
-            await Task.WhenAll(tasks);
+            snapshot = _connections.Values.ToArray();
         }
         finally
         {
             _broadcastLock.Release();
         }
+
+        // 2. Send to all connections outside the lock
+        var tasks = snapshot.Select(conn =>
+            conn.SendAsync(messageBytes, System.Net.WebSockets.WebSocketMessageType.Text, true, cancellationToken));
+        await Task.WhenAll(tasks);
     }
 
     private async Task ReceiveMessagesAsync(Guid clientId, WebSocketConnection connection, 

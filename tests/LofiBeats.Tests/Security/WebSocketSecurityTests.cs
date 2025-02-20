@@ -10,7 +10,7 @@ using System.Text.Json;
 
 namespace LofiBeats.Tests.Security;
 
-[Collection("AI Generated Tests")]
+[Collection("WebSocket Tests")]
 public class WebSocketSecurityTests : IClassFixture<WebApplicationFactory<Program>>, IAsyncDisposable
 {
     private readonly WebApplicationFactory<Program> _factory;
@@ -247,5 +247,6 @@ public class WebSocketSecurityTests : IClassFixture<WebApplicationFactory<Progra
         }
         _webSocket?.Dispose();
         _cts.Dispose();
+        await _factory.DisposeAsync();
     }
 } 

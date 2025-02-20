@@ -50,6 +50,8 @@ public sealed class RealTimeMetricsService : BackgroundService
     private const double ChangeThreshold = 0.5; // 0.5% change threshold for numeric values
     private static readonly TimeSpan BroadcastInterval = TimeSpan.FromMilliseconds(200); // 5Hz instead of 20Hz
 
+    private bool _disposed;
+
     public RealTimeMetricsService(
         ILogger<RealTimeMetricsService> logger,
         IWebSocketBroadcaster broadcaster,
@@ -74,6 +76,9 @@ public sealed class RealTimeMetricsService : BackgroundService
         {
             while (await _timer.WaitForNextTickAsync(stoppingToken))
             {
+                if (stoppingToken.IsCancellationRequested)
+                    break;
+
                 await BroadcastMetricsAsync(stoppingToken);
             }
         }
@@ -87,8 +92,16 @@ public sealed class RealTimeMetricsService : BackgroundService
         }
     }
 
-    private static bool HasSignificantChange(double current, double previous) =>
-        Math.Abs((current - previous) / previous * 100) > ChangeThreshold;
+    private static bool HasSignificantChange(double current, double previous)
+    {
+        if (Math.Abs(previous) < 0.0001) // or some small epsilon
+        {
+            // If the previous value was near zero, any non-trivial change might be considered significant.
+            return Math.Abs(current - previous) > 0.1;
+        }
+
+        return Math.Abs((current - previous) / previous * 100) > ChangeThreshold;
+    }
 
     private async Task BroadcastMetricsAsync(CancellationToken cancellationToken)
     {
@@ -171,7 +184,16 @@ public sealed class RealTimeMetricsService : BackgroundService
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        // Log once
         _logStopping(_logger, null);
+
+        // Safely dispose the PeriodicTimer here
+        if (!_disposed)
+        {
+            _disposed = true;
+            _timer?.Dispose();
+        }
+
         await base.StopAsync(cancellationToken);
     }
 } 

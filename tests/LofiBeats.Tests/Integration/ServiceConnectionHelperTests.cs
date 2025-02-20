@@ -410,7 +410,7 @@ public class ServiceConnectionHelperTests : IDisposable
         try
         {
             // Act & Assert
-            await Assert.ThrowsAsync<Exception>(() => _helper.EnsureServiceRunningAsync());
+            await Assert.ThrowsAsync<ServiceStartException>(() => _helper.EnsureServiceRunningAsync());
         }
         finally
         {

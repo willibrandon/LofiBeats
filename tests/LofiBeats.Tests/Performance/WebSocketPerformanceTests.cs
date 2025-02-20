@@ -2,19 +2,18 @@ using LofiBeats.Core.WebSocket;
 using LofiBeats.Service;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.AspNetCore.TestHost;
 
 namespace LofiBeats.Tests.Performance;
 
-[Collection("AI Generated Tests")]
-public class WebSocketPerformanceTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
+[Collection("WebSocket Tests")]
+public class WebSocketPerformanceTests : IClassFixture<WebApplicationFactory<Program>>, IAsyncDisposable
 {
     private readonly WebApplicationFactory<Program> _factory;
     private readonly WebSocketClient _wsClient;
@@ -282,18 +281,18 @@ public class WebSocketPerformanceTests : IClassFixture<WebApplicationFactory<Pro
         _clients.Clear();
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
-        
+        _disposed = true;
+
         if (!_cts.IsCancellationRequested)
         {
             _cts.Cancel();
         }
-        
-        CleanupClientsAsync().Wait(TimeSpan.FromSeconds(2));
-        
+
+        await CleanupClientsAsync();
         _cts.Dispose();
-        _disposed = true;
+        await _factory.DisposeAsync();
     }
 } 
