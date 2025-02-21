@@ -15,8 +15,8 @@
 	<!-- Pre-build cleanup for Visual Studio (SAFE VERSION - NO RECURSION!) -->
 	<Target Name="CleanupService" BeforeTargets="PreBuildEvent">
 		<Message Text="🧹 Cleaning up any running services..." Importance="high" />
-		<Exec Command="taskkill /IM LofiBeats.Service.exe /F /FI &quot;MEMUSAGE gt 0&quot; 2>nul || exit /b 0" IgnoreExitCode="true" />
-		<Exec Command="taskkill /IM dotnet.exe /F /FI &quot;WINDOWTITLE eq LofiBeats.Service*&quot; 2>nul || exit /b 0" IgnoreExitCode="true" />
+		<Exec Command="taskkill /IM LofiBeats.Service.exe /F /FI &quot;MEMUSAGE gt 0&quot; >nul 2>&amp;1 || cmd /c exit 0" IgnoreExitCode="true" />
+		<Exec Command="taskkill /IM dotnet.exe /F /FI &quot;WINDOWTITLE eq LofiBeats.Service*&quot; >nul 2>&amp;1 || cmd /c exit 0" IgnoreExitCode="true" />
 	</Target>
 
 	<ItemGroup>
