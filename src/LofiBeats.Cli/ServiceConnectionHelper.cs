@@ -16,7 +16,7 @@ public class ServiceConnectionHelper
     private readonly HttpClient _httpClient;
     private readonly string _serviceUrl;
     private readonly string _servicePath;
-    private readonly AsyncRetryPolicy<bool> _healthCheckPolicy;
+    private readonly ResiliencePipeline _healthCheckPolicy;
     private readonly string _pidFilePath;
 
     // Logging definitions remain the same as in the original code.
@@ -131,24 +131,25 @@ public class ServiceConnectionHelper
 
         _serviceUrl = configuration["ServiceUrl"]
                       ?? serviceUrl
-                      ?? "http://localhost:5000";
+                      ?? "http://localhost:5001";
 
         _servicePath = servicePath ?? GetDefaultServicePath();
         _pidFilePath = Path.Combine(Path.GetDirectoryName(_servicePath)!, "service.pid");
 
-        // Configure Polly retry policy for health checks with more aggressive timing
-        _healthCheckPolicy = Policy<bool>
-            .Handle<HttpRequestException>()
-            .Or<TaskCanceledException>()
-            .WaitAndRetryAsync(
-                retryCount: 20, // Increased from 8 to improve reliability of cold starts
-                sleepDurationProvider: retryAttempt =>
+        _healthCheckPolicy = new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
+            {
+                ShouldHandle = new PredicateBuilder().Handle<Exception>(),
+                Delay = TimeSpan.FromMilliseconds(100),
+                MaxRetryAttempts = 20,
+                BackoffType = DelayBackoffType.Exponential,
+                OnRetry = args =>
                 {
-                    var delay = TimeSpan.FromMilliseconds(100 * retryAttempt);
-                    _logHealthCheckRetry(_logger, retryAttempt, delay, null);
-                    return delay;
+                    _logHealthCheckRetry(_logger, args.AttemptNumber, args.RetryDelay, args.Outcome.Exception);
+                    return ValueTask.CompletedTask;
                 }
-            );
+            })
+            .Build();
     }
 
     /// <summary>
@@ -221,7 +222,10 @@ public class ServiceConnectionHelper
                 await StartServiceAsync();
 
                 // 4. Wait for service to respond with full retry policy
-                var isRunning = await _healthCheckPolicy.ExecuteAsync(IsServiceRunningAsync);
+                var isRunning = await _healthCheckPolicy.ExecuteAsync<bool>(
+                    async token => await IsServiceRunningAsync(),
+                    cancellationToken: CancellationToken.None);
+
                 if (isRunning)
                 {
                     _logServiceStartedSuccessfully(_logger, null);
