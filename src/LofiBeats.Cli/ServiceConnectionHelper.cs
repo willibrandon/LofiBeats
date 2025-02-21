@@ -193,12 +193,20 @@ public class ServiceConnectionHelper
                     continue;
                 }
 
-                // 3. Start new service process
+                // 3. One more health check before starting service
+                var isRunning = await IsServiceRunningAsync();
+                if (isRunning)
+                {
+                    _logServiceStartedSuccessfully(_logger, null);
+                    return;
+                }
+
+                // 4. Start a new service process
                 _logStartingService(_logger, null);
                 await StartServiceAsync();
 
-                // 4. Wait for service to respond
-                var isRunning = await IsServiceRunningAsync();
+                // 5. Wait for service to respond
+                isRunning = await IsServiceRunningAsync(attempts: 5);
                 if (isRunning)
                 {
                     _logServiceStartedSuccessfully(_logger, null);
@@ -378,31 +386,39 @@ public class ServiceConnectionHelper
     /// <summary>
     /// Checks if the service is running by doing a quick HTTP health check.
     /// </summary>
-    private async Task<bool> IsServiceRunningAsync()
+    private async Task<bool> IsServiceRunningAsync(int attempts = 1)
     {
-        try
+        var attempt = 1;
+        while (attempt <= attempts)
         {
-            // Quick check.
-            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(1000));
-            var response = await _httpClient.GetAsync($"{_serviceUrl}/healthz",
-                    HttpCompletionOption.ResponseHeadersRead, // Do not buffer content
-                    cts.Token);
+            try
+            {
+                // Quick check.
+                using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+                var response = await _httpClient.GetAsync($"{_serviceUrl}/healthz",
+                        HttpCompletionOption.ResponseHeadersRead, // Do not buffer content
+                        cts.Token);
 
-            _logHealthCheckResponse(_logger,
-                response.StatusCode.ToString(),
-                (int)response.StatusCode,
-                null);
+                _logHealthCheckResponse(_logger,
+                    response.StatusCode.ToString(),
+                    (int)response.StatusCode,
+                    null);
 
-            // Consider both OK and redirect responses as success
-            return response.IsSuccessStatusCode ||
-                   ((int)response.StatusCode >= 300 && (int)response.StatusCode < 400);
+                // Consider both OK and redirect responses as success
+                return response.IsSuccessStatusCode ||
+                       ((int)response.StatusCode >= 300 && (int)response.StatusCode < 400);
+            }
+            catch (Exception ex)
+            {
+                // 0 used when we fail to get an actual PID in this context
+                _logErrorCheckingProcess(_logger, 0, ex);
+                await Task.Delay(250); // Delay before retry
+            }
+
+            attempt++;
         }
-        catch (Exception ex)
-        {
-            // 0 used when we fail to get an actual PID in this context
-            _logErrorCheckingProcess(_logger, 0, ex);
-            return false;
-        }
+
+        return false;
     }
 
     /// <summary>
