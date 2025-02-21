@@ -19,43 +19,43 @@ public class CommandLineInterface : IDisposable
     private readonly UserSampleRepository _userSamples;
 
     private static readonly Action<ILogger, Exception?> _logCommandLineInterfaceInitialized =
-        LoggerMessage.Define(LogLevel.Information, new EventId(0, nameof(CommandLineInterface)), "CommandLineInterface initialized");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(0, nameof(CommandLineInterface)), "CommandLineInterface initialized");
 
     private static readonly Action<ILogger, string, Exception?> _logExecutingCommand =
-        LoggerMessage.Define<string>(LogLevel.Information, new EventId(1, "ExecutingCommand"), "Executing command with args: {Args}");
+        LoggerMessage.Define<string>(LogLevel.Debug, new EventId(1, "ExecutingCommand"), "Executing command with args: {Args}");
 
     private static readonly Action<ILogger, Exception?> _logExecutingPlayCommand =
-        LoggerMessage.Define(LogLevel.Information, new EventId(2, "ExecutingPlayCommand"), "Executing play command");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(2, "ExecutingPlayCommand"), "Executing play command");
 
     private static readonly Action<ILogger, Exception?> _logExecutingStopCommand =
-        LoggerMessage.Define(LogLevel.Information, new EventId(3, "ExecutingStopCommand"), "Executing stop command");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(3, "ExecutingStopCommand"), "Executing stop command");
 
     private static readonly Action<ILogger, Exception?> _logExecutingPauseCommand =
-        LoggerMessage.Define(LogLevel.Information, new EventId(4, "ExecutingPauseCommand"), "Executing pause command");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(4, "ExecutingPauseCommand"), "Executing pause command");
 
     private static readonly Action<ILogger, Exception?> _logExecutingResumeCommand =
-        LoggerMessage.Define(LogLevel.Information, new EventId(5, "ExecutingResumeCommand"), "Executing resume command");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(5, "ExecutingResumeCommand"), "Executing resume command");
 
     private static readonly Action<ILogger, string, bool, Exception?> _logExecutingEffectCommand =
-        LoggerMessage.Define<string, bool>(LogLevel.Information, new EventId(6, "ExecutingEffectCommand"), "Executing effect command with name: {Name}, enable: {Enable}");
+        LoggerMessage.Define<string, bool>(LogLevel.Debug, new EventId(6, "ExecutingEffectCommand"), "Executing effect command with name: {Name}, enable: {Enable}");
 
     private static readonly Action<ILogger, float, Exception?> _logSettingVolume =
-        LoggerMessage.Define<float>(LogLevel.Information, new EventId(7, "SettingVolume"), "Setting volume to: {Level}");
+        LoggerMessage.Define<float>(LogLevel.Debug, new EventId(7, "SettingVolume"), "Setting volume to: {Level}");
 
     private static readonly Action<ILogger, Exception?> _logExecutingShutdownCommand =
-        LoggerMessage.Define(LogLevel.Information, new EventId(8, "ExecutingShutdownCommand"), "Executing shutdown command");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(8, "ExecutingShutdownCommand"), "Executing shutdown command");
 
     private static readonly Action<ILogger, Exception?> _logExecutingVersionCommand =
-        LoggerMessage.Define(LogLevel.Information, new EventId(9, "ExecutingVersionCommand"), "Executing version command");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(9, "ExecutingVersionCommand"), "Executing version command");
 
     private static readonly Action<ILogger, Exception?> _logCommandsConfigured =
         LoggerMessage.Define(LogLevel.Debug, new EventId(10, "CommandsConfigured"), "Commands configured successfully");
 
     private static readonly Action<ILogger, Exception?> _logExecutingGenerateCommand =
-        LoggerMessage.Define(LogLevel.Information, new EventId(11, "ExecutingGenerateCommand"), "Executing generate command");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(11, "ExecutingGenerateCommand"), "Executing generate command");
 
     private static readonly Action<ILogger, Exception?> _logEnteringInteractiveMode =
-        LoggerMessage.Define(LogLevel.Information, new EventId(12, "EnteringInteractiveMode"), "Entering interactive mode");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(12, "EnteringInteractiveMode"), "Entering interactive mode");
 
     private static readonly Action<ILogger, string, Exception?> _logEffectNotFound =
         LoggerMessage.Define<string>(LogLevel.Warning, new EventId(13, "EffectNotFound"), "Effect '{Name}' not found");
@@ -64,25 +64,25 @@ public class CommandLineInterface : IDisposable
         LoggerMessage.Define<string>(LogLevel.Warning, new EventId(14, "InvalidBeatStyle"), "Invalid beat style '{Style}'");
 
     private static readonly Action<ILogger, Exception?> _logExecutingUpdateCommand =
-        LoggerMessage.Define(LogLevel.Information, new EventId(15, "ExecutingUpdateCommand"), "Executing update command");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(15, "ExecutingUpdateCommand"), "Executing update command");
 
     private static readonly Action<ILogger, string, TimeSpan, Exception?> _logSchedulingStop =
-        LoggerMessage.Define<string, TimeSpan>(LogLevel.Information, new EventId(16, "SchedulingStop"), "Scheduling stop with {Effect} in {Delay}");
+        LoggerMessage.Define<string, TimeSpan>(LogLevel.Debug, new EventId(16, "SchedulingStop"), "Scheduling stop with {Effect} in {Delay}");
 
     private static readonly Action<ILogger, Guid, Exception> _logScheduledStopError =
         LoggerMessage.Define<Guid>(LogLevel.Error, new EventId(17, "ScheduledStopError"), "Error executing scheduled stop {ActionId}");
 
     private static readonly Action<ILogger, Exception?> _logExecutingStartCommand =
-        LoggerMessage.Define(LogLevel.Information, new EventId(19, "ExecutingStartCommand"), "Executing start command");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(19, "ExecutingStartCommand"), "Executing start command");
 
     private static readonly Action<ILogger, Exception?> _logServiceStarted =
-        LoggerMessage.Define(LogLevel.Information, new EventId(20, "ServiceStarted"), "LofiBeats service started successfully");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(20, "ServiceStarted"), "LofiBeats service started successfully");
 
     private static readonly Action<ILogger, string, Exception?> _logExecutingSavePreset =
-        LoggerMessage.Define<string>(LogLevel.Information, new EventId(21, "ExecutingSavePreset"), "Saving preset to {FilePath}");
+        LoggerMessage.Define<string>(LogLevel.Debug, new EventId(21, "ExecutingSavePreset"), "Saving preset to {FilePath}");
 
     private static readonly Action<ILogger, string, Exception?> _logExecutingLoadPreset =
-        LoggerMessage.Define<string>(LogLevel.Information, new EventId(22, "ExecutingLoadPreset"), "Loading preset from {FilePath}");
+        LoggerMessage.Define<string>(LogLevel.Debug, new EventId(22, "ExecutingLoadPreset"), "Loading preset from {FilePath}");
 
     private static readonly string[] ValidEffects = ["vinyl", "reverb", "lowpass", "tapeflutter"];
     private static readonly string[] ValidBeatStyles = ["basic", "jazzy", "chillhop", "hiphop"];
