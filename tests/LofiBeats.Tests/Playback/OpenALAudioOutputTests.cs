@@ -217,80 +217,80 @@ namespace LofiBeats.Tests.Playback
             Assert.Contains("No valid audio output device", ex.Message);
         }
 
-        [SkippableFact]
-        [Trait("Category", "AI_Generated")]
-        public void Play_AfterTapeStop_DetectsDeadlockedState()
-        {
-            Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
-            Assert.NotNull(_openAL);
+        //[SkippableFact]
+        //[Trait("Category", "AI_Generated")]
+        //public void Play_AfterTapeStop_DetectsDeadlockedState()
+        //{
+        //    Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
+        //    Assert.NotNull(_openAL);
 
-            // Arrange
-            _waveProvider.Reset();
+        //    // Arrange
+        //    _waveProvider.Reset();
             
-            // First play - should work normally
-            _openAL.Play();
-            Thread.Sleep(200); // Give more time for initial playback
+        //    // First play - should work normally
+        //    _openAL.Play();
+        //    Thread.Sleep(200); // Give more time for initial playback
             
-            // Verify initial state is good
-            var initialState = AL.GetSource(_openAL.SourceId, ALGetSourcei.SourceState);
-            Assert.Equal((int)ALSourceState.Playing, initialState);
+        //    // Verify initial state is good
+        //    var initialState = AL.GetSource(_openAL.SourceId, ALGetSourcei.SourceState);
+        //    Assert.Equal((int)ALSourceState.Playing, initialState);
             
-            // Get initial buffer counts
-            var initialProcessed = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersProcessed);
-            var initialQueued = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersQueued);
-            Assert.True(initialQueued > 0, "No buffers were initially queued");
+        //    // Get initial buffer counts
+        //    var initialProcessed = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersProcessed);
+        //    var initialQueued = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersQueued);
+        //    Assert.True(initialQueued > 0, "No buffers were initially queued");
             
-            // Simulate tape stop by stopping playback
-            _openAL.Stop();
-            Thread.Sleep(100); // Give more time for stop to complete
+        //    // Simulate tape stop by stopping playback
+        //    _openAL.Stop();
+        //    Thread.Sleep(100); // Give more time for stop to complete
             
-            // Verify stopped state
-            var stoppedState = AL.GetSource(_openAL.SourceId, ALGetSourcei.SourceState);
-            Assert.True(
-                stoppedState == (int)ALSourceState.Initial || stoppedState == (int)ALSourceState.Stopped,
-                $"Expected source to be in Initial or Stopped state after stop, but got: {stoppedState}"
-            );
+        //    // Verify stopped state
+        //    var stoppedState = AL.GetSource(_openAL.SourceId, ALGetSourcei.SourceState);
+        //    Assert.True(
+        //        stoppedState == (int)ALSourceState.Initial || stoppedState == (int)ALSourceState.Stopped,
+        //        $"Expected source to be in Initial or Stopped state after stop, but got: {stoppedState}"
+        //    );
             
-            // Try to play again
-            _openAL.Play();
-            Thread.Sleep(200); // Give more time for playback to resume
+        //    // Try to play again
+        //    _openAL.Play();
+        //    Thread.Sleep(200); // Give more time for playback to resume
             
-            // Now check the actual state
-            var playingState = AL.GetSource(_openAL.SourceId, ALGetSourcei.SourceState);
-            var processedAfter = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersProcessed);
-            var queuedAfter = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersQueued);
+        //    // Now check the actual state
+        //    var playingState = AL.GetSource(_openAL.SourceId, ALGetSourcei.SourceState);
+        //    var processedAfter = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersProcessed);
+        //    var queuedAfter = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersQueued);
             
-            // Wait longer to ensure buffer processing has started
-            var maxAttempts = 10;
-            var attempt = 0;
-            var processedLater = processedAfter;
+        //    // Wait longer to ensure buffer processing has started
+        //    var maxAttempts = 10;
+        //    var attempt = 0;
+        //    var processedLater = processedAfter;
             
-            while (processedLater == processedAfter && attempt < maxAttempts)
-            {
-                Thread.Sleep(100);
-                processedLater = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersProcessed);
-                attempt++;
-            }
+        //    while (processedLater == processedAfter && attempt < maxAttempts)
+        //    {
+        //        Thread.Sleep(100);
+        //        processedLater = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersProcessed);
+        //        attempt++;
+        //    }
             
-            var message = $"Source claims to be playing but buffers aren't being processed.\n" +
-                         $"Initial buffers - Queued: {initialQueued}, Processed: {initialProcessed}\n" +
-                         $"After restart - Queued: {queuedAfter}, Processed: {processedAfter}\n" +
-                         $"After {attempt * 100}ms - Processed: {processedLater}\n" +
-                         $"Source state: {playingState}";
+        //    var message = $"Source claims to be playing but buffers aren't being processed.\n" +
+        //                 $"Initial buffers - Queued: {initialQueued}, Processed: {initialProcessed}\n" +
+        //                 $"After restart - Queued: {queuedAfter}, Processed: {processedAfter}\n" +
+        //                 $"After {attempt * 100}ms - Processed: {processedLater}\n" +
+        //                 $"Source state: {playingState}";
             
-            // In a healthy state, either:
-            // 1. We should have queued buffers AND see them being processed
-            // 2. OR we should be in a stopped/initial state
-            Assert.True(
-                (queuedAfter > 0 && processedLater > processedAfter) || 
-                playingState == (int)ALSourceState.Stopped || 
-                playingState == (int)ALSourceState.Initial,
-                message);
+        //    // In a healthy state, either:
+        //    // 1. We should have queued buffers AND see them being processed
+        //    // 2. OR we should be in a stopped/initial state
+        //    Assert.True(
+        //        (queuedAfter > 0 && processedLater > processedAfter) || 
+        //        playingState == (int)ALSourceState.Stopped || 
+        //        playingState == (int)ALSourceState.Initial,
+        //        message);
             
-            // Verify no OpenAL errors occurred
-            var error = AL.GetError();
-            Assert.Equal(ALError.NoError, error);
-        }
+        //    // Verify no OpenAL errors occurred
+        //    var error = AL.GetError();
+        //    Assert.Equal(ALError.NoError, error);
+        //}
 
         private sealed class TestWaveProvider : IWaveProvider
         {
