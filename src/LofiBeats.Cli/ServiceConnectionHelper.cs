@@ -21,10 +21,10 @@ public class ServiceConnectionHelper
         LoggerMessage.Define(LogLevel.Debug, new EventId(1, "ServiceAlreadyRunning"), "LofiBeats service is already running.");
 
     private static readonly Action<ILogger, Exception?> _logFoundExistingProcesses =
-        LoggerMessage.Define(LogLevel.Information, new EventId(2, "FoundExistingProcesses"), "Found existing service processes, attempting to reuse...");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(2, "FoundExistingProcesses"), "Found existing service processes, attempting to reuse...");
 
     private static readonly Action<ILogger, Exception?> _logConnectedToExistingService =
-        LoggerMessage.Define(LogLevel.Information, new EventId(3, "ConnectedToExistingService"), "Successfully connected to existing service.");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(3, "ConnectedToExistingService"), "Successfully connected to existing service.");
 
     private static readonly Action<ILogger, int, Exception?> _logCleanedUpStaleProcess =
         LoggerMessage.Define<int>(LogLevel.Debug, new EventId(4, "CleanedUpStaleProcess"), "Cleaned up stale process {ProcessId}");
@@ -33,7 +33,7 @@ public class ServiceConnectionHelper
         LoggerMessage.Define<int>(LogLevel.Warning, new EventId(5, "FailedToCleanupProcess"), "Failed to clean up process {ProcessId}");
 
     private static readonly Action<ILogger, Exception?> _logServiceStartedSuccessfully =
-        LoggerMessage.Define(LogLevel.Information, new EventId(6, "ServiceStartedSuccessfully"), "LofiBeats service started successfully.");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(6, "ServiceStartedSuccessfully"), "LofiBeats service started successfully.");
 
     private static readonly Action<ILogger, int, int, Exception?> _logWaitingForServiceStart =
         LoggerMessage.Define<int, int>(LogLevel.Debug, new EventId(7, "WaitingForServiceStart"), "Waiting for service to start (attempt {Attempt}/{MaxAttempts})...");
@@ -45,7 +45,7 @@ public class ServiceConnectionHelper
         LoggerMessage.Define(LogLevel.Warning, new EventId(9, "UnsupportedOs"), "Unsupported operating system for process detection");
 
     private static readonly Action<ILogger, Exception?> _logStartingService =
-        LoggerMessage.Define(LogLevel.Information, new EventId(10, "StartingService"), "Attempting to start LofiBeats service...");
+        LoggerMessage.Define(LogLevel.Debug, new EventId(10, "StartingService"), "Attempting to start LofiBeats service...");
 
     private static readonly Action<ILogger, string, Exception?> _logServiceOutput =
         LoggerMessage.Define<string>(LogLevel.Debug, new EventId(11, "ServiceOutput"), "Service: {Output}");
@@ -54,7 +54,7 @@ public class ServiceConnectionHelper
         LoggerMessage.Define<string>(LogLevel.Error, new EventId(12, "ServiceError"), "Service Error: {Error}");
 
     private static readonly Action<ILogger, string, Exception?> _logServiceStarted =
-        LoggerMessage.Define<string>(LogLevel.Information, new EventId(13, "ServiceStarted"), "Started service from: {Path}");
+        LoggerMessage.Define<string>(LogLevel.Debug, new EventId(13, "ServiceStarted"), "Started service from: {Path}");
 
     private static readonly Action<ILogger, Exception> _logFailedToStartService =
         LoggerMessage.Define(LogLevel.Error, new EventId(14, "FailedToStartService"), "Failed to start LofiBeats service.");

@@ -16,6 +16,38 @@ public class UserSampleRepository : IDisposable
     private readonly string _samplesDirectory;
     private bool _disposed;
 
+    private static readonly Action<ILogger, int, string, Exception?> _logSamplesLoaded =
+        LoggerMessage.Define<int, string>(LogLevel.Debug, new EventId(0, "SamplesLoaded"),
+            "Loaded {Count} samples from {Directory}");
+
+    private static readonly Action<ILogger, string, Exception> _logLoadError =
+        LoggerMessage.Define<string>(LogLevel.Error, new EventId(1, "LoadError"),
+            "Failed to load existing samples from {Directory}");
+
+    private static readonly Action<ILogger, string, string?, string, Exception?> _logSampleRegistered =
+        LoggerMessage.Define<string, string?, string>(LogLevel.Debug, new EventId(2, "SampleRegistered"),
+            "Successfully registered sample {Name} (velocity: {Velocity}) from {FilePath}");
+
+    private static readonly Action<ILogger, string, string, Exception> _logRegistrationError =
+        LoggerMessage.Define<string, string>(LogLevel.Error, new EventId(3, "RegistrationError"),
+            "Failed to register sample {Name} from {FilePath}");
+
+    private static readonly Action<ILogger, string, string?, Exception?> _logSampleOverwrite =
+        LoggerMessage.Define<string, string?>(LogLevel.Warning, new EventId(4, "SampleOverwrite"),
+            "Sample with name {Name} and velocity {Velocity} already exists and will be overwritten");
+
+    private static readonly Action<ILogger, string, Exception?> _logSampleUnregistered =
+        LoggerMessage.Define<string>(LogLevel.Debug, new EventId(5, "SampleUnregistered"),
+            "Successfully unregistered sample {Name}");
+
+    private static readonly Action<ILogger, string, Exception?> _logSampleNotFound =
+        LoggerMessage.Define<string>(LogLevel.Warning, new EventId(6, "SampleNotFound"),
+            "Sample {Name} not found in repository");
+
+    private static readonly Action<ILogger, string, Exception> _logDeleteError =
+        LoggerMessage.Define<string>(LogLevel.Error, new EventId(7, "DeleteError"),
+            "Failed to delete sample file for {Name}");
+
     public UserSampleRepository(ILogger<UserSampleRepository> logger, bool preloadSamples = false)
     {
         _logger = logger;
@@ -50,11 +82,11 @@ public class UserSampleRepository : IDisposable
                     _samples[name] = new UserSampleInfo(file, GetWaveFormat(file));
                 }
             }
-            _logger.LogInformation("Loaded {Count} samples from {Directory}", _samples.Count, _samplesDirectory);
+            _logSamplesLoaded(_logger, _samples.Count, _samplesDirectory, null);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load existing samples from {Directory}", _samplesDirectory);
+            _logLoadError(_logger, _samplesDirectory, ex);
         }
     }
 
@@ -105,17 +137,15 @@ public class UserSampleRepository : IDisposable
 
             if (!_samples.TryAdd(key, sampleInfo))
             {
-                _logger.LogWarning("Sample with name {Name} and velocity {Velocity} already exists and will be overwritten", 
-                    name, velocityLayer?.ToString() ?? "default");
+                _logSampleOverwrite(_logger, name, velocityLayer?.ToString() ?? "default", null);
                 _samples[key] = sampleInfo;
             }
 
-            _logger.LogInformation("Successfully registered sample {Name} (velocity: {Velocity}) from {FilePath}", 
-                name, velocityLayer?.ToString() ?? "default", filePath);
+            _logSampleRegistered(_logger, name, velocityLayer?.ToString() ?? "default", filePath, null);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to register sample {Name} from {FilePath}", name, filePath);
+            _logRegistrationError(_logger, name, filePath, ex);
             throw new ArgumentException("Failed to register sample. The file may be invalid or unsupported.", nameof(filePath), ex);
         }
     }
@@ -205,18 +235,18 @@ public class UserSampleRepository : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to delete sample file for {Name}", key);
+                    _logDeleteError(_logger, key, ex);
                 }
             }
         }
 
         if (unregisteredAny)
         {
-            _logger.LogInformation("Successfully unregistered sample {Name}", name);
+            _logSampleUnregistered(_logger, name, null);
         }
         else
         {
-            _logger.LogWarning("Sample {Name} not found in repository", name);
+            _logSampleNotFound(_logger, name, null);
         }
 
         return unregisteredAny;
