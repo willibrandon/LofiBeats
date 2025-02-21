@@ -60,13 +60,13 @@ public class ServiceConnectionHelper
         LoggerMessage.Define(LogLevel.Error, new EventId(14, "FailedToStartService"), "Failed to start LofiBeats service.");
 
     private static readonly Action<ILogger, Exception?> _logNoRunningService =
-        LoggerMessage.Define(LogLevel.Debug, new EventId(15, "NoRunningService"), "No running service found - nothing to shut down.");
+        LoggerMessage.Define(LogLevel.Information, new EventId(15, "NoRunningService"), "No running service found - nothing to shut down.");
 
     private static readonly Action<ILogger, Exception?> _logShuttingDownService =
-        LoggerMessage.Define(LogLevel.Debug, new EventId(16, "ShuttingDownService"), "Shutting down running service...");
+        LoggerMessage.Define(LogLevel.Information, new EventId(16, "ShuttingDownService"), "Shutting down running service...");
 
     private static readonly Action<ILogger, Exception?> _logServiceShutdownRequested =
-        LoggerMessage.Define(LogLevel.Debug, new EventId(17, "ServiceShutdownRequested"), "Service shutdown requested successfully.");
+        LoggerMessage.Define(LogLevel.Information, new EventId(17, "ServiceShutdownRequested"), "Service shutdown requested successfully.");
 
     private static readonly Action<ILogger, Exception> _logErrorShuttingDown =
         LoggerMessage.Define(LogLevel.Warning, new EventId(18, "ErrorShuttingDown"), "Error while shutting down service.");
