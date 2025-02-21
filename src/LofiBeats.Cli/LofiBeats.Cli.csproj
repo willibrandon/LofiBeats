@@ -46,7 +46,8 @@
 	<!-- Pre-build cleanup -->
 	<Target Name="CleanupService" BeforeTargets="PreBuildEvent" Condition="'$(OS)' == 'Windows_NT' AND '$(CI)' != 'true'">
 		<Message Text="🧹 Cleaning up any running services..." Importance="high" />
-		<Exec Command="pwsh -NoProfile -NonInteractive -Command &quot;&amp; { Get-Process -Name dotnet,LofiBeats.Service -ErrorAction SilentlyContinue | Where-Object {$_.ProcessName -eq 'LofiBeats.Service' -or $_.CommandLine -like '*LofiBeats.Service.dll*'} | Stop-Process -Force }&quot;" IgnoreExitCode="true" />
+		<Exec Command="taskkill /IM LofiBeats.Service.exe /F /FI &quot;MEMUSAGE gt 0&quot; 2>nul || exit /b 0" IgnoreExitCode="true" />
+		<Exec Command="taskkill /IM dotnet.exe /F /FI &quot;WINDOWTITLE eq LofiBeats.Service*&quot; 2>nul || exit /b 0" IgnoreExitCode="true" />
 	</Target>
 
 	<Target Name="CleanupServiceUnix" BeforeTargets="PreBuildEvent" Condition="'$(OS)' != 'Windows_NT' AND '$(CI)' != 'true'">
