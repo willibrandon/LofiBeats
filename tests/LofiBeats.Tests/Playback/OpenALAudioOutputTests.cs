@@ -229,7 +229,7 @@ namespace LofiBeats.Tests.Playback
             
             // First play - should work normally
             _openAL.Play();
-            Thread.Sleep(100);
+            Thread.Sleep(200); // Give more time for initial playback
             
             // Verify initial state is good
             var initialState = AL.GetSource(_openAL.SourceId, ALGetSourcei.SourceState);
@@ -242,40 +242,50 @@ namespace LofiBeats.Tests.Playback
             
             // Simulate tape stop by stopping playback
             _openAL.Stop();
-            Thread.Sleep(50);
+            Thread.Sleep(100); // Give more time for stop to complete
+            
+            // Verify stopped state
+            var stoppedState = AL.GetSource(_openAL.SourceId, ALGetSourcei.SourceState);
+            Assert.True(
+                stoppedState == (int)ALSourceState.Initial || stoppedState == (int)ALSourceState.Stopped,
+                $"Expected source to be in Initial or Stopped state after stop, but got: {stoppedState}"
+            );
             
             // Try to play again
             _openAL.Play();
-            Thread.Sleep(100);
+            Thread.Sleep(200); // Give more time for playback to resume
             
             // Now check the actual state
             var playingState = AL.GetSource(_openAL.SourceId, ALGetSourcei.SourceState);
             var processedAfter = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersProcessed);
             var queuedAfter = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersQueued);
             
-            // Even if the source state says it's playing, we should see buffer processing
-            if (playingState == (int)ALSourceState.Playing)
+            // Wait longer to ensure buffer processing has started
+            var maxAttempts = 10;
+            var attempt = 0;
+            var processedLater = processedAfter;
+            
+            while (processedLater == processedAfter && attempt < maxAttempts)
             {
-                // If it claims to be playing, we should see:
-                // 1. Queued buffers > 0
-                // 2. Buffer processed count changing over time
-                Thread.Sleep(100); // Wait a bit more
-                var processedLater = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersProcessed);
-                
-                var message = $"Source claims to be playing but buffers aren't being processed.\n" +
-                             $"Initial buffers - Queued: {initialQueued}, Processed: {initialProcessed}\n" +
-                             $"After restart - Queued: {queuedAfter}, Processed: {processedAfter}\n" +
-                             $"100ms later - Processed: {processedLater}";
-                
-                // In a healthy state, either:
-                // 1. We should have queued buffers AND see them being processed
-                // 2. OR we should be in a stopped/initial state
-                Assert.True(
-                    (queuedAfter > 0 && processedLater > processedAfter) || 
-                    playingState == (int)ALSourceState.Stopped || 
-                    playingState == (int)ALSourceState.Initial,
-                    message);
+                Thread.Sleep(100);
+                processedLater = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersProcessed);
+                attempt++;
             }
+            
+            var message = $"Source claims to be playing but buffers aren't being processed.\n" +
+                         $"Initial buffers - Queued: {initialQueued}, Processed: {initialProcessed}\n" +
+                         $"After restart - Queued: {queuedAfter}, Processed: {processedAfter}\n" +
+                         $"After {attempt * 100}ms - Processed: {processedLater}\n" +
+                         $"Source state: {playingState}";
+            
+            // In a healthy state, either:
+            // 1. We should have queued buffers AND see them being processed
+            // 2. OR we should be in a stopped/initial state
+            Assert.True(
+                (queuedAfter > 0 && processedLater > processedAfter) || 
+                playingState == (int)ALSourceState.Stopped || 
+                playingState == (int)ALSourceState.Initial,
+                message);
             
             // Verify no OpenAL errors occurred
             var error = AL.GetError();
