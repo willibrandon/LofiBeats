@@ -44,13 +44,13 @@
 	</PropertyGroup>
 
 	<!-- Pre-build cleanup -->
-	<Target Name="CleanupService" BeforeTargets="PreBuildEvent" Condition="'$(OS)' == 'Windows_NT' AND '$(CI)' != 'true'">
+	<Target Name="CleanupService" BeforeTargets="PreBuildEvent" Condition="'$(OS)' == 'Windows_NT'">
 		<Message Text="🧹 Cleaning up any running services..." Importance="high" />
 		<Exec Command="taskkill /IM LofiBeats.Service.exe /F /FI &quot;MEMUSAGE gt 0&quot; >nul 2>&amp;1 || cmd /c exit 0" IgnoreExitCode="true" />
 		<Exec Command="taskkill /IM dotnet.exe /F /FI &quot;WINDOWTITLE eq LofiBeats.Service*&quot; >nul 2>&amp;1 || cmd /c exit 0" IgnoreExitCode="true" />
 	</Target>
 
-	<Target Name="CleanupServiceUnix" BeforeTargets="PreBuildEvent" Condition="'$(OS)' != 'Windows_NT' AND '$(CI)' != 'true'">
+	<Target Name="CleanupServiceUnix" BeforeTargets="PreBuildEvent" Condition="'$(OS)' != 'Windows_NT'">
 		<Message Text="🧹 Cleaning up any running services..." Importance="high" />
 		<Exec Command="pkill -f '(dotnet.*LofiBeats.Service.dll|^LofiBeats.Service$)' 2>/dev/null || true" IgnoreExitCode="true" />
 	</Target>
