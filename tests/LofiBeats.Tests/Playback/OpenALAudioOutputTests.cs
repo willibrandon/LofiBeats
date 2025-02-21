@@ -217,6 +217,71 @@ namespace LofiBeats.Tests.Playback
             Assert.Contains("No valid audio output device", ex.Message);
         }
 
+        [SkippableFact]
+        [Trait("Category", "AI_Generated")]
+        public void Play_AfterTapeStop_DetectsDeadlockedState()
+        {
+            Skip.IfNot(_isUnix, "Test only runs on Unix-like systems (Linux/macOS)");
+            Assert.NotNull(_openAL);
+
+            // Arrange
+            _waveProvider.Reset();
+            
+            // First play - should work normally
+            _openAL.Play();
+            Thread.Sleep(100);
+            
+            // Verify initial state is good
+            var initialState = AL.GetSource(_openAL.SourceId, ALGetSourcei.SourceState);
+            Assert.Equal((int)ALSourceState.Playing, initialState);
+            
+            // Get initial buffer counts
+            var initialProcessed = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersProcessed);
+            var initialQueued = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersQueued);
+            Assert.True(initialQueued > 0, "No buffers were initially queued");
+            
+            // Simulate tape stop by stopping playback
+            _openAL.Stop();
+            Thread.Sleep(50);
+            
+            // Try to play again
+            _openAL.Play();
+            Thread.Sleep(100);
+            
+            // Now check the actual state
+            var playingState = AL.GetSource(_openAL.SourceId, ALGetSourcei.SourceState);
+            var processedAfter = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersProcessed);
+            var queuedAfter = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersQueued);
+            
+            // Even if the source state says it's playing, we should see buffer processing
+            if (playingState == (int)ALSourceState.Playing)
+            {
+                // If it claims to be playing, we should see:
+                // 1. Queued buffers > 0
+                // 2. Buffer processed count changing over time
+                Thread.Sleep(100); // Wait a bit more
+                var processedLater = AL.GetSource(_openAL.SourceId, ALGetSourcei.BuffersProcessed);
+                
+                var message = $"Source claims to be playing but buffers aren't being processed.\n" +
+                             $"Initial buffers - Queued: {initialQueued}, Processed: {initialProcessed}\n" +
+                             $"After restart - Queued: {queuedAfter}, Processed: {processedAfter}\n" +
+                             $"100ms later - Processed: {processedLater}";
+                
+                // In a healthy state, either:
+                // 1. We should have queued buffers AND see them being processed
+                // 2. OR we should be in a stopped/initial state
+                Assert.True(
+                    (queuedAfter > 0 && processedLater > processedAfter) || 
+                    playingState == (int)ALSourceState.Stopped || 
+                    playingState == (int)ALSourceState.Initial,
+                    message);
+            }
+            
+            // Verify no OpenAL errors occurred
+            var error = AL.GetError();
+            Assert.Equal(ALError.NoError, error);
+        }
+
         private sealed class TestWaveProvider : IWaveProvider
         {
             public WaveFormat WaveFormat { get; }
