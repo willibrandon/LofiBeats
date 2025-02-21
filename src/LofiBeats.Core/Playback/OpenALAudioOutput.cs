@@ -95,7 +95,7 @@ public class OpenALAudioOutput : IAudioOutput
                         {
                             // Unqueue one buffer at a time to maintain steady flow
                             int buffer = AL.SourceUnqueueBuffer(_source);
-                            AL.GetError(); // Clear any error
+                            if (AL.GetError() != ALError.NoError) continue;
                             
                             // Try to refill and requeue the buffer
                             if (QueueBuffer(buffer))
@@ -120,7 +120,10 @@ public class OpenALAudioOutput : IAudioOutput
                         if (queued > 0)
                         {
                             AL.SourcePlay(_source);
-                            AL.GetError(); // Clear any error
+                            if (AL.GetError() != ALError.NoError)
+                            {
+                                _logger.LogWarning("Failed to restart playback after buffer processing");
+                            }
                         }
                         else
                         {
@@ -141,7 +144,10 @@ public class OpenALAudioOutput : IAudioOutput
                             if (anyQueued)
                             {
                                 AL.SourcePlay(_source);
-                                AL.GetError(); // Clear any error
+                                if (AL.GetError() != ALError.NoError)
+                                {
+                                    _logger.LogWarning("Failed to start playback after re-queuing buffers");
+                                }
                             }
                         }
                     }
@@ -198,19 +204,31 @@ public class OpenALAudioOutput : IAudioOutput
 
         if (_isPlaying && !_isPaused) return;
 
-        if (_isPaused)
+        lock (_lock)
         {
-            AL.SourcePlay(_source);
-            _isPaused = false;
-        }
-        else
-        {
-            lock (_lock)
+            if (_isPaused)
+            {
+                AL.SourcePlay(_source);
+                AL.GetError(); // Clear any error
+                _isPaused = false;
+            }
+            else
             {
                 // Ensure we're in a clean state
                 if (_buffers.Count > 0)
                 {
                     Stop();
+                    // Give a short time for the stop to complete
+                    Thread.Sleep(10);
+                }
+
+                // Verify source is in a clean state
+                var initialState = AL.GetSource(_source, ALGetSourcei.SourceState);
+                if (initialState != (int)ALSourceState.Initial && initialState != (int)ALSourceState.Stopped)
+                {
+                    _logger.LogWarning("Source in unexpected state before play: {State}", initialState);
+                    AL.SourceRewind(_source);
+                    AL.GetError();
                 }
 
                 // Initialize buffers
@@ -236,13 +254,41 @@ public class OpenALAudioOutput : IAudioOutput
                 // Only start playing if we successfully queued at least one buffer
                 if (successfulQueues > 0)
                 {
+                    // Start playback
                     AL.SourcePlay(_source);
-                    AL.GetError(); // Clear any error
+                    var error = AL.GetError();
+                    if (error != ALError.NoError)
+                    {
+                        _logger.LogWarning("Failed to start playback: {Error}", error);
+                        return;
+                    }
+                    
+                    // Verify the source is actually playing
+                    Thread.Sleep(10); // Give a short time for the state to update
+                    var state = AL.GetSource(_source, ALGetSourcei.SourceState);
+                    if (state != (int)ALSourceState.Playing)
+                    {
+                        _logger.LogWarning("Source failed to enter playing state. Current state: {State}", state);
+                        return;
+                    }
+                    
+                    // Verify buffer processing has started
+                    Thread.Sleep(50); // Give time for initial buffer processing
+                    int processed = AL.GetSource(_source, ALGetSourcei.BuffersProcessed);
+                    if (processed == 0)
+                    {
+                        _logger.LogWarning("No buffers processed after initial play");
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to queue any buffers during play");
+                    return;
                 }
             }
-        }
 
-        _isPlaying = true;
+            _isPlaying = true;
+        }
     }
 
     public void Pause()
@@ -309,12 +355,32 @@ public class OpenALAudioOutput : IAudioOutput
             // Wait a short time to ensure OpenAL has processed the stop
             Thread.Sleep(10);
             
-            // Double check that we're actually stopped
+            // Double check that we're actually stopped and in a clean state
             var state = AL.GetSource(_source, ALGetSourcei.SourceState);
             if (state != (int)ALSourceState.Stopped && state != (int)ALSourceState.Initial)
             {
                 // Force stop again if needed
                 AL.SourceStop(_source);
+                AL.GetError();
+                
+                // Wait again and verify
+                Thread.Sleep(10);
+                state = AL.GetSource(_source, ALGetSourcei.SourceState);
+                if (state != (int)ALSourceState.Stopped && state != (int)ALSourceState.Initial)
+                {
+                    _logger.LogWarning("Failed to stop source. Current state: {State}", state);
+                }
+            }
+            
+            // Ensure no buffers are queued
+            queued = AL.GetSource(_source, ALGetSourcei.BuffersQueued);
+            if (queued > 0)
+            {
+                _logger.LogWarning("Source still has {Count} buffers queued after stop", queued);
+                // Try one more time to unqueue them
+                int[] remainingBuffers = new int[queued];
+                AL.SourceUnqueueBuffers(_source, queued, remainingBuffers);
+                AL.DeleteBuffers(remainingBuffers);
                 AL.GetError();
             }
         }
