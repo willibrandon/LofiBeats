@@ -261,9 +261,34 @@ public class ServiceStartupPerformanceTests : IDisposable
                         ? responses.Dequeue() 
                         : new HttpResponseMessage(HttpStatusCode.OK)));
             
-            // Ensure service is stopped before each measurement
+            // Ensure service is completely stopped before each measurement
             await _helper.ShutdownServiceAsync();
-            await Task.Delay(100); // Reduced delay since we're using mocks
+            
+            // Wait for the service to fully stop and verify
+            await Task.Delay(1000); // Give time for shutdown to complete
+            
+            // Kill any remaining service processes
+            var serviceName = Path.GetFileNameWithoutExtension(_testServicePath);
+            foreach (var proc in Process.GetProcessesByName("dotnet")
+                .Where(p => p.MainWindowTitle == "" && IsLofiBeatsServiceProcess(p)))
+            {
+                try
+                {
+                    if (!proc.HasExited)
+                    {
+                        proc.Kill(true);
+                        proc.WaitForExit(3000);
+                    }
+                }
+                catch
+                {
+                    // Ignore process cleanup errors
+                }
+                finally
+                {
+                    proc.Dispose();
+                }
+            }
             
             results.Add(await MeasureStartupOperations());
             

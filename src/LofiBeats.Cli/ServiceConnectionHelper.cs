@@ -1,7 +1,5 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Polly;
-using Polly.Retry;
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
@@ -16,7 +14,6 @@ public class ServiceConnectionHelper
     private readonly HttpClient _httpClient;
     private readonly string _serviceUrl;
     private readonly string _servicePath;
-    private readonly ResiliencePipeline _healthCheckPolicy;
     private readonly string _pidFilePath;
 
     // Logging definitions remain the same as in the original code.
@@ -135,21 +132,6 @@ public class ServiceConnectionHelper
 
         _servicePath = servicePath ?? GetDefaultServicePath();
         _pidFilePath = Path.Combine(Path.GetDirectoryName(_servicePath)!, "service.pid");
-
-        _healthCheckPolicy = new ResiliencePipelineBuilder()
-            .AddRetry(new RetryStrategyOptions
-            {
-                ShouldHandle = new PredicateBuilder().Handle<Exception>(),
-                Delay = TimeSpan.FromMilliseconds(100),
-                MaxRetryAttempts = 20,
-                BackoffType = DelayBackoffType.Exponential,
-                OnRetry = args =>
-                {
-                    _logHealthCheckRetry(_logger, args.AttemptNumber, args.RetryDelay, args.Outcome.Exception);
-                    return ValueTask.CompletedTask;
-                }
-            })
-            .Build();
     }
 
     /// <summary>
@@ -161,16 +143,10 @@ public class ServiceConnectionHelper
         await _serviceLock.WaitAsync();
         try
         {
-            // Double-check inside lock to ensure no other caller started it in the meantime.
-            if (await IsServiceRunningAsync())
-            {
-                _logServiceAlreadyRunning(_logger, null);
-                return;
-            }
+            const int maxRetries = 20;
+            const int maxStartupRetries = 1;
 
-            const int maxStartupRetries = 3;
-
-            for (int attempt = 1; attempt <= maxStartupRetries; attempt++)
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
                 // 1. Quick initial health check
                 if (await IsServiceRunningAsync())
@@ -221,17 +197,17 @@ public class ServiceConnectionHelper
                 _logStartingService(_logger, null);
                 await StartServiceAsync();
 
-                // 4. Wait for service to respond with full retry policy
+                // 4. Wait for service to respond
                 var isRunning = await IsServiceRunningAsync();
                 if (isRunning)
                 {
                     _logServiceStartedSuccessfully(_logger, null);
                     return;
                 }
-
-                // If service fails after final attempt, throw.
-                throw new ServiceStartException("Unable to start LofiBeats service after multiple retries.");
             }
+
+            // If service fails after final attempt, throw.
+            throw new ServiceStartException("Unable to start LofiBeats service after multiple retries.");
         }
         finally
         {
@@ -406,14 +382,11 @@ public class ServiceConnectionHelper
     {
         try
         {
-            // Quick check
-            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
-            var response = await _healthCheckPolicy.ExecuteAsync(async token =>
-            {
-                return await _httpClient.GetAsync($"{_serviceUrl}/healthz",
+            // Quick check.
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(1000));
+            var response = await _httpClient.GetAsync($"{_serviceUrl}/healthz",
                     HttpCompletionOption.ResponseHeadersRead, // Do not buffer content
                     cts.Token);
-            }, cts.Token);
 
             _logHealthCheckResponse(_logger,
                 response.StatusCode.ToString(),

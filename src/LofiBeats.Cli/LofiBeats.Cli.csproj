@@ -57,8 +57,6 @@
 		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" />
 		<PackageReference Include="System.CommandLine" />
 		<PackageReference Include="System.Management" />
-		<PackageReference Include="Polly" />
-		<PackageReference Include="Polly.Extensions.Http" />
 		<ProjectReference Include="..\LofiBeats.Core\LofiBeats.Core.csproj" />
 	</ItemGroup>
 
@@ -78,38 +76,19 @@
 		<None Include="..\LofiBeats.Service\appsettings.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/service.appsettings.json" />
 		
 		<!-- Service executables -->
-		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.dll" 
-			  Pack="true" 
-			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.dll"
-			   Visible="false" />
+		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.dll" Pack="true" PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.dll" Visible="false" />
 		
-		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.exe" 
-			  Pack="true" 
-			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.exe" 
-			  Visible="false"
-			  Condition="'$(OS)' == 'Windows_NT'" />
+		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.exe" Pack="true" PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.exe" Visible="false" Condition="'$(OS)' == 'Windows_NT'" />
 		
 		<!-- Service dependencies -->
-		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\Microsoft.AspNetCore.*.dll"
-			  Pack="true"
-			  PackagePath="tools/$(TargetFramework)/any/"
-			  Visible="false" />
+		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\Microsoft.AspNetCore.*.dll" Pack="true" PackagePath="tools/$(TargetFramework)/any/" Visible="false" />
 		
-		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\Microsoft.OpenApi.dll"
-			  Pack="true"
-			  PackagePath="tools/$(TargetFramework)/any/"
-			  Visible="false" />
+		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\Microsoft.OpenApi.dll" Pack="true" PackagePath="tools/$(TargetFramework)/any/" Visible="false" />
 		
 		<!-- Service runtime configuration -->
-		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.deps.json"
-			  Pack="true"
-			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.deps.json"
-			  Visible="false" />
+		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.deps.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.deps.json" Visible="false" />
 		
-		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.runtimeconfig.json"
-			  Pack="true"
-			  PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.runtimeconfig.json"
-			  Visible="false" />
+		<None Include="..\LofiBeats.Service\bin\$(Configuration)\$(TargetFramework)\LofiBeats.Service.runtimeconfig.json" Pack="true" PackagePath="tools/$(TargetFramework)/any/LofiBeats.Service.runtimeconfig.json" Visible="false" />
 		
 		<None Remove="$(IntermediateOutputPath)apphost.exe" />
 	</ItemGroup>
@@ -131,10 +110,8 @@
 
 	<!-- Custom target to copy config files -->
 	<Target Name="CopyConfigFiles" BeforeTargets="Build">
-		<Copy SourceFiles="appsettings.json" 
-			  DestinationFiles="$(OutDir)cli.appsettings.json" />
-		<Copy SourceFiles="..\LofiBeats.Service\appsettings.json" 
-			  DestinationFiles="$(OutDir)service.appsettings.json" />
+		<Copy SourceFiles="appsettings.json" DestinationFiles="$(OutDir)cli.appsettings.json" />
+		<Copy SourceFiles="..\LofiBeats.Service\appsettings.json" DestinationFiles="$(OutDir)service.appsettings.json" />
 	</Target>
 
 </Project>
