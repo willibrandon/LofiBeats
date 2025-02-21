@@ -309,11 +309,22 @@ public class ServiceStartupPerformanceTests : IDisposable
 
         // Calculate and log averages
         _output.WriteLine("\nAverage timings across all runs:");
-        var operations = results[0].Keys;
+        var operations = results.SelectMany(r => r.Keys).Distinct();
         foreach (var operation in operations)
         {
-            var average = results.Average(r => r[operation].TotalMilliseconds);
-            _output.WriteLine($"{operation}: {average:F1}ms");
+            var timings = results.Where(r => r.ContainsKey(operation))
+                                .Select(r => r[operation].TotalMilliseconds)
+                                .ToList();
+            
+            if (timings.Count > 0)
+            {
+                var average = timings.Average();
+                _output.WriteLine($"{operation}: {average:F1}ms");
+            }
+            else
+            {
+                _output.WriteLine($"{operation}: No measurements");
+            }
         }
 
         // Add some basic assertions to catch significant regressions
