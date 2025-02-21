@@ -222,10 +222,7 @@ public class ServiceConnectionHelper
                 await StartServiceAsync();
 
                 // 4. Wait for service to respond with full retry policy
-                var isRunning = await _healthCheckPolicy.ExecuteAsync<bool>(
-                    async token => await IsServiceRunningAsync(),
-                    cancellationToken: CancellationToken.None);
-
+                var isRunning = await IsServiceRunningAsync();
                 if (isRunning)
                 {
                     _logServiceStartedSuccessfully(_logger, null);
@@ -409,10 +406,14 @@ public class ServiceConnectionHelper
     {
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(250)); // Quick check
-            var response = await _httpClient.GetAsync($"{_serviceUrl}/healthz",
-                HttpCompletionOption.ResponseHeadersRead, // Do not buffer content
-                cts.Token);
+            // Quick check
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
+            var response = await _healthCheckPolicy.ExecuteAsync(async token =>
+            {
+                return await _httpClient.GetAsync($"{_serviceUrl}/healthz",
+                    HttpCompletionOption.ResponseHeadersRead, // Do not buffer content
+                    cts.Token);
+            }, cts.Token);
 
             _logHealthCheckResponse(_logger,
                 response.StatusCode.ToString(),
