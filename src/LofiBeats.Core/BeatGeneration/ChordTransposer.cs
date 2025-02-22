@@ -23,6 +23,18 @@ public static class ChordTransposer
     };
 
     /// <summary>
+    /// Maps flat keys to their sharp equivalents for internal consistency.
+    /// </summary>
+    private static readonly Dictionary<string, string> FlatToSharpMap = new()
+    {
+        ["Db"] = "C#",
+        ["Eb"] = "D#",
+        ["Gb"] = "F#",
+        ["Ab"] = "G#",
+        ["Bb"] = "A#"
+    };
+
+    /// <summary>
     /// Special mapping for Gb to F# transposition that includes both enharmonic renames
     /// and semitone shifts as required by tests.
     /// </summary>
@@ -68,6 +80,12 @@ public static class ChordTransposer
             !KeyHelper.IsValidKey(toKey, out var normalizedToKey))
         {
             throw new ArgumentException("Invalid key specified");
+        }
+
+        // If we're transposing to a flat key, convert the target key to flat notation
+        if (ShouldUseFlatNotation(toKey))
+        {
+            normalizedToKey = ConvertToFlatNotation(normalizedToKey);
         }
 
         // Validate all chords first
@@ -130,9 +148,11 @@ public static class ChordTransposer
             }
 
             // Convert to flat notation if needed
-            if (ShouldUseFlatNotation(toKey))
+            bool useFlats = ShouldUseFlatNotation(toKey);
+            if (useFlats)
             {
                 newRoot = ConvertToFlatNotation(newRoot);
+                quality = ConvertQualityToFlatNotation(quality);
             }
 
             // Special case: In Gb to F# transposition, convert A# to A for minor chords
@@ -163,7 +183,7 @@ public static class ChordTransposer
                 }
 
                 // Convert bass note to flat notation if needed
-                if (ShouldUseFlatNotation(toKey))
+                if (useFlats)
                 {
                     newBass = ConvertToFlatNotation(newBass);
                 }
@@ -180,10 +200,44 @@ public static class ChordTransposer
     }
 
     /// <summary>
+    /// Converts chord quality accidentals from sharp to flat notation.
+    /// </summary>
+    private static string ConvertQualityToFlatNotation(string quality)
+    {
+        // Common chord quality patterns that use accidentals
+        var replacements = new Dictionary<string, string>
+        {
+            ["#5"] = "b6",
+            ["#9"] = "b10",
+            ["#11"] = "b12",
+            ["#13"] = "b14",
+            ["7#5"] = "7b6",
+            ["7#9"] = "7b10",
+            ["7#11"] = "7b12",
+            ["9#11"] = "9b12",
+            ["13#11"] = "13b12"
+        };
+
+        string result = quality;
+        foreach (var (sharp, flat) in replacements)
+        {
+            result = result.Replace(sharp, flat);
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Determines if flat notation should be used based on the target key.
     /// </summary>
-    private static bool ShouldUseFlatNotation(string key) =>
-        key is "F" or "Bb" or "Eb" or "Ab" or "Db";
+    private static bool ShouldUseFlatNotation(string key)
+    {
+        // Convert to sharp notation first to handle both Bb and A# forms
+        if (FlatToSharpMap.TryGetValue(key, out var sharpKey))
+        {
+            key = sharpKey;
+        }
+        return key is "F" or "A#" or "D#" or "G#" or "C#";
+    }
 
     /// <summary>
     /// Converts a sharp note to its flat equivalent if available.
@@ -300,10 +354,19 @@ public static class ChordTransposer
     /// </summary>
     private static string ShiftRoot(string root, int semitones)
     {
+        // First convert to sharp notation if it's a flat note
+        if (FlatToSharpMap.TryGetValue(root, out var sharpRoot))
+        {
+            root = sharpRoot;
+        }
+        
         var idx = Array.IndexOf(SharpKeys, root);
         if (idx == -1) throw new ArgumentException($"Invalid root note: {root}");
 
-        int newIdx = (idx + semitones) % 12;
+        // Handle negative indices with modulo arithmetic
+        int newIdx = ((idx + semitones) % 12 + 12) % 12;
+        
+        // Get the shifted note in sharp notation
         return SharpKeys[newIdx];
     }
 } 

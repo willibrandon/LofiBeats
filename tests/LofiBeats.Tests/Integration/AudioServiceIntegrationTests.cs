@@ -321,6 +321,82 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
         // Note: In a real test, we'd capture audio samples and verify smooth transition
     }
 
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task PlayWithFlatKey_Success()
+    {
+        // Act - Start playback in Ab key
+        var response = await _client.PostAsync("/api/lofi/play?style=hiphop&key=Ab", null);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<PlaybackResponse>();
+        Assert.NotNull(result?.Pattern);
+
+        // Assert - Pattern should be valid
+        Assert.NotEmpty(result.Pattern.DrumSequence);
+        Assert.NotEmpty(result.Pattern.ChordProgression);
+
+        // Verify service state
+        var testService = _factory.Services.GetRequiredService<IAudioPlaybackService>();
+        Assert.Equal(PlaybackState.Playing, testService.GetPlaybackState());
+        Assert.Equal("hiphop", testService.CurrentStyle);
+    }
+
+    [Theory]
+    [InlineData("Ab")]
+    [InlineData("Bb")]
+    [InlineData("Db")]
+    [InlineData("Eb")]
+    [InlineData("Gb")]
+    public async Task PlayWithFlatKeys_Success(string key)
+    {
+        // Act - Start playback with flat key
+        var response = await _client.PostAsync($"/api/lofi/play?style=hiphop&key={key}", null);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<PlaybackResponse>();
+        Assert.NotNull(result?.Pattern);
+
+        // Assert - Pattern should be valid
+        Assert.NotEmpty(result.Pattern.DrumSequence);
+        Assert.NotEmpty(result.Pattern.ChordProgression);
+
+        // Verify service state
+        var testService = _factory.Services.GetRequiredService<IAudioPlaybackService>();
+        Assert.Equal(PlaybackState.Playing, testService.GetPlaybackState());
+        Assert.Equal("hiphop", testService.CurrentStyle);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public async Task PlayWithBbKey_MaintainsConsistentFlatNotation()
+    {
+        // Act - Start playback in Bb key
+        var response = await _client.PostAsync("/api/lofi/play?style=jazzy&key=Bb", null);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<PlaybackResponse>();
+        Assert.NotNull(result?.Pattern);
+
+        // Assert - Pattern should be valid and use consistent flat notation
+        Assert.NotEmpty(result.Pattern.ChordProgression);
+        
+        // Verify that if we're in Bb key, we use flat notation consistently
+        foreach (var chord in result.Pattern.ChordProgression)
+        {
+            // Skip checking chords without accidentals
+            if (!chord.Contains('#') && !chord.Contains('b')) continue;
+            
+            // In Bb key, we should use flat notation (b) not sharp notation (#)
+            Assert.DoesNotContain('#', chord);
+        }
+
+        // Verify service state
+        var testService = _factory.Services.GetRequiredService<IAudioPlaybackService>();
+        Assert.Equal(PlaybackState.Playing, testService.GetPlaybackState());
+        Assert.Equal("jazzy", testService.CurrentStyle);
+    }
+
     private record ApiResponse
     {
         public string? Message { get; init; }
