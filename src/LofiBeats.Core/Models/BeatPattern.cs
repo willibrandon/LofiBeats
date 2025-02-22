@@ -10,6 +10,12 @@ public class BeatPattern
     public string[] ChordProgression { get; set; } = Array.Empty<string>();
 
     /// <summary>
+    /// Specifies the musical key of this beat pattern (e.g., "C", "F#", "Bb").
+    /// If not specified, defaults to "C".
+    /// </summary>
+    public string Key { get; set; } = "C";
+
+    /// <summary>
     /// Maps step indices to user sample names. If a step has a user sample,
     /// it overrides the corresponding DrumSequence entry.
     /// </summary>
@@ -63,7 +69,7 @@ public class BeatPattern
     public override string ToString()
     {
         var userSamples = string.Join(", ", UserSampleSteps.Select(kvp => $"Step {kvp.Key}: {kvp.Value}"));
-        return $"Tempo: {BPM} BPM, Drums: [{string.Join(", ", DrumSequence)}], " +
+        return $"Tempo: {BPM} BPM, Key: {Key}, Drums: [{string.Join(", ", DrumSequence)}], " +
                $"Chords: [{string.Join(", ", ChordProgression)}], " +
                $"User Samples: [{userSamples}]";
     }
