@@ -5,6 +5,9 @@ A cross-platform command-line tool and service for generating and playing lofi b
 ## Features
 
 - Generate lofi beats with different styles (basic, jazzy, chillhop, hiphop)
+  - Configurable musical key (C, F#, Bb, etc.)
+  - Automatic chord transposition
+  - Enharmonic equivalent support
 - Real-time audio effects:
   - Tape Stop (gradually slow down the audio like a tape machine powering off)
   - Tape Flutter (adds wow/flutter pitch drift and tape hiss for vintage vibes)
@@ -65,6 +68,10 @@ lofi stop --tapestop
 
 # Play with custom BPM
 lofi play --style chillhop --bpm 82
+
+# Play in a specific key
+lofi play --style jazzy --key F#
+lofi play --style chillhop --key Bb
 
 # Crossfade between patterns
 lofi play --style jazzy --transition crossfade # Default 2s crossfade
@@ -186,8 +193,8 @@ Key configuration options:
 
 The service exposes the following REST API endpoints:
 
-- `POST /api/lofi/generate` - Generate a new beat pattern
-- `POST /api/lofi/play` - Start playback (supports crossfade with `transition` and `xfadeDuration` parameters)
+- `POST /api/lofi/generate` - Generate a new beat pattern (supports `style`, `bpm`, and `key` parameters)
+- `POST /api/lofi/play` - Start playback (supports `style`, `bpm`, `key`, `transition`, and `xfadeDuration` parameters)
 - `POST /api/lofi/stop` - Stop playback
 - `POST /api/lofi/pause` - Pause playback
 - `POST /api/lofi/resume` - Resume playback
@@ -220,6 +227,7 @@ Send commands as JSON messages with the following format:
   "payload": {
     "style": "jazzy",
     "bpm": 85,
+    "key": "C#",
     "transition": "crossfade",
     "xfadeDuration": 2.0
   }
@@ -232,6 +240,7 @@ Available commands:
   {
     "style": "basic|jazzy|chillhop|hiphop",
     "bpm": 80,
+    "key": "C|C#|D|Eb|E|F|F#|G|Ab|A|Bb|B",
     "transition": "immediate|crossfade",
     "xfadeDuration": 2.0
   }

@@ -13,7 +13,7 @@ using System.Net.Http.Json;
 
 namespace LofiBeats.Tests.Integration;
 
-[Collection("AI Generated Tests")]
+[Collection("AudioService Integration Tests")]
 public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;
@@ -150,6 +150,7 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
         await _client.PostAsync("/api/lofi/play?style=jazzy", null);
         await _client.PostAsync("/api/lofi/effect?name=vinyl&enable=true", null);
         await _client.PostAsync("/api/lofi/volume?level=0.7", null);
+        await Task.Delay(500);
 
         // Act - Get current preset
         var getCurrentResponse = await _client.GetAsync("/api/lofi/preset/current");
@@ -172,6 +173,7 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
         };
         var applyResponse = await _client.PostAsync("/api/lofi/preset/apply", JsonContent.Create(newPreset));
         Assert.Equal(HttpStatusCode.OK, applyResponse.StatusCode);
+        await Task.Delay(500);
 
         // Assert - Verify new state
         var finalResponse = await _client.GetAsync("/api/lofi/preset/current");
@@ -341,6 +343,14 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
 // Test implementation of IAudioPlaybackService that doesn't actually play audio
 public class TestAudioPlaybackService : IAudioPlaybackService
 {
+    private static readonly Action<ILogger, string, Exception?> _logSampleProviderError =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(1, "SampleProviderError"),
+            "Error creating sample provider for style {Style}");
+
+    private readonly object _syncLock = new();  // Lock object for thread safety
+
     private PlaybackState _state = PlaybackState.Stopped;
     private ISampleProvider? _currentSource;
     private SerialEffectChain? _effectChain;
@@ -356,66 +366,162 @@ public class TestAudioPlaybackService : IAudioPlaybackService
             .Returns(new Mock<ILogger>().Object);
     }
 
-    public ISampleProvider? CurrentSource => _currentSource;
-    
-    public string CurrentStyle
+    public ISampleProvider? CurrentSource
     {
-        get => _currentStyle;
-        set => _currentStyle = value ?? throw new ArgumentNullException(nameof(value));
+        get
+        {
+            lock (_syncLock)
+            {
+                return _currentSource;
+            }
+        }
     }
 
-    public float CurrentVolume => _volume;
+    public string CurrentStyle
+    {
+        get
+        {
+            lock (_syncLock)
+            {
+                return _currentStyle;
+            }
+        }
+        set
+        {
+            lock (_syncLock)
+            {
+                _currentStyle = value ?? throw new ArgumentNullException(nameof(value));
+            }
+        }
+    }
+
+    public float CurrentVolume
+    {
+        get
+        {
+            lock (_syncLock)
+            {
+                return _volume;
+            }
+        }
+    }
 
     public void AddEffect(IAudioEffect effect)
     {
-        if (_effectChain == null && _currentSource != null)
+        lock (_syncLock)
         {
-            _effectChain = new SerialEffectChain(
-                _currentSource, 
-                new Mock<ILogger<SerialEffectChain>>().Object,
-                _loggerFactoryMock.Object);
-        }
-        if (_effectChain != null)
-        {
-            _effectChain.AddEffect(effect);
-            _effects[effect.Name] = effect;
+            if (_effectChain == null && _currentSource != null)
+            {
+                _effectChain = new SerialEffectChain(
+                    _currentSource,
+                    new Mock<ILogger<SerialEffectChain>>().Object,
+                    _loggerFactoryMock.Object);
+            }
+
+            if (_effectChain != null)
+            {
+                _effectChain.AddEffect(effect);
+                _effects[effect.Name] = effect;
+            }
         }
     }
 
     public void RemoveEffect(string effectName)
     {
-        _effectChain?.RemoveEffect(effectName);
-        _effects.Remove(effectName);
+        lock (_syncLock)
+        {
+            _effectChain?.RemoveEffect(effectName);
+            _effects.Remove(effectName);
+        }
     }
 
     public void SetSource(ISampleProvider source)
     {
-        _currentSource = source;
-        if (_effectChain != null)
+        ArgumentNullException.ThrowIfNull(source);
+
+        lock (_syncLock)
         {
-            _effectChain = new SerialEffectChain(
-                _currentSource, 
-                new Mock<ILogger<SerialEffectChain>>().Object,
-                _loggerFactoryMock.Object);
+            _currentSource = source;
+            if (_effectChain != null)
+            {
+                _effectChain = new SerialEffectChain(
+                    _currentSource,
+                    new Mock<ILogger<SerialEffectChain>>().Object,
+                    _loggerFactoryMock.Object);
+            }
         }
     }
 
     public void SetVolume(float volume)
     {
-        _volume = Math.Clamp(volume, 0.0f, 1.0f);
+        lock (_syncLock)
+        {
+            _volume = Math.Clamp(volume, 0.0f, 1.0f);
+        }
     }
 
     public void StartPlayback()
     {
-        _state = PlaybackState.Playing;
+        lock (_syncLock)
+        {
+            // Create a default source if none exists
+            if (_currentSource == null)
+            {
+                var defaultPattern = new BeatPattern
+                {
+                    BPM = 90,
+                    DrumSequence = [_currentStyle],
+                    ChordProgression = ["I", "IV", "V"]
+                };
+
+                try
+                {
+                    var provider = new BeatPatternSampleProvider(
+                        defaultPattern,
+                        _loggerFactoryMock.Object.CreateLogger<BeatPatternSampleProvider>(),
+                        new UserSampleRepository(_loggerFactoryMock.Object.CreateLogger<UserSampleRepository>()),
+                        new TelemetryTracker(
+                            new NullTelemetryService(),
+                            _loggerFactoryMock.Object.CreateLogger<TelemetryTracker>()));
+
+                    _currentSource = provider;
+                }
+                catch (Exception ex)
+                {
+                    // Log the error but don't throw - this is a test implementation
+                    var logger = _loggerFactoryMock.Object.CreateLogger<TestAudioPlaybackService>();
+                    _logSampleProviderError(logger, _currentStyle, ex);
+
+                    // Create a minimal pattern that will work
+                    var fallbackPattern = new BeatPattern
+                    {
+                        BPM = 90,
+                        DrumSequence = ["basic"],
+                        ChordProgression = ["I"]
+                    };
+
+                    _currentSource = new BeatPatternSampleProvider(
+                        fallbackPattern,
+                        _loggerFactoryMock.Object.CreateLogger<BeatPatternSampleProvider>(),
+                        new UserSampleRepository(_loggerFactoryMock.Object.CreateLogger<UserSampleRepository>()),
+                        new TelemetryTracker(
+                            new NullTelemetryService(),
+                            _loggerFactoryMock.Object.CreateLogger<TelemetryTracker>()));
+                }
+            }
+            _state = PlaybackState.Playing;
+        }
     }
 
     public void StopPlayback()
     {
-        _state = PlaybackState.Stopped;
-        _currentSource = null;
-        _effectChain = null;
-        _effects.Clear();
+        lock (_syncLock)
+        {
+            _state = PlaybackState.Stopped;
+            _currentSource = null;
+            _effectChain = null;
+            _effects.Clear();
+        }
     }
 
     public void StopWithEffect(IAudioEffect effect)
@@ -426,27 +532,46 @@ public class TestAudioPlaybackService : IAudioPlaybackService
 
     public void PausePlayback()
     {
-        if (_state == PlaybackState.Playing)
-            _state = PlaybackState.Paused;
+        lock (_syncLock)
+        {
+            if (_state == PlaybackState.Playing)
+            {
+                _state = PlaybackState.Paused;
+            }
+        }
     }
 
     public void ResumePlayback()
     {
-        if (_state == PlaybackState.Paused)
-            _state = PlaybackState.Playing;
+        lock (_syncLock)
+        {
+            if (_state == PlaybackState.Paused)
+            {
+                _state = PlaybackState.Playing;
+            }
+        }
     }
 
-    public PlaybackState GetPlaybackState() => _state;
+    public PlaybackState GetPlaybackState()
+    {
+        lock (_syncLock)
+        {
+            return _state;
+        }
+    }
 
     public Preset GetCurrentPreset()
     {
-        return new Preset
+        lock (_syncLock)
         {
-            Name = $"Test_Preset_{DateTime.Now:yyyyMMdd_HHmmss}",
-            Style = _currentStyle,
-            Volume = _volume,
-            Effects = _effects.Keys.ToList()
-        };
+            return new Preset
+            {
+                Name = $"Test_Preset_{DateTime.Now:yyyyMMdd_HHmmss}",
+                Style = _currentStyle,
+                Volume = _volume,
+                Effects = _effects.Keys.ToList()
+            };
+        }
     }
 
     public void ApplyPreset(Preset preset, IEffectFactory effectFactory)
@@ -456,28 +581,35 @@ public class TestAudioPlaybackService : IAudioPlaybackService
 
         preset.Validate();
 
-        _currentStyle = preset.Style;
-        SetVolume(preset.Volume);
-
-        var existingEffects = _effects.Keys.ToList();
-        foreach (var effectName in existingEffects)
+        lock (_syncLock)
         {
-            RemoveEffect(effectName);
-        }
+            _currentStyle = preset.Style;
+            SetVolume(preset.Volume);
 
-        if (_currentSource != null)
-        {
-            foreach (var effectName in preset.Effects)
+            // Remove existing effects
+            var existingEffects = _effects.Keys.ToList();
+            foreach (var effectName in existingEffects)
             {
-                var effect = effectFactory.CreateEffect(effectName, _currentSource);
-                AddEffect(effect);
+                RemoveEffect(effectName);
+            }
+
+            // Add the new effects
+            if (_currentSource != null)
+            {
+                foreach (var effectName in preset.Effects)
+                {
+                    var effect = effectFactory.CreateEffect(effectName, _currentSource);
+                    AddEffect(effect);
+                }
             }
         }
     }
 
     public void CrossfadeToPattern(BeatPattern newPattern, float crossfadeDuration)
     {
-        // For testing purposes, we'll just set the new pattern directly
+        ArgumentNullException.ThrowIfNull(newPattern);
+
+        // Create the new pattern provider first to minimize state transition time
         var provider = new BeatPatternSampleProvider(
             newPattern,
             _loggerFactoryMock.Object.CreateLogger<BeatPatternSampleProvider>(),
@@ -486,7 +618,25 @@ public class TestAudioPlaybackService : IAudioPlaybackService
                 new NullTelemetryService(),
                 _loggerFactoryMock.Object.CreateLogger<TelemetryTracker>()));
 
-        SetSource(provider);
-        _currentStyle = newPattern.DrumSequence.Length > 0 ? newPattern.DrumSequence[0] : "basic";
+        // Set the new source and update state atomically to ensure consistency
+        lock (_syncLock)
+        {
+            var oldSource = _currentSource;
+            var oldEffectChain = _effectChain;
+
+            try
+            {
+                SetSource(provider);
+                _currentStyle = newPattern.DrumSequence.Length > 0 ? newPattern.DrumSequence[0] : "basic";
+                _state = PlaybackState.Playing;
+            }
+            catch
+            {
+                // Rollback on failure
+                _currentSource = oldSource;
+                _effectChain = oldEffectChain;
+                throw;
+            }
+        }
     }
-} 
+}

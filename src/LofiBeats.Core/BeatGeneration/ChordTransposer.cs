@@ -273,7 +273,19 @@ public static class ChordTransposer
             "7sus4", "9sus4", "13sus4",
             "+7", "+maj7", "m+7",
             "6/9", "m6/9",
-            "7#11", "7b13"
+            "7#11", "7b13",
+            // Extended major qualities
+            "maj7#11", "maj9#11", "maj13#11",
+            // Additional altered dominants
+            "7#11b13", "9#11b13", "13#11b13",
+            // Minor chord alterations
+            "m13b5", "m13#11", "m13b9",
+            "m11b5", "m11#11", "m11b9",
+            "m9b5", "m9#11", "m9b9",
+            "m7#5", "m7#11", "m7b9",
+            // Additional minor-major combinations
+            "mMaj7", "mMaj9", "mMaj11", "mMaj13",
+            "mMaj7b5", "mMaj9b5", "mMaj11b5", "mMaj13b5"
         };
 
         // Remove any bass note part
