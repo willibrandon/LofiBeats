@@ -1,4 +1,3 @@
-using Xunit;
 using LofiBeats.Core.BeatGeneration;
 
 namespace LofiBeats.Tests.BeatGeneration;
@@ -96,5 +95,80 @@ public class ChordTransposerTests
         // Act & Assert
         Assert.Throws<ArgumentException>(() => ChordTransposer.TransposeChords(invalidChords1));
         Assert.Throws<ArgumentException>(() => ChordTransposer.TransposeChords(invalidChords2));
+    }
+
+    [Theory]
+    [Trait("Category", "AI_Generated")]
+    [InlineData(new[] { "Ebmaj7", "Abm7", "Dbmaj7", "Bb7" }, "Eb", "D", new[] { "Dmaj7", "Gm7", "Cmaj7", "A7" })]
+    [InlineData(new[] { "Gbmaj7", "Bbm7", "Ebmaj7", "F7" }, "Gb", "F#", new[] { "F#maj7", "Am7", "D#maj7", "E7" })]
+    [InlineData(new[] { "Abm7", "Db7", "Gbmaj7", "Ebm7" }, "Gb", "G", new[] { "Am7", "D7", "Gmaj7", "Em7" })]
+    public void TransposeChords_HandlesComplexEnharmonicTranspositions(string[] input, string fromKey, string toKey, string[] expected)
+    {
+        // Act
+        var result = ChordTransposer.TransposeChords(input, fromKey, toKey);
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [Trait("Category", "AI_Generated")]
+    [InlineData(new[] { "Ebmaj7/Bb", "Abm7/Eb", "Dbmaj7/Ab", "Bb7/F" }, "Eb", "D", 
+                new[] { "Dmaj7/A", "Gm7/D", "Cmaj7/G", "A7/E" })]
+    [InlineData(new[] { "Gbmaj7/Db", "Bbm7/F", "Ebmaj7/Bb", "F7/C" }, "Gb", "F#", 
+                new[] { "F#maj7/C#", "Am7/E", "D#maj7/A#", "E7/B" })]
+    public void TransposeChords_HandlesEnharmonicInversions(string[] input, string fromKey, string toKey, string[] expected)
+    {
+        // Act
+        var result = ChordTransposer.TransposeChords(input, fromKey, toKey);
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [Trait("Category", "AI_Generated")]
+    [InlineData(new[] { "Ebm9", "Ab13", "Dbmaj9", "Bbm11" }, "Eb", "D", 
+                new[] { "Dm9", "G13", "Cmaj9", "Am11" })]
+    [InlineData(new[] { "Gbmaj13", "Bbm9", "Ebmaj11", "F7b9" }, "Gb", "F#", 
+                new[] { "F#maj13", "Am9", "D#maj11", "E7b9" })]
+    public void TransposeChords_HandlesEnharmonicExtensions(string[] input, string fromKey, string toKey, string[] expected)
+    {
+        // Act
+        var result = ChordTransposer.TransposeChords(input, fromKey, toKey);
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [Trait("Category", "AI_Generated")]
+    [InlineData("Eb", "D#")]
+    [InlineData("Bb", "A#")]
+    [InlineData("Cb", "B")]
+    [InlineData("Db", "C#")]
+    [InlineData("Gb", "F#")]
+    [InlineData("Ab", "G#")]
+    public void TestEnharmonicAcceptance(string input, string expectedNormalized)
+    {
+        // Act
+        Assert.True(KeyHelper.IsValidKey(input, out var norm));
+        
+        // Assert
+        Assert.Equal(expectedNormalized, norm);
+    }
+
+    [Theory]
+    [Trait("Category", "AI_Generated")]
+    [InlineData(new[] { "C", "Dm7" }, "C", "F", new[] { "F", "Gm7" })]
+    [InlineData(new[] { "Cmaj7" }, "C", "D", new[] { "Dmaj7" })]
+    [InlineData(new[] { "Bbm7", "Eb7" }, "Bb", "C", new[] { "Cm7", "F7" })]
+    public void TestBasicTranspositions(string[] chords, string fromKey, string toKey, string[] expected)
+    {
+        // Act
+        var transposed = ChordTransposer.TransposeChords(chords, fromKey, toKey);
+        
+        // Assert
+        Assert.Equal(expected, transposed);
     }
 } 

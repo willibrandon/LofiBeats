@@ -27,7 +27,8 @@ public static class KeyHelper
         { "Eb", "D#" },
         { "Gb", "F#" },
         { "Ab", "G#" },
-        { "Bb", "A#" }
+        { "Bb", "A#" },
+        { "Cb", "B" }
     };
 
     /// <summary>
@@ -74,8 +75,8 @@ public static class KeyHelper
     /// <summary>
     /// Normalizes the casing of a key string.
     /// </summary>
-    /// <param name="key">The key to normalize (e.g., "f#", "bb").</param>
-    /// <returns>The key with normalized casing (e.g., "F#", "Bb").</returns>
+    /// <param name="key">The key to normalize (e.g., "f#", "bb", "DB").</param>
+    /// <returns>The key with normalized casing (e.g., "F#", "Bb", "Db").</returns>
     private static string NormalizeKeyCasing(string key)
     {
         key = key.Trim();
@@ -84,9 +85,13 @@ public static class KeyHelper
         if (key.Length == 1) 
             return key.ToUpper();
         
-        // Handle two-character keys (e.g., "f#" => "F#", "bb" => "Bb")
-        if (key.Length == 2 && (key[1] == '#' || key[1] == 'b'))
-            return char.ToUpper(key[0]) + key[1..];
+        // Handle two-character keys (e.g., "f#" => "F#", "bb" => "Bb", "DB" => "Db")
+        if (key.Length == 2)
+        {
+            char second = char.ToLower(key[1]);
+            if (second == '#' || second == 'b')
+                return char.ToUpper(key[0]) + second.ToString();
+        }
         
         return key;
     }

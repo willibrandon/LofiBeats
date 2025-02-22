@@ -1,11 +1,12 @@
 using LofiBeats.Core.BeatGeneration;
-using Xunit;
 
 namespace LofiBeats.Tests.BeatGeneration;
 
+[Collection("AI Generated Tests")]
 public class KeyHelperTests
 {
     [Theory]
+    [Trait("Category", "AI_Generated")]
     [InlineData("C", "C", true)]
     [InlineData("f#", "F#", true)]
     [InlineData("Bb", "A#", true)]
@@ -25,6 +26,7 @@ public class KeyHelperTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void GetValidKeys_ReturnsAllTwelveKeys()
     {
         // Act
@@ -38,6 +40,7 @@ public class KeyHelperTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void GetValidKeyList_ReturnsFormattedString()
     {
         // Act
@@ -50,5 +53,25 @@ public class KeyHelperTests
         Assert.Contains("C", list);
         Assert.Contains("F#", list);
         Assert.Contains("Bb", list);
+    }
+
+    [Theory]
+    [Trait("Category", "AI_Generated")]
+    [InlineData("Eb", "D#")]
+    [InlineData("Bb", "A#")]
+    [InlineData("Db", "C#")]
+    [InlineData("Gb", "F#")]
+    [InlineData("Ab", "G#")]
+    [InlineData("eb", "D#")]  // Test case sensitivity
+    [InlineData("bb", "A#")]  // Test case sensitivity
+    [InlineData("DB", "C#")]  // Test case sensitivity
+    public void IsValidKey_HandlesAllEnharmonicEquivalents(string input, string expectedNormalized)
+    {
+        // Act
+        bool isValid = KeyHelper.IsValidKey(input, out string normalized);
+
+        // Assert
+        Assert.True(isValid);
+        Assert.Equal(expectedNormalized, normalized);
     }
 } 
