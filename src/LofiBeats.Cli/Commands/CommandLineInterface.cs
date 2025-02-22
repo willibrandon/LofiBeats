@@ -2,6 +2,7 @@ using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
 using LofiBeats.Core.Scheduling;
 using LofiBeats.Core.Storage;
+using LofiBeats.Core.BeatGeneration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.CommandLine;
@@ -189,7 +190,20 @@ public class CommandLineInterface : IDisposable
         });
         generateCommand.AddOption(generateBpmOption);
 
-        generateCommand.SetHandler(async (string style, int? bpm) =>
+        var generateKeyOption = new Option<string?>(
+            "--key",
+            description: "Musical key for chord progression (e.g., C, C#, D, Eb, etc.)");
+        generateKeyOption.AddValidator(result =>
+        {
+            var keyValue = result.GetValueOrDefault<string>();
+            if (!string.IsNullOrEmpty(keyValue) && !KeyHelper.IsValidKey(keyValue, out _))
+            {
+                result.ErrorMessage = $"Invalid key '{keyValue}'. Must be one of the 12 keys or valid flat enharmonic.";
+            }
+        });
+        generateCommand.AddOption(generateKeyOption);
+
+        generateCommand.SetHandler(async (string style, int? bpm, string? key) =>
         {
             _logExecutingGenerateCommand(_logger, null);
             try
@@ -197,7 +211,11 @@ public class CommandLineInterface : IDisposable
                 Console.Write("Generating beat pattern... ");
                 ShowSpinner("Generating beat pattern", 1500); // Show progress for 1.5 seconds
 
-                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, $"generate?style={Uri.EscapeDataString(style)}&bpm={bpm}");
+                var query = $"generate?style={Uri.EscapeDataString(style)}";
+                if (bpm.HasValue) query += $"&bpm={bpm}";
+                if (!string.IsNullOrEmpty(key)) query += $"&key={Uri.EscapeDataString(key)}";
+
+                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Post, query);
                 if (!response.IsSuccessStatusCode)
                 {
                     var error = await response.Content.ReadFromJsonAsync<ApiResponse>();
@@ -217,25 +235,25 @@ public class CommandLineInterface : IDisposable
                 Console.WriteLine($"Error generating beat pattern: {ex.Message}");
                 Console.WriteLine("Please ensure the LofiBeats service is running and try again.");
             }
-        }, generateStyleOption, generateBpmOption);
+        }, generateStyleOption, generateBpmOption, generateKeyOption);
         _rootCommand.AddCommand(generateCommand);
 
         // Add play command
-        var playCommand = new Command("play", "Plays a new lofi beat");
-        playCommand.Description = "Plays a new lofi beat with the specified style.\n\n" +
+        var playCommand = new Command("play", "Plays a new lofi beat with the specified style.\n\n" +
                                 "Options:\n" +
                                 "  --style           Beat style (basic, jazzy, chillhop, hiphop)\n" +
                                 "  --bpm             Tempo in beats per minute (BPM)\n" +
+                                "  --key             Musical key for chord progression (e.g., C, F#, Bb)\n" +
                                 "  --after           Specify a delay (e.g. '10m' or '30s') before starting\n" +
                                 "  --transition      Transition type: immediate or crossfade\n" +
                                 "  --xfade-duration  Crossfade duration in seconds\n\n" +
                                 "Examples:\n" +
                                 "  play                     Play with default style\n" +
                                 "  play --style=chillhop    Play chillhop style\n" +
-                                "  play --style=jazzy --bpm=85  Play jazzy style at 85 BPM\n" +
+                                "  play --style=jazzy --bpm=85 --key=F#  Play jazzy style at 85 BPM in F#\n" +
                                 "  play --after 5m          Start playing in 5 minutes\n" +
                                 "  play --style=hiphop --after 30s  Play hiphop style in 30 seconds\n" +
-                                "  play --transition=crossfade --xfade-duration=3  Crossfade to new pattern in 3 seconds";
+                                "  play --key=Bb --transition=crossfade  Crossfade to new pattern in Bb");
 
         var styleOption = new Option<string>("--style", () => "basic", "Beat style (basic, jazzy, chillhop, hiphop)");
         var bpmOption = new Option<int?>(
@@ -247,6 +265,18 @@ public class CommandLineInterface : IDisposable
             if (value.HasValue && (value < 60 || value > 140))
             {
                 result.ErrorMessage = "BPM must be between 60 and 140";
+            }
+        });
+
+        var playKeyOption = new Option<string?>(
+            "--key",
+            description: "Musical key for chord progression (e.g., C, C#, D, Eb, etc.)");
+        playKeyOption.AddValidator(result =>
+        {
+            var keyValue = result.GetValueOrDefault<string>();
+            if (!string.IsNullOrEmpty(keyValue) && !KeyHelper.IsValidKey(keyValue, out _))
+            {
+                result.ErrorMessage = $"Invalid key '{keyValue}'. Must be one of the 12 keys or valid flat enharmonic.";
             }
         });
 
@@ -282,11 +312,12 @@ public class CommandLineInterface : IDisposable
 
         playCommand.AddOption(styleOption);
         playCommand.AddOption(bpmOption);
+        playCommand.AddOption(playKeyOption);
         playCommand.AddOption(afterOption);
         playCommand.AddOption(transitionOption);
         playCommand.AddOption(crossfadeDurationOption);
 
-        playCommand.SetHandler(async (string style, int? bpm, string? afterValue, string transition, double xfadeDuration) =>
+        playCommand.SetHandler(async (string style, int? bpm, string? key, string? afterValue, string transition, double xfadeDuration) =>
         {
             _logExecutingPlayCommand(_logger, null);
             try
@@ -303,19 +334,19 @@ public class CommandLineInterface : IDisposable
                     }
 
                     // Schedule the play call
-                    await SchedulePlay(style, bpm, delay.Value);
+                    await SchedulePlay(style, bpm, key, delay.Value);
                 }
                 else
                 {
                     // immediate play with transition handling
-                    await StartPlayback(style, bpm, transition, xfadeDuration);
+                    await StartPlayback(style, bpm, key, transition, xfadeDuration);
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error: {ex.Message}");
             }
-        }, styleOption, bpmOption, afterOption, transitionOption, crossfadeDurationOption);
+        }, styleOption, bpmOption, playKeyOption, afterOption, transitionOption, crossfadeDurationOption);
         _rootCommand.AddCommand(playCommand);
 
         // Add stop command
@@ -740,8 +771,10 @@ public class CommandLineInterface : IDisposable
             "  Start the service:            lofi start\n" +
             "  Generate a jazzy beat:        lofi generate --style=jazzy\n" +
             "  Generate with custom BPM:     lofi generate --style=chillhop --bpm=85\n" +
+            "  Generate in specific key:     lofi generate --style=basic --key=F#\n" +
             "  Play with a specific style:   lofi play --style=chillhop\n" +
             "  Play with custom BPM:         lofi play --style=basic --bpm=75\n" +
+            "  Play in specific key:         lofi play --style=jazzy --key=Bb\n" +
             "  Register a sample:            lofi sample register kick /path/to/kick.wav\n" +
             "  Register with velocity:       lofi sample register kick-soft /path/to/kick.wav --velocity 64\n" +
             "  Unregister a sample:          lofi sample unregister kick\n" +
@@ -962,7 +995,7 @@ public class CommandLineInterface : IDisposable
         }
     }
 
-    private async Task SchedulePlay(string style, int? bpm, TimeSpan delay)
+    private async Task SchedulePlay(string style, int? bpm, string? key, TimeSpan delay)
     {
         _logSchedulingStop(_logger, $"play {style} at {bpm} BPM in {delay.TotalSeconds} seconds", delay, null);
         var totalMs = (int)delay.TotalMilliseconds;
@@ -978,7 +1011,7 @@ public class CommandLineInterface : IDisposable
             {
                 try
                 {
-                    await StartPlayback(style, bpm, "immediate", 0.0);
+                    await StartPlayback(style, bpm, key, "immediate", 0.0);
                     tcs.SetResult(); // Signal completion
                 }
                 catch (Exception ex)
@@ -1012,7 +1045,7 @@ public class CommandLineInterface : IDisposable
         await tcs.Task;
     }
 
-    private async Task StartPlayback(string style, int? bpm, string transition, double xfadeDuration)
+    private async Task StartPlayback(string style, int? bpm, string? key, string transition, double xfadeDuration)
     {
         try
         {
@@ -1039,6 +1072,7 @@ public class CommandLineInterface : IDisposable
                 $"style={Uri.EscapeDataString(style)}"
             };
             if (bpm.HasValue) queryParams.Add($"bpm={bpm}");
+            if (!string.IsNullOrEmpty(key)) queryParams.Add($"key={Uri.EscapeDataString(key)}");
             if (transition == "crossfade")
             {
                 queryParams.Add("transition=crossfade");
