@@ -278,7 +278,7 @@ public partial class Program
         });
 
         // Generate endpoint
-        api.MapPost("/generate", (IBeatGeneratorFactory factory, string style = "basic", int? bpm = null) =>
+        api.MapPost("/generate", (IBeatGeneratorFactory factory, string style = "basic", int? bpm = null, string? key = null) =>
         {
             telemetryTracker.TrackEvent(TelemetryConstants.Events.BeatGenerated, new Dictionary<string, string>
             {
@@ -286,60 +286,82 @@ public partial class Program
                 { TelemetryConstants.Properties.BeatTempo, bpm?.ToString() ?? "default" }
             });
 
+            // Validate and normalize key
+            string normalizedKey = "C"; // Default key
+            if (!string.IsNullOrEmpty(key))
+            {
+                if (!KeyHelper.IsValidKey(key, out var validKey))
+                {
+                    return Results.Json(new { error = $"Invalid key '{key}'" }, JsonOptions, statusCode: 400);
+                }
+                normalizedKey = validKey;
+            }
+
             var generator = factory.GetGenerator(style);
             var pattern = generator.GeneratePattern(bpm);
+            pattern.Key = normalizedKey;
+
+            // TODO: Transposition logic will be added in a later chunk
+
             return Results.Json(new { message = "Pattern generated", pattern = pattern }, JsonOptions);
         });
 
         // Play endpoint
-        api.MapPost("/play", async (HttpContext context, IAudioPlaybackService playback, IBeatGeneratorFactory factory,
+        api.MapPost("/play", async (HttpContext context, IBeatGeneratorFactory factory, IAudioPlaybackService playback, 
             UserSampleRepository userSamples, TelemetryTracker telemetryTracker) =>
         {
             var style = context.Request.Query["style"].FirstOrDefault() ?? "basic";
+            var bpmStr = context.Request.Query["bpm"].FirstOrDefault();
+            var key = context.Request.Query["key"].FirstOrDefault();
             var transition = context.Request.Query["transition"].FirstOrDefault() ?? "immediate";
-            var xfadeDuration = double.TryParse(context.Request.Query["xfadeDuration"].FirstOrDefault(), out var val) ? val : 2.0;
-
-            int? bpm = null;
-            if (context.Request.Query.TryGetValue("bpm", out var bpmValue) && !string.IsNullOrEmpty(bpmValue))
-            {
-                if (int.TryParse(bpmValue, out var parsedBpm))
-                {
-                    bpm = parsedBpm;
-                }
-            }
+            var xfadeDurationStr = context.Request.Query["xfadeDuration"].FirstOrDefault();
 
             telemetryTracker.TrackEvent(TelemetryConstants.Events.PlaybackStarted, new Dictionary<string, string>
             {
                 { TelemetryConstants.Properties.BeatStyle, style },
-                { TelemetryConstants.Properties.BeatTempo, bpm?.ToString() ?? "default" }
+                { TelemetryConstants.Properties.BeatTempo, bpmStr ?? "default" }
             });
 
-            var generator = factory.GetGenerator(style);
-            if (bpm.HasValue)
+            // Validate and normalize key
+            string normalizedKey = "C"; // Default key
+            if (!string.IsNullOrEmpty(key))
             {
-                generator.SetBPM(bpm.Value);
+                if (!KeyHelper.IsValidKey(key, out var validKey))
+                {
+                    return Results.Json(new { error = $"Invalid key '{key}'" }, JsonOptions, statusCode: 400);
+                }
+                normalizedKey = validKey;
             }
+
+            // Parse BPM if provided
+            int? bpm = null;
+            if (!string.IsNullOrEmpty(bpmStr) && int.TryParse(bpmStr, out var parsedBpm))
+            {
+                if (parsedBpm < 60 || parsedBpm > 140)
+                {
+                    return Results.Json(new { error = "BPM must be between 60 and 140" }, JsonOptions, statusCode: 400);
+                }
+                bpm = parsedBpm;
+            }
+
+            // Parse crossfade duration if provided
+            double xfadeDuration = 2.0;
+            if (!string.IsNullOrEmpty(xfadeDurationStr) && double.TryParse(xfadeDurationStr, out var parsedDuration))
+            {
+                if (parsedDuration < 0.1 || parsedDuration > 10.0)
+                {
+                    return Results.Json(new { error = "Crossfade duration must be between 0.1 and 10.0 seconds" }, JsonOptions, statusCode: 400);
+                }
+                xfadeDuration = parsedDuration;
+            }
+
+            var generator = factory.GetGenerator(style);
+            if (bpm.HasValue) generator.SetBPM(bpm.Value);
 
             var pattern = await Task.Run(() => generator.GeneratePattern());
+            pattern.Key = normalizedKey;
 
-            // Add user samples to pattern using a rented buffer
-            var userSampleBuffer = ArrayPool<string>.Shared.Rent(pattern.DrumSequence.Length);
-            try
-            {
-                for (int i = 0; i < pattern.DrumSequence.Length; i++)
-                {
-                    var drum = pattern.DrumSequence[i];
-                    if (userSamples.HasSample(drum))
-                    {
-                        pattern.UserSampleSteps[i] = drum;
-                        userSampleBuffer[i] = drum;
-                    }
-                }
-            }
-            finally
-            {
-                ArrayPool<string>.Shared.Return(userSampleBuffer);
-            }
+            // TODO: Transposition logic will be added in a later chunk
 
             if (transition == "crossfade")
             {
@@ -358,7 +380,7 @@ public partial class Program
             playback.CurrentStyle = style;
             playback.StartPlayback();
 
-            return Results.Json(new { message = "Playback started", pattern }, JsonOptions);
+            return Results.Json(new { message = "Playback started", pattern = pattern }, JsonOptions);
         });
 
         // Stop endpoint
