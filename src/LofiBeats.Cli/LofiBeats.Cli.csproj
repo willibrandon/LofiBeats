@@ -18,7 +18,7 @@
 		<PackAsTool>true</PackAsTool>
 		<ToolCommandName>lofi</ToolCommandName>
 		<PackageOutputPath>./nupkg</PackageOutputPath>
-		<Version>0.1.4</Version>
+		<Version>0.1.5</Version>
 		<Authors>willibrandon</Authors>
 		<Description>A CLI tool for generating and playing lofi beats with real-time effects.</Description>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
