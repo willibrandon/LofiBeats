@@ -171,4 +171,4 @@ public class ChordTransposerTests
         // Assert
         Assert.Equal(expected, transposed);
     }
-} 
+}

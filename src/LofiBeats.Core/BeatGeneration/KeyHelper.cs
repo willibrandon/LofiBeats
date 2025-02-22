@@ -1,5 +1,3 @@
-using System;
-
 namespace LofiBeats.Core.BeatGeneration;
 
 /// <summary>
@@ -110,4 +108,4 @@ public static class KeyHelper
                $"Sharp keys: {string.Join(", ", sharpKeys)}\n" +
                $"Flat keys: {string.Join(", ", flatKeys)}";
     }
-} 
+}

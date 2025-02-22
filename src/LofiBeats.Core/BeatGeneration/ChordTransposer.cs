@@ -369,4 +369,4 @@ public static class ChordTransposer
         // Get the shifted note in sharp notation
         return SharpKeys[newIdx];
     }
-} 
+}

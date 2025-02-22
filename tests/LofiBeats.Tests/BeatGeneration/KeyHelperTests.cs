@@ -74,4 +74,4 @@ public class KeyHelperTests
         Assert.True(isValid);
         Assert.Equal(expectedNormalized, normalized);
     }
-} 
+}
