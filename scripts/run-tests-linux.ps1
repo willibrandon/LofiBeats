@@ -17,7 +17,7 @@ for ($i = 1; $i -le $RepeatCount; $i++) {
     Write-Host "`n📋 Test Run $i of $RepeatCount" -ForegroundColor Yellow
     Write-Host "----------------------------------------" -ForegroundColor Yellow
     
-    docker run --rm --init lofibeats-test dotnet test --no-build --filter OpenALAudioOutputTests --logger "console;verbosity=minimal" /p:ConsoleOutputLoggerMinimalMessages=true
+    docker run --rm --init lofibeats-test dotnet test --no-build --logger "console;verbosity=minimal" /p:ConsoleOutputLoggerMinimalMessages=true
     
     Write-Host "----------------------------------------" -ForegroundColor Yellow
     
