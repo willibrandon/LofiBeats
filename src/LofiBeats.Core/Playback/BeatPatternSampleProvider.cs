@@ -1,3 +1,4 @@
+using LofiBeats.Core.BeatGeneration;
 using LofiBeats.Core.Models;
 using LofiBeats.Core.Telemetry;
 using Microsoft.Extensions.Logging;
@@ -43,7 +44,7 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
     private float _phase;
     private int _currentStep;
     private int _samplesUntilNextStep;
-    private readonly float[] _frequencies = [440f, 587.33f, 659.25f, 783.99f]; // A4, D5, E5, G5
+    private readonly float[] _frequencies;  // Will be initialized based on key
     private int _samplesPerStep;
     private int _currentSampleInStep;
     private readonly Random _rand = new();
@@ -75,6 +76,32 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
 
     private readonly Dictionary<string, int> _sampleTriggerCounts = new();
 
+    // Mapping of semitones from C to frequency multiplier
+    private static readonly float[] SemitoneMultipliers =
+    {
+        1.0000f,  // C
+        1.0595f,  // C#
+        1.1225f,  // D
+        1.1892f,  // D#
+        1.2599f,  // E
+        1.3348f,  // F
+        1.4142f,  // F#
+        1.4983f,  // G
+        1.5874f,  // G#
+        1.6818f,  // A
+        1.7818f,  // A#
+        1.8877f   // B
+    };
+
+    // Base frequencies for the I-IV-V-vi progression in C
+    private static readonly float[] BaseFrequencies =
+    {
+        261.63f,  // C4 (I)
+        349.23f,  // F4 (IV)
+        392.00f,  // G4 (V)
+        440.00f   // A4 (vi)
+    };
+
     public WaveFormat WaveFormat => _waveFormat;
 
     public BeatPattern Pattern => _pattern;
@@ -95,6 +122,9 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
         float secondsPerBeat = 60f / pattern.BPM;
         _samplesPerStep = (int)(secondsPerBeat * _waveFormat.SampleRate);
 
+        // Initialize frequencies based on the pattern's key
+        _frequencies = TransposeFrequencies(BaseFrequencies, "C", pattern.Key);
+
         // Initialize humanization
         _samplesPerMs = _waveFormat.SampleRate / 1000f;
         _timeOffsets = new int[pattern.DrumSequence.Length];
@@ -106,7 +136,7 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
             _noiseBuffer[i] = (float)(_rand.NextDouble() * 2 - 1);
         }
 
-        _logger.LogInformation("BeatPatternSampleProvider initialized with tempo {Tempo} BPM", pattern.BPM);
+        _logger.LogInformation("BeatPatternSampleProvider initialized with tempo {Tempo} BPM in key {Key}", pattern.BPM, pattern.Key);
     }
 
     private void RandomizeOffsets()
@@ -237,7 +267,7 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
             }
         }
 
-        // Add a simple chord tone based on the current step
+        // Add a chord tone based on the current step
         if (_pattern.ChordProgression?.Length > 0)
         {
             sample += GenerateChord(normalizedTime);
@@ -391,14 +421,14 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
     /// </remarks>
     private float GenerateChord(float normalizedTime)
     {
-        // Simple chord simulation with multiple frequencies
+        // Get the base frequency for this step from our transposed frequencies
         float baseFreq = _frequencies[_currentStep % _frequencies.Length];
         float chord = 0f;
         
         // Generate multiple harmonics
         for (int i = 1; i <= 3; i++)
         {
-            float harmonic = (float)Math.Sin(_phase * i);
+            float harmonic = (float)Math.Sin(_phase * i * baseFreq / SAMPLE_RATE * 2 * Math.PI);
             chord += harmonic * (1f / i); // Decrease amplitude for higher harmonics
         }
         
@@ -514,5 +544,29 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
         // Use style-specific beat division
         int beatsPerBar = GetBeatsPerBarForStyle(_pattern.DrumSequence[0]);
         return _currentStep % (beatsPerBar * 4) == 0;
+    }
+
+    /// <summary>
+    /// Transposes an array of frequencies from one key to another.
+    /// </summary>
+    private static float[] TransposeFrequencies(float[] frequencies, string fromKey, string toKey)
+    {
+        // Get indices for the keys
+        int fromIndex = Array.IndexOf(ChordTransposer.SharpKeys, fromKey);
+        int toIndex = Array.IndexOf(ChordTransposer.SharpKeys, toKey);
+        if (fromIndex == -1 || toIndex == -1) return frequencies; // Return original if key not found
+
+        // Calculate semitone difference
+        int semitones = toIndex - fromIndex;
+        if (semitones < 0) semitones += 12;
+
+        // Create new array with transposed frequencies
+        var transposed = new float[frequencies.Length];
+        for (int i = 0; i < frequencies.Length; i++)
+        {
+            transposed[i] = frequencies[i] * SemitoneMultipliers[semitones];
+        }
+
+        return transposed;
     }
 } 

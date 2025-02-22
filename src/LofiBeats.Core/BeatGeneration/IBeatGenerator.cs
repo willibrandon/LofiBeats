@@ -5,7 +5,7 @@ namespace LofiBeats.Core.BeatGeneration;
 public interface IBeatGenerator
 {
     BeatPattern GeneratePattern();
-    BeatPattern GeneratePattern(int? bpm);
+    BeatPattern GeneratePattern(int? bpm, string? key = null);
     void SetBPM(int value);
 
     string Style { get; }

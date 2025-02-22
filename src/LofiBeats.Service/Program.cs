@@ -298,10 +298,7 @@ public partial class Program
             }
 
             var generator = factory.GetGenerator(style);
-            var pattern = generator.GeneratePattern(bpm);
-            pattern.Key = normalizedKey;
-
-            // TODO: Transposition logic will be added in a later chunk
+            var pattern = generator.GeneratePattern(bpm, normalizedKey);
 
             return Results.Json(new { message = "Pattern generated", pattern = pattern }, JsonOptions);
         });
@@ -358,10 +355,7 @@ public partial class Program
             var generator = factory.GetGenerator(style);
             if (bpm.HasValue) generator.SetBPM(bpm.Value);
 
-            var pattern = await Task.Run(() => generator.GeneratePattern());
-            pattern.Key = normalizedKey;
-
-            // TODO: Transposition logic will be added in a later chunk
+            var pattern = await Task.Run(() => generator.GeneratePattern(bpm, normalizedKey));
 
             if (transition == "crossfade")
             {

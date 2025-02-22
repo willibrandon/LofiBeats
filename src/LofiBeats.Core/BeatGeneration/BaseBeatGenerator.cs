@@ -46,7 +46,7 @@ public abstract class BaseBeatGenerator : IBeatGenerator
         return GeneratePattern(null);
     }
 
-    public BeatPattern GeneratePattern(int? bpm)
+    public BeatPattern GeneratePattern(int? bpm, string? key = null)
     {
         var (minBpm, maxBpm) = BpmRange;
         int actualBpm = bpm ?? _rnd.Next(minBpm, maxBpm + 1);
@@ -66,6 +66,7 @@ public abstract class BaseBeatGenerator : IBeatGenerator
         ModifyPattern(basePattern);
         ModifyChordProgression(chords);
 
+        // Create pattern with default key of C
         var pattern = new BeatPattern
         {
             BPM = actualBpm,
@@ -74,11 +75,12 @@ public abstract class BaseBeatGenerator : IBeatGenerator
             Key = "C" // Default key is C
         };
 
-        // Transpose chords if needed
-        if (!string.IsNullOrEmpty(pattern.Key) && pattern.Key != "C")
+        // If a specific key is requested, transpose the chord progression
+        if (!string.IsNullOrEmpty(key) && KeyHelper.IsValidKey(key, out var normalized))
         {
-            pattern.ChordProgression = ChordTransposer.TransposeChords(pattern.ChordProgression, "C", pattern.Key);
-            _logger.LogInformation("Transposed chord progression to key {Key}", pattern.Key);
+            pattern.ChordProgression = ChordTransposer.TransposeChords(pattern.ChordProgression, "C", normalized);
+            pattern.Key = normalized;
+            _logger.LogInformation("Transposed chord progression to key {Key}", normalized);
         }
 
         _logger.LogInformation("Generated new {Style} beat pattern: {Pattern}", Style, pattern);

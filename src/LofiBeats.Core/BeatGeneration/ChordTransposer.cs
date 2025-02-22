@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace LofiBeats.Core.BeatGeneration;
 
 /// <summary>
@@ -11,7 +8,7 @@ public static class ChordTransposer
     /// <summary>
     /// The canonical set of keys in sharp notation, ordered by semitone distance from C.
     /// </summary>
-    private static readonly string[] SharpKeys = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    public static readonly string[] SharpKeys = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
     /// <summary>
     /// Maps sharp keys to their flat equivalents for output consistency.
@@ -199,7 +196,20 @@ public static class ChordTransposer
             "7", "m7", "maj7", "dim7", "m7b5", "7b5", "7#5",
             "9", "m9", "maj9",
             "11", "m11", "maj11",
-            "13", "m13", "maj13"
+            "13", "m13", "maj13",
+            // Extended jazz qualities
+            "7b9", "7#9", "7b5b9", "7#5#9",
+            "9b5", "9#5", "9b13", "9#11",
+            "11b9", "11#9",
+            "13b9", "13#9", "13b5", "13#11",
+            // Altered qualities
+            "alt", "7alt",
+            // Additional jazz qualities
+            "ø", "ø7", "o7",
+            "7sus4", "9sus4", "13sus4",
+            "+7", "+maj7", "m+7",
+            "6/9", "m6/9",
+            "7#11", "7b13"
         };
 
         // Remove any bass note part
