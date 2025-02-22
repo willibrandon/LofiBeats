@@ -32,11 +32,13 @@ public sealed record WebSocketMessage(
 /// <param name="Bpm">Optional BPM override</param>
 /// <param name="Transition">The transition type ("immediate" or "crossfade")</param>
 /// <param name="XfadeDuration">Duration of crossfade in seconds, if applicable</param>
+/// <param name="Key">Optional musical key (e.g., "C", "F#", "Bb")</param>
 public sealed record PlayCommandPayload(
     [property: JsonPropertyName("style")] string Style = "basic",
     [property: JsonPropertyName("bpm")] int? Bpm = null,
     [property: JsonPropertyName("transition")] string Transition = "immediate",
-    [property: JsonPropertyName("xfadeDuration")] double XfadeDuration = 2.0
+    [property: JsonPropertyName("xfadeDuration")] double XfadeDuration = 2.0,
+    [property: JsonPropertyName("key")] string? Key = null
 );
 
 /// <summary>
@@ -60,9 +62,11 @@ public sealed record VolumeChangedPayload(
 /// </summary>
 /// <param name="Style">The beat style that started playing</param>
 /// <param name="Bpm">The BPM of the playing beat</param>
+/// <param name="Key">The musical key of the playing beat</param>
 public sealed record PlaybackStartedPayload(
     [property: JsonPropertyName("style")] string Style,
-    [property: JsonPropertyName("bpm")] int Bpm
+    [property: JsonPropertyName("bpm")] int Bpm,
+    [property: JsonPropertyName("key")] string Key
 );
 
 /// <summary>

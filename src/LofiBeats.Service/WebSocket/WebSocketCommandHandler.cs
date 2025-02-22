@@ -128,8 +128,22 @@ public sealed class WebSocketCommandHandler
         var command = JsonSerializer.Deserialize<PlayCommandPayload>(payload.GetRawText())
             ?? throw new JsonException("Invalid play command payload");
 
+        // Validate and normalize key if provided
+        string normalizedKey = "C"; // Default key
+        if (!string.IsNullOrEmpty(command.Key))
+        {
+            if (!KeyHelper.IsValidKey(command.Key, out var validKey))
+            {
+                throw new ArgumentException($"Invalid key '{command.Key}'");
+            }
+            normalizedKey = validKey;
+        }
+
         var generator = _beatFactory.GetGenerator(command.Style);
         var pattern = generator.GeneratePattern(command.Bpm);
+        pattern.Key = normalizedKey;
+
+        // TODO: Transposition logic will be added in a later chunk
 
         if (command.Transition == "crossfade")
         {
@@ -144,10 +158,10 @@ public sealed class WebSocketCommandHandler
         _playback.CurrentStyle = command.Style;
         _playback.StartPlayback();
 
-        // Broadcast playback started event
+        // Broadcast playback started event with key
         await _broadcast(
             WebSocketActions.Events.PlaybackStarted,
-            new PlaybackStartedPayload(command.Style, pattern.BPM),
+            new PlaybackStartedPayload(command.Style, pattern.BPM, pattern.Key),
             cancellationToken);
     }
 
