@@ -70,8 +70,16 @@ public abstract class BaseBeatGenerator : IBeatGenerator
         {
             BPM = actualBpm,
             DrumSequence = basePattern,
-            ChordProgression = chords
+            ChordProgression = chords,
+            Key = "C" // Default key is C
         };
+
+        // Transpose chords if needed
+        if (!string.IsNullOrEmpty(pattern.Key) && pattern.Key != "C")
+        {
+            pattern.ChordProgression = ChordTransposer.TransposeChords(pattern.ChordProgression, "C", pattern.Key);
+            _logger.LogInformation("Transposed chord progression to key {Key}", pattern.Key);
+        }
 
         _logger.LogInformation("Generated new {Style} beat pattern: {Pattern}", Style, pattern);
         return pattern;
