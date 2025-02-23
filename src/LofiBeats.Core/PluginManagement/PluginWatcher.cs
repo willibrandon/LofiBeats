@@ -16,7 +16,7 @@ public sealed class PluginWatcher : IDisposable
     private FileSystemEventHandler? _onDeleted;
     private FileSystemEventHandler? _onChanged;
     private ErrorEventHandler? _onError;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     // High-performance structured logging
     private static readonly Action<ILogger, string, Exception?> _logStartingWatch =

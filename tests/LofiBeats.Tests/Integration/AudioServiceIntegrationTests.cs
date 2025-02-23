@@ -424,7 +424,7 @@ public class TestAudioPlaybackService : IAudioPlaybackService
             new EventId(1, "SampleProviderError"),
             "Error creating sample provider for style {Style}");
 
-    private readonly object _syncLock = new();  // Lock object for thread safety
+    private readonly Lock _syncLock = new();  // Lock object for thread safety
 
     private PlaybackState _state = PlaybackState.Stopped;
     private ISampleProvider? _currentSource;

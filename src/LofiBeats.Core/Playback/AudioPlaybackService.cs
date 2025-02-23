@@ -26,7 +26,7 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
     private SerialEffectChain? _effectChain;
     private string _currentStyle = "basic";
     private float _currentVolume = 1.0f;
-    private readonly object _stateLock = new();
+    private readonly Lock _stateLock = new();
 
     public ISampleProvider? CurrentSource => _currentSource;
 

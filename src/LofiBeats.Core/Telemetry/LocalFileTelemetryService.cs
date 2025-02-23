@@ -26,7 +26,7 @@ public class LocalFileTelemetryService : ITelemetryService, IAsyncDisposable
     private readonly string _sessionId;
     private readonly ConcurrentQueue<object> _eventBuffer;
     private readonly Timer _flushTimer;
-    private readonly object _bufferLock = new();
+    private readonly Lock _bufferLock = new();
     private readonly SemaphoreSlim _flushLock = new(1, 1);
     private bool _disposed;
     private string? _currentEventsFile;

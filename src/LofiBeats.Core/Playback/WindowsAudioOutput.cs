@@ -1,5 +1,5 @@
-using NAudio.Wave;
 using Microsoft.Extensions.Logging;
+using NAudio.Wave;
 
 namespace LofiBeats.Core.Playback;
 
@@ -12,7 +12,7 @@ public class WindowsAudioOutput : IAudioOutput
     private WaveOutEvent? _waveOut;
     private bool _isDisposed;
     private bool _isInitialized;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     public WindowsAudioOutput(ILogger<WindowsAudioOutput> logger)
     {

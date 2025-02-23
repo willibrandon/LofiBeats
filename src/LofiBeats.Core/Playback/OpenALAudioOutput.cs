@@ -21,7 +21,7 @@ public class OpenALAudioOutput : IAudioOutput
     private const int BUFFER_SIZE = 8192;
     private Thread? _updateThread;
     private readonly CancellationTokenSource _cancellationTokenSource;
-    private readonly object _lock = new object();
+    private readonly Lock _lock = new();
 
     /// <summary>
     /// Gets the OpenAL source ID. Used for testing.

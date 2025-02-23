@@ -305,7 +305,7 @@ internal sealed class ClientRateLimit
 {
     private readonly int _maxMessagesPerSecond;
     private readonly Queue<DateTime> _messageTimestamps;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     public ClientRateLimit(int maxMessagesPerSecond)
     {

@@ -1,5 +1,3 @@
-using System;
-
 namespace LofiBeats.Core.Playback;
 
 /// <summary>
@@ -10,7 +8,7 @@ namespace LofiBeats.Core.Playback;
 public class CrossfadeManager
 {
     private readonly float _crossfadeDurationSeconds;
-    private readonly object _lockObj = new();
+    private readonly Lock _lockObj = new();
     private bool _isCrossfading;
     private DateTime _startTime;
 
