@@ -1,5 +1,6 @@
 using NAudio.Wave;
 using Microsoft.Extensions.Logging;
+using LofiBeats.Core.PluginManagement;
 
 namespace LofiBeats.Core.Effects;
 
@@ -12,10 +13,12 @@ public class EffectFactory : IEffectFactory
 {
     private readonly ILogger<EffectFactory> _logger;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly PluginManager _pluginManager;
 
-    public EffectFactory(ILoggerFactory loggerFactory)
+    public EffectFactory(ILoggerFactory loggerFactory, PluginManager pluginManager)
     {
         _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+        _pluginManager = pluginManager ?? throw new ArgumentNullException(nameof(pluginManager));
         _logger = loggerFactory.CreateLogger<EffectFactory>();
     }
 
@@ -33,7 +36,17 @@ public class EffectFactory : IEffectFactory
             "reverb" => new ReverbEffect(source, _loggerFactory.CreateLogger<ReverbEffect>()),
             "tapeflutter" => new TapeFlutterAndHissEffect(source, _loggerFactory.CreateLogger<TapeFlutterAndHissEffect>()),
             "tapestop" => new TapeStopEffect(source, _loggerFactory.CreateLogger<TapeStopEffect>()),
-            _ => throw new ArgumentException($"Unknown effect: {effectName}", nameof(effectName))
+            _ => CreatePluginEffect(effectName, source)
         };
+    }
+
+    private IAudioEffect CreatePluginEffect(string effectName, ISampleProvider source)
+    {
+        var effect = _pluginManager.CreateEffect(effectName, source);
+        if (effect == null)
+        {
+            throw new ArgumentException($"Unknown effect: {effectName}", nameof(effectName));
+        }
+        return effect;
     }
 } 

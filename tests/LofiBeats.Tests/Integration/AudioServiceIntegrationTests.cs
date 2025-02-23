@@ -1,6 +1,7 @@
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
+using LofiBeats.Core.PluginManagement;
 using LofiBeats.Core.Telemetry;
 using LofiBeats.Service;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -40,12 +41,9 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
                 var mockTelemetry = new Mock<ITelemetryService>();
                 services.AddSingleton(mockTelemetry.Object);
 
-                foreach (var descriptor in services.Where(d => d.ServiceType == typeof(TelemetryTracker)).ToList())
-                {
-                    services.Remove(descriptor);
-                }
-                var mockLogger = new Mock<ILogger<TelemetryTracker>>();
-                services.AddSingleton(new TelemetryTracker(mockTelemetry.Object, mockLogger.Object));
+                // Add plugin services
+                services.AddSingleton<PluginLoader>();
+                services.AddSingleton<PluginManager>();
             });
         });
         _client = _factory.CreateClient();

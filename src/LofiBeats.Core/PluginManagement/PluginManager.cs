@@ -102,7 +102,7 @@ namespace LofiBeats.Core.PluginManagement
         /// <summary>
         /// Instantiates a new IAudioEffect plugin by name.
         /// </summary>
-        public IAudioEffect? CreateEffect(string effectName, ISampleProvider source)
+        public virtual IAudioEffect? CreateEffect(string effectName, ISampleProvider source)
         {
             var key = effectName.ToLowerInvariant();
             if (!_registeredEffects.TryGetValue(key, out var effect))

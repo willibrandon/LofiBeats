@@ -1,26 +1,27 @@
 using LofiBeats.Core.Effects;
+using LofiBeats.Core.PluginManagement;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NAudio.Wave;
+using Xunit;
 
 namespace LofiBeats.Tests.Effects;
 
 [Collection("AI Generated Tests")]
-public class EffectsTests
+public class EffectsTests : IDisposable
 {
     private readonly Mock<ILogger<VinylCrackleEffect>> _vinylLoggerMock;
     private readonly Mock<ILogger<LowPassFilterEffect>> _lowpassLoggerMock;
     private readonly Mock<ISampleProvider> _sampleProviderMock;
+    private readonly WaveFormat _waveFormat;
 
     public EffectsTests()
     {
         _vinylLoggerMock = new Mock<ILogger<VinylCrackleEffect>>();
         _lowpassLoggerMock = new Mock<ILogger<LowPassFilterEffect>>();
         _sampleProviderMock = new Mock<ISampleProvider>();
-        
-        // Setup mock sample provider with a basic wave format
-        _sampleProviderMock.Setup(x => x.WaveFormat)
-            .Returns(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
+        _waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
+        _sampleProviderMock.Setup(x => x.WaveFormat).Returns(_waveFormat);
         
         // Setup mock to return some sample data when Read is called
         _sampleProviderMock.Setup(x => x.Read(It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<int>()))
@@ -33,6 +34,11 @@ public class EffectsTests
                 }
             })
             .Returns<float[], int, int>((buffer, offset, count) => count); // Return actual count
+    }
+
+    public void Dispose()
+    {
+        // No resources to dispose
     }
 
     [Fact]
@@ -132,7 +138,9 @@ public class EffectsTests
         var loggerFactory = new Mock<ILoggerFactory>();
         loggerFactory.Setup(x => x.CreateLogger(It.IsAny<string>()))
             .Returns(_vinylLoggerMock.Object);
-        var factory = new EffectFactory(loggerFactory.Object);
+        var pluginLoaderMock = new Mock<PluginLoader>(Mock.Of<ILogger<PluginLoader>>());
+        var pluginManagerMock = new Mock<PluginManager>(Mock.Of<ILogger<PluginManager>>(), pluginLoaderMock.Object);
+        var factory = new EffectFactory(loggerFactory.Object, pluginManagerMock.Object);
 
         // Act
         var effect = factory.CreateEffect("vinyl", _sampleProviderMock.Object);
@@ -150,7 +158,9 @@ public class EffectsTests
         var loggerFactory = new Mock<ILoggerFactory>();
         loggerFactory.Setup(x => x.CreateLogger(It.IsAny<string>()))
             .Returns(_lowpassLoggerMock.Object);
-        var factory = new EffectFactory(loggerFactory.Object);
+        var pluginLoaderMock = new Mock<PluginLoader>(Mock.Of<ILogger<PluginLoader>>());
+        var pluginManagerMock = new Mock<PluginManager>(Mock.Of<ILogger<PluginManager>>(), pluginLoaderMock.Object);
+        var factory = new EffectFactory(loggerFactory.Object, pluginManagerMock.Object);
 
         // Act
         var effect = factory.CreateEffect("lowpass", _sampleProviderMock.Object);
@@ -158,5 +168,77 @@ public class EffectsTests
         // Assert
         Assert.NotNull(effect);
         Assert.Equal("lowpass", effect.Name);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void EffectFactory_CreatesPluginEffect()
+    {
+        // Arrange
+        var loggerFactory = new Mock<ILoggerFactory>();
+        loggerFactory.Setup(x => x.CreateLogger(It.IsAny<string>()))
+            .Returns(_lowpassLoggerMock.Object);
+        var pluginLoaderMock = new Mock<PluginLoader>(Mock.Of<ILogger<PluginLoader>>());
+        var pluginManagerMock = new Mock<PluginManager>(Mock.Of<ILogger<PluginManager>>(), pluginLoaderMock.Object);
+        var testEffect = new TestAudioEffect();
+        pluginManagerMock.Setup(x => x.CreateEffect("testeffect", _sampleProviderMock.Object))
+            .Returns(testEffect);
+        var factory = new EffectFactory(loggerFactory.Object, pluginManagerMock.Object);
+
+        // Act
+        var effect = factory.CreateEffect("testeffect", _sampleProviderMock.Object);
+
+        // Assert
+        Assert.NotNull(effect);
+        Assert.Same(testEffect, effect);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void EffectFactory_UnknownEffect_ThrowsArgumentException()
+    {
+        // Arrange
+        var loggerFactory = new Mock<ILoggerFactory>();
+        loggerFactory.Setup(x => x.CreateLogger(It.IsAny<string>()))
+            .Returns(_lowpassLoggerMock.Object);
+        var pluginLoaderMock = new Mock<PluginLoader>(Mock.Of<ILogger<PluginLoader>>());
+        var pluginManagerMock = new Mock<PluginManager>(Mock.Of<ILogger<PluginManager>>(), pluginLoaderMock.Object);
+        pluginManagerMock.Setup(x => x.CreateEffect("unknown", _sampleProviderMock.Object))
+            .Returns((IAudioEffect?)null);
+        var factory = new EffectFactory(loggerFactory.Object, pluginManagerMock.Object);
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => factory.CreateEffect("unknown", _sampleProviderMock.Object));
+    }
+}
+
+[PluginEffectName("testeffect", Description = "A test audio effect", Version = "1.0.0", Author = "Test Author")]
+public sealed class TestAudioEffect : IAudioEffect
+{
+    private WaveFormat _waveFormat;
+    private ISampleProvider? _source;
+
+    public string Name => "Test Effect";
+    public WaveFormat WaveFormat => _waveFormat;
+
+    public TestAudioEffect()
+    {
+        _waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
+    }
+
+    public void SetSource(ISampleProvider source)
+    {
+        _source = source;
+        _waveFormat = source.WaveFormat;
+    }
+
+    public void ApplyEffect(float[] buffer, int offset, int count)
+    {
+        // No-op for test
+    }
+
+    public int Read(float[] buffer, int offset, int count)
+    {
+        return _source?.Read(buffer, offset, count) ?? count;
     }
 } 

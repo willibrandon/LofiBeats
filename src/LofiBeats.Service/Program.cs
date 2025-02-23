@@ -2,6 +2,7 @@ using LofiBeats.Core.BeatGeneration;
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
+using LofiBeats.Core.PluginManagement;
 using LofiBeats.Core.Scheduling;
 using LofiBeats.Core.Telemetry;
 using LofiBeats.Core.WebSocket;
@@ -106,6 +107,8 @@ public partial class Program
         // Register core services as singletons for performance
         builder.Services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
         builder.Services.AddSingleton<IBeatGeneratorFactory, BeatGeneratorFactory>();
+        builder.Services.AddSingleton<PluginLoader>();
+        builder.Services.AddSingleton<PluginManager>();
         builder.Services.AddSingleton<IEffectFactory, EffectFactory>();
         builder.Services.AddSingleton<PlaybackScheduler>();
         builder.Services.AddSingleton<UserSampleRepository>();
