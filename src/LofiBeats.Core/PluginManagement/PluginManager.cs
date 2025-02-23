@@ -104,6 +104,8 @@ namespace LofiBeats.Core.PluginManagement
         /// </summary>
         public virtual IAudioEffect? CreateEffect(string effectName, ISampleProvider source)
         {
+            ArgumentNullException.ThrowIfNull(source);
+
             var key = effectName.ToLowerInvariant();
             if (!_registeredEffects.TryGetValue(key, out var effect))
             {

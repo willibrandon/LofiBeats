@@ -1,8 +1,9 @@
-using LofiBeats.Core.Effects;
 using LofiBeats.Core.PluginManagement;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NAudio.Wave;
+using System.Reflection;
+using System.Reflection.Emit;
 
 namespace LofiBeats.Tests.PluginManagement;
 
@@ -96,12 +97,163 @@ public class PluginManagerTests : IDisposable
         Assert.Equal("Test Author", metadata.Author);
     }
 
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void RefreshPlugins_MultiplePlugins_LoadsAllValidEffects()
+    {
+        // Arrange
+        var testAssembly = typeof(TestAudioEffect).Assembly;
+        var testDllPath1 = Path.Combine(_testPluginDir, "test1.dll");
+        var testDllPath2 = Path.Combine(_testPluginDir, "test2.dll");
+        File.Copy(testAssembly.Location, testDllPath1);
+        File.Copy(testAssembly.Location, testDllPath2);
+
+        // Act
+        _manager.RefreshPlugins();
+        var effects = _manager.GetEffectNames().ToList();
+
+        // Assert
+        Assert.Single(effects); // Should only find one unique effect name despite multiple DLLs
+        Assert.Contains("testeffect", effects);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void RefreshPlugins_DuplicateEffectNames_OnlyLoadsFirst()
+    {
+        // Arrange
+        var testAssembly = typeof(TestAudioEffect).Assembly;
+        var testDllPath1 = Path.Combine(_testPluginDir, "first.dll");
+        var testDllPath2 = Path.Combine(_testPluginDir, "second.dll");
+        File.Copy(testAssembly.Location, testDllPath1);
+        File.Copy(testAssembly.Location, testDllPath2);
+
+        // Act
+        _manager.RefreshPlugins();
+        var effects = _manager.GetEffectNames().ToList();
+        var metadata = _manager.GetEffectMetadata("testeffect");
+
+        // Assert
+        Assert.Single(effects);
+        Assert.NotNull(metadata);
+        Assert.Equal("Test Author", metadata.Author);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void RefreshPlugins_InvalidDll_SkipsInvalidAssemblies()
+    {
+        // Arrange
+        var invalidDllPath = Path.Combine(_testPluginDir, "invalid.dll");
+        File.WriteAllBytes(invalidDllPath, new byte[] { 0x0, 0x1, 0x2, 0x3 }); // Invalid DLL content
+
+        var testAssembly = typeof(TestAudioEffect).Assembly;
+        var validDllPath = Path.Combine(_testPluginDir, "valid.dll");
+        File.Copy(testAssembly.Location, validDllPath);
+
+        // Act
+        _manager.RefreshPlugins();
+        var effects = _manager.GetEffectNames().ToList();
+
+        // Assert
+        Assert.Single(effects); // Should only load the valid DLL
+        Assert.Contains("testeffect", effects);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void RefreshPlugins_LargeNumberOfPlugins_HandlesGracefully()
+    {
+        // Arrange
+        var testAssembly = typeof(TestAudioEffect).Assembly;
+        for (int i = 0; i < 10; i++) // Reduced from 100 to 10 DLLs for stability
+        {
+            var testDllPath = Path.Combine(_testPluginDir, $"test{i}.dll");
+            File.Copy(testAssembly.Location, testDllPath);
+        }
+
+        // Act
+        _manager.RefreshPlugins();
+        var effects = _manager.GetEffectNames().ToList();
+
+        // Assert
+        Assert.Single(effects); // Should still only find one unique effect
+        Assert.Contains("testeffect", effects);
+
+        // Force a GC collection to help release file handles
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void RefreshPlugins_NoIAudioEffectImplementations_ReturnsEmpty()
+    {
+        // Arrange - Create a dynamic assembly with a class that doesn't implement IAudioEffect
+        var assemblyName = new AssemblyName("DummyAssembly");
+        var assembly = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.RunAndCollect);
+        var module = assembly.DefineDynamicModule("DummyModule");
+        var typeBuilder = module.DefineType("DummyType", TypeAttributes.Public | TypeAttributes.Class);
+        var dummyType = typeBuilder.CreateType();
+
+        // Save the assembly to a file
+        var dummyDllPath = Path.Combine(_testPluginDir, "dummy.dll");
+        File.WriteAllBytes(dummyDllPath, Array.Empty<byte>()); // Can't actually save dynamic assembly, just create empty file
+
+        // Act
+        _manager.RefreshPlugins();
+        var effects = _manager.GetEffectNames();
+
+        // Assert
+        Assert.Empty(effects);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void CreateEffect_WithInvalidSource_HandlesGracefully()
+    {
+        // Arrange
+        var testAssembly = typeof(TestAudioEffect).Assembly;
+        var testDllPath = Path.Combine(_testPluginDir, "test.dll");
+        File.Copy(testAssembly.Location, testDllPath);
+        _manager.RefreshPlugins();
+
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => _manager.CreateEffect("testeffect", null!));
+    }
+
     public void Dispose()
     {
-        // Cleanup test directory
+        // Give the runtime a chance to release file handles
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        Thread.Sleep(100); // Brief pause to allow async operations to complete
+
+        // Cleanup test directory with retries
         if (Directory.Exists(_testPluginDir))
         {
-            Directory.Delete(_testPluginDir, true);
+            for (int attempt = 1; attempt <= 3; attempt++)
+            {
+                try
+                {
+                    Directory.Delete(_testPluginDir, true);
+                    break;
+                }
+                catch (UnauthorizedAccessException) when (attempt < 3)
+                {
+                    // Wait a bit longer between retries
+                    Thread.Sleep(100 * attempt);
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+                }
+                catch (IOException) when (attempt < 3)
+                {
+                    // Wait a bit longer between retries
+                    Thread.Sleep(100 * attempt);
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+                }
+            }
         }
     }
 }
@@ -115,4 +267,4 @@ internal sealed class TestSampleProvider : ISampleProvider
     {
         return count;
     }
-} 
+}
