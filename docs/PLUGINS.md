@@ -172,6 +172,6 @@ Key interfaces and classes:
 ## Example Projects
 
 See the [examples](../examples/Plugins) directory for sample plugin projects:
-- Basic Effect Template
+- Basic Effect Example
 - Delay Effect Example
 - Multi-Parameter Effect Example 
