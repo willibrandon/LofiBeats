@@ -13,7 +13,7 @@ public class SerialEffectChain : ISampleProvider
 
     public WaveFormat WaveFormat => _finalProvider.WaveFormat;
 
-    public SerialEffectChain(ISampleProvider source, ILogger<SerialEffectChain> logger, ILoggerFactory loggerFactory)
+    public SerialEffectChain(ISampleProvider source, ILogger<SerialEffectChain> logger)
     {
         _baseSource = source ?? throw new ArgumentNullException(nameof(source));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));

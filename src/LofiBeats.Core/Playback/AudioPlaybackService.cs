@@ -141,8 +141,8 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
         {
             _effectChain = new SerialEffectChain(
                 _currentSource,
-                _loggerFactory.CreateLogger<SerialEffectChain>(),
-                _loggerFactory);
+                _loggerFactory.CreateLogger<SerialEffectChain>());
+
             foreach (var effect in _effects.Values)
             {
                 _effectChain.AddEffect(effect);
@@ -195,8 +195,8 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
         // Create a new chain just for the stop effect
         var stopChain = new SerialEffectChain(
             _currentSource,
-            _loggerFactory.CreateLogger<SerialEffectChain>(),
-            _loggerFactory);
+            _loggerFactory.CreateLogger<SerialEffectChain>());
+
         stopChain.AddEffect(effect);
 
         // Remove existing inputs
@@ -244,8 +244,8 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
             _mixer.RemoveMixerInput(_currentSource);
             _effectChain = new SerialEffectChain(
                 _currentSource,
-                _loggerFactory.CreateLogger<SerialEffectChain>(),
-                _loggerFactory);
+                _loggerFactory.CreateLogger<SerialEffectChain>());
+
             _mixer.AddMixerInput(_effectChain);
         }
 

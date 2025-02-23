@@ -34,7 +34,7 @@ public class TapeFlutterAndHissEffect : IAudioEffect
         _hissLevel = hissLevel;
         _rand = new Random();
 
-        _logger.LogInformation("TapeFlutterAndHissEffect initialized (speed: {0}, depth: {1}, hiss: {2})",
+        _logger.LogInformation("TapeFlutterAndHissEffect initialized (speed: {flutterSpeed}, depth: {flutterDepth}, hiss: {hissLevel})",
             flutterSpeed, flutterDepth, hissLevel);
     }
 

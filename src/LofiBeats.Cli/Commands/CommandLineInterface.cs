@@ -155,12 +155,14 @@ public class CommandLineInterface : IDisposable
         _rootCommand.AddCommand(sampleCommand);
 
         // Add update command
-        var updateCommand = new Command("update", "Update the CLI tool to the latest version");
-        updateCommand.Description = "Updates the LofiBeats CLI tool to the latest version.\n\n" +
-                                  "Since this is distributed as a .NET tool, you can update it using:\n" +
-                                  "  dotnet tool update --global LofiBeats.Cli\n\n" +
-                                  "This will fetch and install the latest version from NuGet.";
-        
+        var updateCommand = new Command("update", "Update the CLI tool to the latest version")
+        {
+            Description = "Updates the LofiBeats CLI tool to the latest version.\n\n" +
+                            "Since this is distributed as a .NET tool, you can update it using:\n" +
+                            "  dotnet tool update --global LofiBeats.Cli\n\n" +
+                            "This will fetch and install the latest version from NuGet."
+        };
+
         updateCommand.SetHandler(() =>
         {
             _logExecutingUpdateCommand(_logger, null);
@@ -370,16 +372,18 @@ public class CommandLineInterface : IDisposable
         _rootCommand.AddCommand(playCommand);
 
         // Add stop command
-        var stopCommand = new Command("stop", "Stops audio playback");
-        stopCommand.Description = "Stops the currently playing audio.\n\n" +
-                                "Options:\n" +
-                                "  --tapestop    Gradually slow down the audio like a tape machine powering off\n" +
-                                "  --after       Specify a delay (e.g. '10m' or '30s') before stopping\n\n" +
-                                "Examples:\n" +
-                                "  stop              Stop playback immediately\n" +
-                                "  stop --tapestop   Stop with tape slow-down effect\n" +
-                                "  stop --after 10m  Stop after 10 minutes\n" +
-                                "  stop --after 30s --tapestop  Stop with tape effect after 30 seconds";
+        var stopCommand = new Command("stop", "Stops audio playback")
+        {
+            Description = "Stops the currently playing audio.\n\n" +
+                            "Options:\n" +
+                            "  --tapestop    Gradually slow down the audio like a tape machine powering off\n" +
+                            "  --after       Specify a delay (e.g. '10m' or '30s') before stopping\n\n" +
+                            "Examples:\n" +
+                            "  stop              Stop playback immediately\n" +
+                            "  stop --tapestop   Stop with tape slow-down effect\n" +
+                            "  stop --after 10m  Stop after 10 minutes\n" +
+                            "  stop --after 30s --tapestop  Stop with tape effect after 30 seconds"
+        };
 
         var tapeStopOpt = new Option<bool>(
             name: "--tapestop",
@@ -662,13 +666,15 @@ public class CommandLineInterface : IDisposable
         _rootCommand.AddCommand(volumeCommand);
 
         // Add start command
-        var startCommand = new Command("start", "Starts the LofiBeats service");
-        startCommand.Description = "Starts the LofiBeats service if it's not already running.\n\n" +
-                                 "This command is useful when you want to:\n" +
-                                 "1. Start the service explicitly before using other commands\n" +
-                                 "2. Restart the service after a shutdown\n" +
-                                 "3. Ensure the service is running without executing any playback commands";
-        
+        var startCommand = new Command("start", "Starts the LofiBeats service")
+        {
+            Description = "Starts the LofiBeats service if it's not already running.\n\n" +
+                            "This command is useful when you want to:\n" +
+                            "1. Start the service explicitly before using other commands\n" +
+                            "2. Restart the service after a shutdown\n" +
+                            "3. Ensure the service is running without executing any playback commands"
+        };
+
         startCommand.SetHandler(async () =>
         {
             _logExecutingStartCommand(_logger, null);
@@ -796,14 +802,16 @@ public class CommandLineInterface : IDisposable
         _rootCommand.AddCommand(interactiveCommand);
 
         // Add schedule command
-        var scheduleCommand = new Command("schedule", "Manage scheduled actions");
-        scheduleCommand.Description = "List or cancel scheduled playback actions.\n\n" +
-                                    "Subcommands:\n" +
-                                    "  list     List all scheduled actions\n" +
-                                    "  cancel   Cancel a scheduled action by ID\n\n" +
-                                    "Examples:\n" +
-                                    "  schedule list              Show all scheduled actions\n" +
-                                    "  schedule cancel <id>       Cancel a specific scheduled action";
+        var scheduleCommand = new Command("schedule", "Manage scheduled actions")
+        {
+            Description = "List or cancel scheduled playback actions.\n\n" +
+                            "Subcommands:\n" +
+                            "  list     List all scheduled actions\n" +
+                            "  cancel   Cancel a scheduled action by ID\n\n" +
+                            "Examples:\n" +
+                            "  schedule list              Show all scheduled actions\n" +
+                            "  schedule cancel <id>       Cancel a specific scheduled action"
+        };
 
         var listCommand = new Command("list", "List all scheduled actions");
         listCommand.SetHandler(() =>
@@ -873,15 +881,17 @@ public class CommandLineInterface : IDisposable
 
     private Command CreatePresetCommand()
     {
-        var presetCommand = new Command("preset", "Manage LofiBeats presets (style, volume, effects)");
-        presetCommand.Description = "Save and load preset configurations including style, volume, and effects.\n\n" +
-                                  "Subcommands:\n" +
-                                  "  save <file>    Save current settings to a preset file\n" +
-                                  "  load <file>    Load settings from a preset file\n\n" +
-                                  "Examples:\n" +
-                                  "  preset save mypreset.json     Save current settings\n" +
-                                  "  preset load mypreset.json     Load saved settings\n" +
-                                  "  preset save presets/jazz.json Save to a subdirectory";
+        var presetCommand = new Command("preset", "Manage LofiBeats presets (style, volume, effects)")
+        {
+            Description = "Save and load preset configurations including style, volume, and effects.\n\n" +
+                            "Subcommands:\n" +
+                            "  save <file>    Save current settings to a preset file\n" +
+                            "  load <file>    Load settings from a preset file\n\n" +
+                            "Examples:\n" +
+                            "  preset save mypreset.json     Save current settings\n" +
+                            "  preset load mypreset.json     Load saved settings\n" +
+                            "  preset save presets/jazz.json Save to a subdirectory"
+        };
 
         // 'save' subcommand
         var saveCommand = new Command("save", "Save the current playback settings to a preset file");

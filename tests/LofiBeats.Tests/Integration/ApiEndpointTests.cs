@@ -36,7 +36,7 @@ public class ApiEndpointTests : LofiBeatsTestBase
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = await response.Content.ReadFromJsonAsync<GenerateResponse>();
-        Assert.NotNull(content?.pattern);
+        Assert.NotNull(content?.Pattern);
     }
 
     [Fact]
@@ -145,6 +145,7 @@ public class ApiEndpointTests : LofiBeatsTestBase
 
 public class GenerateResponse
 {
-    public string message { get; set; } = "";
-    public BeatPattern? pattern { get; set; }
+    public string Message { get; set; } = "";
+
+    public BeatPattern? Pattern { get; set; }
 } 

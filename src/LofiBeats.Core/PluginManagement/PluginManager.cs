@@ -64,10 +64,7 @@ namespace LofiBeats.Core.PluginManagement
             try
             {
                 var instance = Activator.CreateInstance(effectType) as IAudioEffect;
-                if (instance != null)
-                {
-                    instance.SetSource(source);
-                }
+                instance?.SetSource(source);
                 return instance;
             }
             catch

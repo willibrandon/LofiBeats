@@ -489,8 +489,7 @@ public class TestAudioPlaybackService : IAudioPlaybackService
             {
                 _effectChain = new SerialEffectChain(
                     _currentSource,
-                    new Mock<ILogger<SerialEffectChain>>().Object,
-                    _loggerFactoryMock.Object);
+                    new Mock<ILogger<SerialEffectChain>>().Object);
             }
 
             if (_effectChain != null)
@@ -521,8 +520,7 @@ public class TestAudioPlaybackService : IAudioPlaybackService
             {
                 _effectChain = new SerialEffectChain(
                     _currentSource,
-                    new Mock<ILogger<SerialEffectChain>>().Object,
-                    _loggerFactoryMock.Object);
+                    new Mock<ILogger<SerialEffectChain>>().Object);
             }
         }
     }
