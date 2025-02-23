@@ -131,7 +131,7 @@ public class ApiEndpointTests : LofiBeatsTestBase
             Name = "Test Preset",
             Style = "lofi",
             Volume = 0.5f,
-            Effects = new List<string>()
+            Effects = []
         };
 
         var applyResponse = await Client.PostAsJsonAsync("/api/lofi/preset/apply", newPreset);

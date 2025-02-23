@@ -17,7 +17,7 @@ public class ServiceStartupPerformanceTests : IDisposable
     private readonly HttpClient _httpClient;
     private readonly string _testServicePath;
     private readonly ServiceConnectionHelper _helper;
-    private readonly List<string> _cleanupFiles = new();
+    private readonly List<string> _cleanupFiles = [];
 
     public ServiceStartupPerformanceTests(ITestOutputHelper output)
     {

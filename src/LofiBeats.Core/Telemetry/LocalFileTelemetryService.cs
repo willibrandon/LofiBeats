@@ -12,7 +12,7 @@ public class LocalFileTelemetryService : ITelemetryService, IAsyncDisposable
 {
     private sealed class TelemetryFile<T>
     {
-        public List<T> Items { get; set; } = new();
+        public List<T> Items { get; set; } = [];
     }
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -150,7 +150,7 @@ public class LocalFileTelemetryService : ITelemetryService, IAsyncDisposable
         List<object> itemsToProcess;
         lock (_bufferLock)
         {
-            itemsToProcess = _eventBuffer.ToList();
+            itemsToProcess = [.. _eventBuffer];
             _eventBuffer.Clear();
         }
 

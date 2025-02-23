@@ -17,7 +17,7 @@ public class ServiceConnectionHelperTests : IDisposable
     private readonly string _testServiceUrl = "http://localhost:5000";
     private readonly string _testServicePath;
     private ServiceConnectionHelper _helper;
-    private readonly List<string> _cleanupFiles = new();
+    private readonly List<string> _cleanupFiles = [];
 
     public ServiceConnectionHelperTests()
     {

@@ -21,7 +21,7 @@ public class TelemetryTracker
         _telemetry = telemetry;
         _logger = logger;
         _sessionStopwatch = Stopwatch.StartNew();
-        _activeTimers = new Dictionary<string, Stopwatch>();
+        _activeTimers = [];
         _lastUserInteraction = DateTimeOffset.UtcNow;
         
         // Track initial application data

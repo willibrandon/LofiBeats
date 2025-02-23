@@ -6,8 +6,10 @@ namespace LofiBeats.Core.Models;
 public class BeatPattern
 {
     public int BPM { get; set; }
-    public string[] DrumSequence { get; set; } = Array.Empty<string>();
-    public string[] ChordProgression { get; set; } = Array.Empty<string>();
+
+    public string[] DrumSequence { get; set; } = [];
+
+    public string[] ChordProgression { get; set; } = [];
 
     /// <summary>
     /// Specifies the musical key of this beat pattern (e.g., "C", "F#", "Bb").
@@ -19,7 +21,7 @@ public class BeatPattern
     /// Maps step indices to user sample names. If a step has a user sample,
     /// it overrides the corresponding DrumSequence entry.
     /// </summary>
-    public Dictionary<int, string> UserSampleSteps { get; set; } = new();
+    public Dictionary<int, string> UserSampleSteps { get; set; } = [];
 
     /// <summary>
     /// Synthesis parameters for each drum type.

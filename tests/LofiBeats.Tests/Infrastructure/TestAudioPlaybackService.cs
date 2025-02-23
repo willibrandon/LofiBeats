@@ -18,7 +18,7 @@ public class TestAudioPlaybackService : IAudioPlaybackService
     private float _volume = 1.0f;
     private string _currentStyle = "basic";
     private ISampleProvider? _currentSource;
-    private readonly Dictionary<string, IAudioEffect> _effects = new();
+    private readonly Dictionary<string, IAudioEffect> _effects = [];
     private readonly ILogger<BeatPatternSampleProvider> _logger;
     private readonly UserSampleRepository _userSampleRepository;
     private readonly TelemetryTracker _telemetryTracker;
@@ -125,7 +125,7 @@ public class TestAudioPlaybackService : IAudioPlaybackService
             Name = "Test Preset",
             Style = _currentStyle,
             Volume = _volume,
-            Effects = _effects.Keys.ToList()
+            Effects = [.. _effects.Keys]
         };
     }
 

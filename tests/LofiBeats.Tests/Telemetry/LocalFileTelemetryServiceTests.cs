@@ -53,7 +53,7 @@ public class LocalFileTelemetryServiceTests : IAsyncDisposable
 
     private sealed class TelemetryFile<T>
     {
-        public List<T> Items { get; set; } = new();
+        public List<T> Items { get; set; } = [];
     }
 
     private async Task<List<T>> GetTelemetryItemsFromFiles<T>(string? path = null)
@@ -337,7 +337,7 @@ public class LocalFileTelemetryServiceTests : IAsyncDisposable
         var invalidConfig = new TelemetryConfiguration
         {
             IsTestEnvironment = true,
-            GetBasePath = () => Path.Combine("invalid", new string(Path.GetInvalidPathChars().Take(1).ToArray()))
+            GetBasePath = () => Path.Combine("invalid", new string([.. Path.GetInvalidPathChars().Take(1)]))
         };
 
         // Act & Assert

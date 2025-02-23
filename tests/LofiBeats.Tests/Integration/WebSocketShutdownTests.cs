@@ -81,7 +81,7 @@ public class WebSocketShutdownTests : IClassFixture<WebApplicationFactory<Progra
             request.Headers["Connection"] = "Upgrade";
             request.Headers["Upgrade"] = "websocket";
         };
-        _clients = new List<WebSocket>();
+        _clients = [];
         _cts = new CancellationTokenSource();
         _cts.CancelAfter(TimeSpan.FromSeconds(30));
     }

@@ -134,7 +134,7 @@ public class PluginWatcherTests : IDisposable
 
         // Create a test plugin file
         var testPluginPath = Path.Combine(_testPluginDir, "test.dll");
-        await File.WriteAllBytesAsync(testPluginPath, Array.Empty<byte>());
+        await File.WriteAllBytesAsync(testPluginPath, []);
         _output.WriteLine($"Created test file: {testPluginPath}");
 
         // Wait for the file system watcher to detect the change
@@ -161,7 +161,7 @@ public class PluginWatcherTests : IDisposable
 
         // Create a test plugin file
         var testPluginPath = Path.Combine(_testPluginDir, "test.dll");
-        await File.WriteAllBytesAsync(testPluginPath, Array.Empty<byte>());
+        await File.WriteAllBytesAsync(testPluginPath, []);
         _output.WriteLine($"Created test file: {testPluginPath}");
         await Task.Delay(100); // Let the file system settle
 
@@ -193,7 +193,7 @@ public class PluginWatcherTests : IDisposable
 
         // Create a test plugin file
         var testPluginPath = Path.Combine(_testPluginDir, "test.dll");
-        await File.WriteAllBytesAsync(testPluginPath, Array.Empty<byte>());
+        await File.WriteAllBytesAsync(testPluginPath, []);
         _output.WriteLine($"Created test file: {testPluginPath}");
         await Task.Delay(100); // Let the file system settle
 
@@ -227,7 +227,7 @@ public class PluginWatcherTests : IDisposable
 
         // Create a test plugin file
         var testPluginPath = Path.Combine(_testPluginDir, "test.dll");
-        await File.WriteAllBytesAsync(testPluginPath, Array.Empty<byte>());
+        await File.WriteAllBytesAsync(testPluginPath, []);
         _output.WriteLine($"Created test file: {testPluginPath}");
 
         // Wait a bit to ensure no events are triggered
@@ -256,7 +256,7 @@ public class PluginWatcherTests : IDisposable
 
         // Create a test plugin file
         var testPluginPath = Path.Combine(_testPluginDir, "test.dll");
-        await File.WriteAllBytesAsync(testPluginPath, Array.Empty<byte>());
+        await File.WriteAllBytesAsync(testPluginPath, []);
         _output.WriteLine($"Created test file: {testPluginPath}");
 
         // Wait a bit to ensure no events are triggered

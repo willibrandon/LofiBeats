@@ -89,8 +89,8 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
         _loggerFactory = loggerFactory;
         _userSampleRepository = userSampleRepository;
         _telemetry = telemetry;
-        _sources = new Dictionary<Guid, ISampleProvider>();
-        _effects = new Dictionary<string, IAudioEffect>();
+        _sources = [];
+        _effects = [];
         _mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
         _audioOutput = CreateAudioOutput();
         _audioOutput.Init(_mixer.ToWaveProvider());
@@ -107,8 +107,8 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
         _loggerFactory = loggerFactory;
         _userSampleRepository = userSampleRepository;
         _telemetry = telemetry;
-        _sources = new Dictionary<Guid, ISampleProvider>();
-        _effects = new Dictionary<string, IAudioEffect>();
+        _sources = [];
+        _effects = [];
         _mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
         _audioOutput = audioOutput;
         _audioOutput.Init(_mixer.ToWaveProvider());
@@ -296,7 +296,7 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
                 Name = $"Preset_{DateTime.Now:yyyyMMdd_HHmmss}",
                 Style = _currentStyle,
                 Volume = _currentVolume,
-                Effects = _effects.Keys.ToList()
+                Effects = [.. _effects.Keys]
             };
         }
     }

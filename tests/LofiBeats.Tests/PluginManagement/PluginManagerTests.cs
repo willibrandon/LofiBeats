@@ -179,7 +179,7 @@ public class PluginManagerTests : IDisposable
 
         // Save the assembly to a file
         var dummyDllPath = Path.Combine(_testPluginDir, "dummy.dll");
-        File.WriteAllBytes(dummyDllPath, Array.Empty<byte>()); // Can't actually save dynamic assembly, just create empty file
+        File.WriteAllBytes(dummyDllPath, []); // Can't actually save dynamic assembly, just create empty file
 
         // Act
         _manager.RefreshPlugins();

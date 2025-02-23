@@ -356,13 +356,13 @@ public class ServiceConnectionHelper
         var pidProcess = GetProcessFromPidFile();
         if (pidProcess != null)
         {
-            return new List<Process> { pidProcess };
+            return [pidProcess];
         }
 
         // For test environment - mock process
         if (Environment.GetEnvironmentVariable("MOCK_PROCESS_TEST") == "true")
         {
-            return new List<Process> { Process.GetCurrentProcess() };
+            return [Process.GetCurrentProcess()];
         }
 
         // Fall back to full process enumeration

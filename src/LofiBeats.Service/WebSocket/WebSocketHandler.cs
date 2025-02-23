@@ -197,7 +197,7 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
         WebSocketConnection[] snapshot;
         try
         {
-            snapshot = _connections.Values.ToArray();
+            snapshot = [.. _connections.Values];
         }
         finally
         {

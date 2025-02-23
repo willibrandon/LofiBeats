@@ -56,13 +56,13 @@ public class TelemetryConfiguration
     /// <summary>
     /// Gets or sets patterns for events that should be excluded from production telemetry.
     /// </summary>
-    public HashSet<string> ExcludedEventPatterns { get; set; } = new()
-    {
+    public HashSet<string> ExcludedEventPatterns { get; set; } =
+    [
         "^Test",
         "^Debug",
         "^Parallel",
         "^Mock"
-    };
+    ];
 
     /// <summary>
     /// Optional delegate to override the base path calculation.

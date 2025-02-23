@@ -7,10 +7,12 @@ public class BeatGeneratorFactory : IBeatGeneratorFactory
     private readonly ILoggerFactory _loggerFactory;
     private readonly Dictionary<string, IBeatGenerator> _generators;
 
+    public string[] GetAvailableStyles() => [.. _generators.Keys];
+
     public BeatGeneratorFactory(ILoggerFactory loggerFactory)
     {
         _loggerFactory = loggerFactory;
-        _generators = new Dictionary<string, IBeatGenerator>();
+        _generators = [];
         InitializeGenerators();
     }
 
@@ -43,6 +45,4 @@ public class BeatGeneratorFactory : IBeatGeneratorFactory
         // Default to basic if style not found
         return _generators["basic"];
     }
-
-    public string[] GetAvailableStyles() => _generators.Keys.ToArray();
 } 

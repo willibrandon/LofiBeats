@@ -33,7 +33,7 @@ public static class KeyHelper
     /// Gets all valid keys in their canonical sharp form.
     /// </summary>
     /// <returns>Array of valid musical keys.</returns>
-    public static string[] GetValidKeys() => ValidKeys.ToArray();
+    public static string[] GetValidKeys() => [.. ValidKeys];
 
     /// <summary>
     /// Validates a musical key and normalizes it to sharp notation.

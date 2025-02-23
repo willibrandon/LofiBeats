@@ -431,7 +431,7 @@ public class TestAudioPlaybackService : IAudioPlaybackService
     private SerialEffectChain? _effectChain;
     private float _volume = 1.0f;
     private string _currentStyle = "basic";
-    private readonly Dictionary<string, IAudioEffect> _effects = new();
+    private readonly Dictionary<string, IAudioEffect> _effects = [];
     private readonly Mock<ILoggerFactory> _loggerFactoryMock;
 
     public TestAudioPlaybackService()
@@ -644,7 +644,7 @@ public class TestAudioPlaybackService : IAudioPlaybackService
                 Name = $"Test_Preset_{DateTime.Now:yyyyMMdd_HHmmss}",
                 Style = _currentStyle,
                 Volume = _volume,
-                Effects = _effects.Keys.ToList()
+                Effects = [.. _effects.Keys]
             };
         }
     }

@@ -44,7 +44,7 @@ public class PluginLoaderTests : IDisposable
     {
         // Arrange
         var dummyDllPath = Path.Combine(_testPluginDir, "dummy.dll");
-        File.WriteAllBytes(dummyDllPath, Array.Empty<byte>());
+        File.WriteAllBytes(dummyDllPath, []);
 
         // Act
         var types = _loader.LoadEffectTypes();

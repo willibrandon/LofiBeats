@@ -66,7 +66,7 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
     private readonly float _snareMaxVelocity = 1.0f;
     private readonly float _hatMinVelocity = 0.4f;
     private readonly float _hatMaxVelocity = 0.8f;
-    private readonly Dictionary<int, float> _velocities = new();
+    private readonly Dictionary<int, float> _velocities = [];
 
     // User sample tracking
     private ISampleProvider? _currentUserSample;
@@ -74,7 +74,7 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
     private int _userSampleBufferPosition;
     private int _userSampleBufferCount;
 
-    private readonly Dictionary<string, int> _sampleTriggerCounts = new();
+    private readonly Dictionary<string, int> _sampleTriggerCounts = [];
 
     // Mapping of semitones from C to frequency multiplier
     private static readonly float[] SemitoneMultipliers =

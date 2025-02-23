@@ -31,7 +31,7 @@ public class OpenALAudioOutput : IAudioOutput
     public OpenALAudioOutput(ILogger<OpenALAudioOutput> logger)
     {
         _logger = logger;
-        _buffers = new List<int>();
+        _buffers = [];
         _cancellationTokenSource = new CancellationTokenSource();
         InitializeOpenAL();
     }
@@ -409,7 +409,7 @@ public class OpenALAudioOutput : IAudioOutput
                 {
                     if (_buffers.Count > 0)
                     {
-                        AL.DeleteBuffers(_buffers.ToArray());
+                        AL.DeleteBuffers([.. _buffers]);
                         _buffers.Clear();
                     }
 
