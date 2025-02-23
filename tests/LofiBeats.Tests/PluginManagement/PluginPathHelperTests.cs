@@ -3,9 +3,11 @@ using System.Runtime.InteropServices;
 
 namespace LofiBeats.Tests.PluginManagement;
 
+[Collection("Plugin Tests")]
 public class PluginPathHelperTests
 {
     [SkippableFact]
+    [Trait("Category", "AI_Generated")]
     public void GetPluginDirectory_OnWindows_ReturnsCorrectPath()
     {
         Skip.IfNot(RuntimeInformation.IsOSPlatform(OSPlatform.Windows), "Test only runs on Windows");
@@ -21,6 +23,7 @@ public class PluginPathHelperTests
     }
 
     [SkippableFact]
+    [Trait("Category", "AI_Generated")]
     public void GetPluginDirectory_OnMacOS_ReturnsCorrectPath()
     {
         Skip.IfNot(RuntimeInformation.IsOSPlatform(OSPlatform.OSX), "Test only runs on macOS");
@@ -38,6 +41,7 @@ public class PluginPathHelperTests
     }
 
     [SkippableFact]
+    [Trait("Category", "AI_Generated")]
     public void GetPluginDirectory_OnLinux_ReturnsCorrectPath()
     {
         Skip.IfNot(RuntimeInformation.IsOSPlatform(OSPlatform.Linux), "Test only runs on Linux");
@@ -55,6 +59,7 @@ public class PluginPathHelperTests
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void EnsurePluginDirectoryExists_CreatesDirectory()
     {
         // Get the directory path

@@ -28,7 +28,7 @@ public class PluginLoaderTests : IDisposable
     }
 
     [Fact]
-    [Trait("Category", "Plugin")]
+    [Trait("Category", "AI_Generated")]
     public void LoadEffectTypes_EmptyDirectory_ReturnsEmptyCollection()
     {
         // Act
@@ -39,7 +39,7 @@ public class PluginLoaderTests : IDisposable
     }
 
     [Fact]
-    [Trait("Category", "Plugin")]
+    [Trait("Category", "AI_Generated")]
     public void LoadEffectTypes_NonPluginDll_ReturnsEmptyCollection()
     {
         // Arrange
@@ -60,32 +60,5 @@ public class PluginLoaderTests : IDisposable
         {
             Directory.Delete(_testPluginDir, true);
         }
-    }
-}
-
-// Test plugin implementation for future use
-public class TestAudioEffect : IAudioEffect
-{
-    public string Name => "Test Effect";
-    public WaveFormat WaveFormat { get; private set; }
-
-    public TestAudioEffect()
-    {
-        WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
-    }
-
-    public void SetSource(ISampleProvider source)
-    {
-        WaveFormat = source.WaveFormat;
-    }
-
-    public void ApplyEffect(float[] buffer, int offset, int count)
-    {
-        // No-op for test
-    }
-
-    public int Read(float[] buffer, int offset, int count)
-    {
-        return count;
     }
 } 
