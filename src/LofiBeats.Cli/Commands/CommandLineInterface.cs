@@ -554,16 +554,39 @@ public class CommandLineInterface : IDisposable
 
         effectCommand.SetHandler(async (string name, bool enable) =>
         {
-            if (!ValidEffects.Contains(name, StringComparer.OrdinalIgnoreCase))
-            {
-                Console.WriteLine($"Error: '{name}' is not a valid effect name.");
-                Console.WriteLine($"Available effects are: {string.Join(", ", ValidEffects)}");
-                return;
-            }
-
             _logExecutingEffectCommand(_logger, name, enable, null);
             try
             {
+                // First check built-in effects
+                var isBuiltIn = ValidEffects.Contains(name, StringComparer.OrdinalIgnoreCase);
+                
+                // If not built-in, check plugin effects
+                var isPlugin = false;
+                if (!isBuiltIn)
+                {
+                    try
+                    {
+                        var pluginResponse = await _serviceHelper.SendCommandAsync(HttpMethod.Get, "effect/list");
+                        if (pluginResponse.IsSuccessStatusCode)
+                        {
+                            var pluginEffects = await pluginResponse.Content.ReadFromJsonAsync<PluginEffectInfo[]>();
+                            isPlugin = pluginEffects?.Any(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ?? false;
+                        }
+                    }
+                    catch
+                    {
+                        // If we can't check plugins (e.g. service not running), fall back to built-in only
+                    }
+                }
+
+                if (!isBuiltIn && !isPlugin)
+                {
+                    Console.WriteLine($"Error: '{name}' is not a valid effect name.");
+                    Console.WriteLine($"Available built-in effects are: {string.Join(", ", ValidEffects)}");
+                    Console.WriteLine("Run 'effect list' to see all available effects including plugins.");
+                    return;
+                }
+
                 var action = enable ? "Enabling" : "Disabling";
                 Console.Write($"{action} {name} effect... ");
                 ShowSpinner($"{action} {name} effect", 1000);
@@ -577,7 +600,7 @@ public class CommandLineInterface : IDisposable
                 {
                     _logEffectNotFound(_logger, name, null);
                     Console.WriteLine($"Error: {result?.Error ?? $"Effect '{name}' not found"}");
-                    Console.WriteLine($"Available effects are: {string.Join(", ", ValidEffects)}");
+                    Console.WriteLine("Run 'effect list' to see all available effects.");
                     return;
                 }
 

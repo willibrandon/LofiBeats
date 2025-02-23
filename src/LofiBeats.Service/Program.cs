@@ -451,7 +451,7 @@ public partial class Program
         });
 
         // Effect endpoint
-        api.MapPost("/effect", (IAudioPlaybackService playback, IEffectFactory effectFactory, string name, bool enable) =>
+        api.MapPost("/effect", (IAudioPlaybackService playback, IEffectFactory effectFactory, PluginManager pluginManager, string name, bool enable) =>
         {
             if (enable)
             {
@@ -459,7 +459,10 @@ public partial class Program
                 if (currentSource == null)
                     return Results.Json(new { error = "No audio source is currently playing" }, JsonOptions, statusCode: 400);
 
-                var effect = effectFactory.CreateEffect(name, currentSource);
+                // Try creating the effect (will work for both built-in and plugin effects)
+                var effect = effectFactory.CreateEffect(name, currentSource) ?? 
+                           pluginManager.CreateEffect(name, currentSource);
+
                 if (effect == null)
                     return Results.Json(new { error = $"Unknown effect: {name}" }, JsonOptions, statusCode: 400);
 
