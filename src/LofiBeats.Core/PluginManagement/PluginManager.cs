@@ -56,8 +56,7 @@ namespace LofiBeats.Core.PluginManagement
             {
                 try
                 {
-                    var instance = Activator.CreateInstance(type) as IAudioEffect;
-                    if (instance != null)
+                    if (Activator.CreateInstance(type) is IAudioEffect instance)
                     {
                         _registeredEffects[instance.Name.ToLowerInvariant()] = type;
                     }

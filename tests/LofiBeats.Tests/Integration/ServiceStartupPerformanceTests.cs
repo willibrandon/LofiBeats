@@ -41,9 +41,8 @@ public class ServiceStartupPerformanceTests : IDisposable
             var eventId = (EventId)invocation.Arguments[1];
             var state = invocation.Arguments[2];
             var exception = (Exception?)invocation.Arguments[3];
-            var formatter = invocation.Arguments[4] as Func<object, Exception?, string>;
-            
-            if (formatter != null)
+
+            if (invocation.Arguments[4] is Func<object, Exception?, string> formatter)
             {
                 var message = formatter(state, exception);
                 _output.WriteLine($"{logLevel}: [{eventId}] {message}");

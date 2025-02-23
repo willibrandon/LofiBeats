@@ -376,8 +376,7 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
             }
 
             // Get the current BeatPatternSampleProvider
-            var oldBeatProvider = oldSource as BeatPatternSampleProvider;
-            if (oldBeatProvider == null)
+            if (oldSource is not BeatPatternSampleProvider oldBeatProvider)
             {
                 _logger.LogWarning("Cannot perform synchronized crossfade - current source is not a BeatPatternSampleProvider");
                 // Fall back to immediate transition
