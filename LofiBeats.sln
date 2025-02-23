@@ -12,6 +12,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{DAD93E08-5
 		docs\CONTAINER.md = docs\CONTAINER.md
 		docs\INSTALL.md = docs\INSTALL.md
 		docs\LINUX-DEPS.md = docs\LINUX-DEPS.md
+		docs\PLUGINS.md = docs\PLUGINS.md
 		README.md = README.md
 		docs\USER_SAMPLES.md = docs\USER_SAMPLES.md
 	EndProjectSection
