@@ -7,7 +7,7 @@ namespace LofiBeats.Plugins.MultiParameterEffect;
 /// A dynamic filter effect that combines multiple audio processing parameters.
 /// This demonstrates a more complex audio effect plugin with multiple adjustable parameters.
 /// </summary>
-public sealed class DynamicFilterEffect : IAudioEffect
+public class DynamicFilterEffect : IAudioEffect
 {
     private ISampleProvider? _source;
     private readonly float[] _filterBuffer;
