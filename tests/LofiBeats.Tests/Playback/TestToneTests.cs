@@ -127,7 +127,7 @@ public class TestToneTests
         // Check phase consistency between buffers
         // Due to stereo interleaving, we compare the last left channel sample
         // with the first left channel sample of the next buffer
-        float lastLeftSample = buffer1[buffer1.Length - 2]; // Last left channel sample
+        float lastLeftSample = buffer1[^2]; // Last left channel sample
         float firstLeftSample = buffer2[0]; // First left channel sample
 
         // Calculate expected phase difference based on our sine wave frequency (440Hz)

@@ -81,8 +81,8 @@ public class ChillhopBeatGeneratorTests
     /// </summary>
     private sealed class TestChillhopBeatGenerator : ChillhopBeatGenerator
     {
-        private Queue<double> _randomDoubles = new();
-        private Queue<int> _randomInts = new();
+        private readonly Queue<double> _randomDoubles = new();
+        private readonly Queue<int> _randomInts = new();
 
         public TestChillhopBeatGenerator(ILogger<ChillhopBeatGenerator> logger) : base(logger)
         {

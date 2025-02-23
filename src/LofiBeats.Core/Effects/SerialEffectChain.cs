@@ -7,7 +7,7 @@ namespace LofiBeats.Core.Effects;
 public class SerialEffectChain : ISampleProvider
 {
     private readonly ILogger<SerialEffectChain> _logger;
-    private ISampleProvider _baseSource;
+    private readonly ISampleProvider _baseSource;
     private readonly List<IAudioEffect> _effects = [];
     private ISampleProvider _finalProvider;
 

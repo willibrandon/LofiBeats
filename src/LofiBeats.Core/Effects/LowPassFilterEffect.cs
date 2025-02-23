@@ -11,7 +11,7 @@ public class LowPassFilterEffect : IAudioEffect
     private readonly float _cutoffFrequency;
     private readonly float _resonance;
     private float _prevSample;
-    private float _alpha;
+    private readonly float _alpha;
 
     public string Name => "lowpass";
     public WaveFormat WaveFormat => _source.WaveFormat;

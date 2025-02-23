@@ -8,11 +8,11 @@ public class ReverbEffect : IAudioEffect
 {
     private ISampleProvider _source;
     private readonly ILogger<ReverbEffect> _logger;
-    private float[] _delayBuffer;
+    private readonly float[] _delayBuffer;
     private int _writePos;
     private readonly int _delaySamples;
-    private float _feedback;
-    private float _mix;
+    private readonly float _feedback;
+    private readonly float _mix;
 
     public string Name => "reverb";
     public WaveFormat WaveFormat => _source.WaveFormat;

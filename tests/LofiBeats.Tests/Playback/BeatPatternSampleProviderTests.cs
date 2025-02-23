@@ -17,7 +17,7 @@ public class BeatPatternSampleProviderTests : IDisposable
     private readonly TelemetryTracker _telemetryTracker;
     private readonly BeatPattern _testPattern;
     private readonly UserSampleRepository _userSamples;
-    private string _tempFile;
+    private readonly string _tempFile;
 
     private static readonly Action<ILogger, string, Exception?> LogPeaks =
         LoggerMessage.Define<string>(

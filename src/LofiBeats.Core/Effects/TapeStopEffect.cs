@@ -14,7 +14,7 @@ public class TapeStopEffect : IAudioEffect
     private readonly float _totalSamples;
     private bool _finished;
     private float _readPosition;
-    private float[] _sampleBuffer;
+    private readonly float[] _sampleBuffer;
     private int _writePosition;
     private readonly int _bufferSize;
     private bool _bufferFilled;

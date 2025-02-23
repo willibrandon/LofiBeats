@@ -4,9 +4,9 @@ namespace LofiBeats.Core.Playback;
 
 public class TestTone : ISampleProvider
 {
-    private WaveFormat _wf = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
+    private readonly WaveFormat _wf = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
     private float _phase;
-    private float _phaseIncrement = (float)(2 * Math.PI * 440.0 / 44100);
+    private readonly float _phaseIncrement = (float)(2 * Math.PI * 440.0 / 44100);
 
     public WaveFormat WaveFormat => _wf;
 
