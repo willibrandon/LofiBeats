@@ -75,9 +75,11 @@ jobs:
         flags: windows
         fail_ci_if_error: true
       
-    - name: Package CLI Tool
+    - name: Package Projects
       if: matrix.configuration == 'Release'
-      run: dotnet pack src/LofiBeats.Cli/LofiBeats.Cli.csproj --configuration Release --output nupkg
+      run: |
+        dotnet pack src/LofiBeats.Cli/LofiBeats.Cli.csproj --configuration Release --output nupkg
+        dotnet pack src/LofiBeats.Core.PluginApi/LofiBeats.Core.PluginApi.csproj --configuration Release --output nupkg
       
     - name: Upload NuGet Package
       if: matrix.configuration == 'Release'
@@ -172,9 +174,11 @@ jobs:
         flags: linux
         fail_ci_if_error: true
       
-    - name: Package CLI Tool
+    - name: Package Projects
       if: matrix.configuration == 'Release'
-      run: dotnet pack src/LofiBeats.Cli/LofiBeats.Cli.csproj --configuration Release --output nupkg
+      run: |
+        dotnet pack src/LofiBeats.Cli/LofiBeats.Cli.csproj --configuration Release --output nupkg
+        dotnet pack src/LofiBeats.Core.PluginApi/LofiBeats.Core.PluginApi.csproj --configuration Release --output nupkg
       
     - name: Upload NuGet Package
       if: matrix.configuration == 'Release'
