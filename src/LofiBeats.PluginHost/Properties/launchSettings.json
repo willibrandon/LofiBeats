@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "LofiBeats.PluginHost": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}

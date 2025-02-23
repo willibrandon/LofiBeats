@@ -14,6 +14,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{DAD93E08-5
 		docs\LINUX-DEPS.md = docs\LINUX-DEPS.md
 		docs\PLUGINS.md = docs\PLUGINS.md
 		README.md = README.md
+		Secure Plugin Execution -Guide.md = Secure Plugin Execution -Guide.md
 		docs\USER_SAMPLES.md = docs\USER_SAMPLES.md
 	EndProjectSection
 EndProject
@@ -47,6 +48,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LofiBeats.Core.PluginApi", "src\LofiBeats.Core.PluginApi\LofiBeats.Core.PluginApi.csproj", "{C45EA572-9C56-4F8A-9CE8-F020E654A6EC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LofiBeats.PluginHost", "src\LofiBeats.PluginHost\LofiBeats.PluginHost.csproj", "{BAED8712-B880-4F51-BF09-0EC562CA6A2C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -118,6 +121,18 @@ Global
 		{C45EA572-9C56-4F8A-9CE8-F020E654A6EC}.Release|x64.Build.0 = Release|Any CPU
 		{C45EA572-9C56-4F8A-9CE8-F020E654A6EC}.Release|x86.ActiveCfg = Release|Any CPU
 		{C45EA572-9C56-4F8A-9CE8-F020E654A6EC}.Release|x86.Build.0 = Release|Any CPU
+		{BAED8712-B880-4F51-BF09-0EC562CA6A2C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BAED8712-B880-4F51-BF09-0EC562CA6A2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BAED8712-B880-4F51-BF09-0EC562CA6A2C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BAED8712-B880-4F51-BF09-0EC562CA6A2C}.Debug|x64.Build.0 = Debug|Any CPU
+		{BAED8712-B880-4F51-BF09-0EC562CA6A2C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BAED8712-B880-4F51-BF09-0EC562CA6A2C}.Debug|x86.Build.0 = Debug|Any CPU
+		{BAED8712-B880-4F51-BF09-0EC562CA6A2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BAED8712-B880-4F51-BF09-0EC562CA6A2C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BAED8712-B880-4F51-BF09-0EC562CA6A2C}.Release|x64.ActiveCfg = Release|Any CPU
+		{BAED8712-B880-4F51-BF09-0EC562CA6A2C}.Release|x64.Build.0 = Release|Any CPU
+		{BAED8712-B880-4F51-BF09-0EC562CA6A2C}.Release|x86.ActiveCfg = Release|Any CPU
+		{BAED8712-B880-4F51-BF09-0EC562CA6A2C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
