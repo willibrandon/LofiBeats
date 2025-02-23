@@ -2,14 +2,11 @@ using Microsoft.Extensions.Logging;
 
 namespace LofiBeats.Core.BeatGeneration;
 
-public class BasicLofiBeatGenerator : BaseBeatGenerator
+public class BasicLofiBeatGenerator(ILogger<BasicLofiBeatGenerator> logger) : BaseBeatGenerator(logger)
 {
     public override string Style => "basic";
-    public override (int MinBpm, int MaxBpm) BpmRange => (70, 90);
 
-    public BasicLofiBeatGenerator(ILogger<BasicLofiBeatGenerator> logger) : base(logger)
-    {
-    }
+    public override (int MinBpm, int MaxBpm) BpmRange => (70, 90);
 
     protected override string[][] DefineChordProgressions() =>
     [

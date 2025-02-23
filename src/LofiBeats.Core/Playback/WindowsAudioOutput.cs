@@ -6,18 +6,13 @@ namespace LofiBeats.Core.Playback;
 /// <summary>
 /// Windows-specific implementation of audio output using NAudio's WaveOutEvent.
 /// </summary>
-public class WindowsAudioOutput : IAudioOutput
+public class WindowsAudioOutput(ILogger<WindowsAudioOutput> logger) : IAudioOutput
 {
-    private readonly ILogger<WindowsAudioOutput> _logger;
+    private readonly ILogger<WindowsAudioOutput> _logger = logger;
     private WaveOutEvent? _waveOut;
     private bool _isDisposed;
     private bool _isInitialized;
     private readonly Lock _lock = new();
-
-    public WindowsAudioOutput(ILogger<WindowsAudioOutput> logger)
-    {
-        _logger = logger;
-    }
 
     public PlaybackState PlaybackState 
     {

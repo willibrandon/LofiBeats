@@ -5,16 +5,10 @@ using System.Net.Http.Json;
 
 namespace LofiBeats.Tests.Integration;
 
-public class ScheduledPlaybackTests : IClassFixture<ServiceTestFixture>
+public class ScheduledPlaybackTests(ServiceTestFixture fixture) : IClassFixture<ServiceTestFixture>
 {
-    private readonly ServiceTestFixture _fixture;
-    private readonly HttpClient _client;
-
-    public ScheduledPlaybackTests(ServiceTestFixture fixture)
-    {
-        _fixture = fixture;
-        _client = fixture.CreateClient();
-    }
+    private readonly ServiceTestFixture _fixture = fixture;
+    private readonly HttpClient _client = fixture.CreateClient();
 
     [Fact]
     public async Task ScheduleStop_WithValidDelay_ReturnsActionId()

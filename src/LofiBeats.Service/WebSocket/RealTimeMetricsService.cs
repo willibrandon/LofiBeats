@@ -9,7 +9,12 @@ namespace LofiBeats.Service.WebSocket;
 /// <summary>
 /// Background service that broadcasts real-time metrics over WebSocket.
 /// </summary>
-public sealed class RealTimeMetricsService : BackgroundService
+public sealed class RealTimeMetricsService(
+    ILogger<RealTimeMetricsService> logger,
+    IWebSocketBroadcaster broadcaster,
+    IAudioPlaybackService playback,
+    TelemetryTracker telemetry,
+    IOptions<WebSocketConfiguration> config) : BackgroundService
 {
     private static readonly Action<ILogger, Exception?> _logStarting =
         LoggerMessage.Define(LogLevel.Information,
@@ -31,13 +36,13 @@ public sealed class RealTimeMetricsService : BackgroundService
             new EventId(4, "BroadcastError"),
             "Error broadcasting metrics");
 
-    private readonly ILogger<RealTimeMetricsService> _logger;
-    private readonly IWebSocketBroadcaster _broadcaster;
-    private readonly IAudioPlaybackService _playback;
-    private readonly TelemetryTracker _telemetry;
-    private readonly WebSocketConfiguration _config;
-    private readonly PeriodicTimer _timer;
-    private readonly Process _currentProcess;
+    private readonly ILogger<RealTimeMetricsService> _logger = logger;
+    private readonly IWebSocketBroadcaster _broadcaster = broadcaster;
+    private readonly IAudioPlaybackService _playback = playback;
+    private readonly TelemetryTracker _telemetry = telemetry;
+    private readonly WebSocketConfiguration _config = config.Value;
+    private readonly PeriodicTimer _timer = new(TimeSpan.FromMilliseconds(50));
+    private readonly Process _currentProcess = Process.GetCurrentProcess();
     
     // Cache previous values to detect changes
     private NAudio.Wave.PlaybackState _lastPlaybackState;
@@ -51,22 +56,6 @@ public sealed class RealTimeMetricsService : BackgroundService
     private static readonly TimeSpan BroadcastInterval = TimeSpan.FromMilliseconds(200); // 5Hz instead of 20Hz
 
     private bool _disposed;
-
-    public RealTimeMetricsService(
-        ILogger<RealTimeMetricsService> logger,
-        IWebSocketBroadcaster broadcaster,
-        IAudioPlaybackService playback,
-        TelemetryTracker telemetry,
-        IOptions<WebSocketConfiguration> config)
-    {
-        _logger = logger;
-        _broadcaster = broadcaster;
-        _playback = playback;
-        _telemetry = telemetry;
-        _config = config.Value;
-        _timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50)); // Still sample at 20Hz
-        _currentProcess = Process.GetCurrentProcess();
-    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

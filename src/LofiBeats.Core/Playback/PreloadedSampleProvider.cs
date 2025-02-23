@@ -5,21 +5,14 @@ namespace LofiBeats.Core.Playback;
 /// <summary>
 /// Provides audio samples from a preloaded memory buffer.
 /// </summary>
-public class PreloadedSampleProvider : ISampleProvider
+public class PreloadedSampleProvider(byte[] audioData, WaveFormat waveFormat) : ISampleProvider
 {
-    private readonly byte[] _audioData;
-    private readonly WaveFormat _waveFormat;
+    private readonly byte[] _audioData = audioData;
+    private readonly WaveFormat _waveFormat = waveFormat;
     private int _position;
-    private readonly int _bytesPerSample;
+    private readonly int _bytesPerSample = waveFormat.BitsPerSample / 8;
 
     public WaveFormat WaveFormat => _waveFormat;
-
-    public PreloadedSampleProvider(byte[] audioData, WaveFormat waveFormat)
-    {
-        _audioData = audioData;
-        _waveFormat = waveFormat;
-        _bytesPerSample = waveFormat.BitsPerSample / 8;
-    }
 
     public int Read(float[] buffer, int offset, int count)
     {

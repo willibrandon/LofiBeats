@@ -141,14 +141,10 @@ public class HipHopBeatGeneratorTests
     /// <summary>
     /// Test helper class to expose protected members for testing
     /// </summary>
-    private sealed class TestableHipHopBeatGenerator : HipHopBeatGenerator
+    private sealed class TestableHipHopBeatGenerator(ILogger<HipHopBeatGenerator> logger) : HipHopBeatGenerator(logger)
     {
         private float _variationProbability = 0.35f;
         private float _stepModificationProbability = 0.3f;
-
-        public TestableHipHopBeatGenerator(ILogger<HipHopBeatGenerator> logger) : base(logger)
-        {
-        }
 
         public void TestModifyPattern(string[] pattern)
         {

@@ -22,7 +22,7 @@ public class SerialEffectChain : ISampleProvider
 
     public void AddEffect(IAudioEffect effect)
     {
-        if (effect == null) throw new ArgumentNullException(nameof(effect));
+        ArgumentNullException.ThrowIfNull(effect);
 
         _logger.LogInformation("Adding effect {EffectName} to chain", effect.Name);
 

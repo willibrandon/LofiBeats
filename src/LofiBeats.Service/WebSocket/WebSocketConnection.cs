@@ -5,14 +5,9 @@ namespace LofiBeats.Service.WebSocket;
 /// <summary>
 /// Wraps a WebSocket connection and provides convenience methods for sending and receiving messages.
 /// </summary>
-public sealed class WebSocketConnection
+public sealed class WebSocketConnection(System.Net.WebSockets.WebSocket socket)
 {
-    private readonly System.Net.WebSockets.WebSocket _socket;
-
-    public WebSocketConnection(System.Net.WebSockets.WebSocket socket)
-    {
-        _socket = socket;
-    }
+    private readonly System.Net.WebSockets.WebSocket _socket = socket;
 
     public WebSocketState State => _socket.State;
 

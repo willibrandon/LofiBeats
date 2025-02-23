@@ -6,12 +6,8 @@ using Xunit.Abstractions;
 namespace LofiBeats.Tests.Integration;
 
 [Collection("Audio Tests")]
-public class AudioEndpointTests : LofiBeatsTestBase
+public class AudioEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(output)
 {
-    public AudioEndpointTests(ITestOutputHelper output) : base(output)
-    {
-    }
-
     [SkippableFact]
     public async Task Play_WithBasicStyle_StartsPlayback()
     {

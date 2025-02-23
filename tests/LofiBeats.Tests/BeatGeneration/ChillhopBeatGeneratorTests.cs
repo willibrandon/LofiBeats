@@ -79,14 +79,10 @@ public class ChillhopBeatGeneratorTests
     /// <summary>
     /// Test implementation of ChillhopBeatGenerator that allows controlling random values
     /// </summary>
-    private sealed class TestChillhopBeatGenerator : ChillhopBeatGenerator
+    private sealed class TestChillhopBeatGenerator(ILogger<ChillhopBeatGenerator> logger) : ChillhopBeatGenerator(logger)
     {
         private readonly Queue<double> _randomDoubles = new();
         private readonly Queue<int> _randomInts = new();
-
-        public TestChillhopBeatGenerator(ILogger<ChillhopBeatGenerator> logger) : base(logger)
-        {
-        }
 
         public void SetRandomValues(float variationCheck, float[] modificationChecks, int[] nextValues)
         {
@@ -120,16 +116,10 @@ public class ChillhopBeatGeneratorTests
             ModifyPattern(pattern);
         }
 
-        private sealed class ControlledRandom : Random
+        private sealed class ControlledRandom(Queue<double> doubles, Queue<int> ints) : Random
         {
-            private readonly Queue<double> _doubles;
-            private readonly Queue<int> _ints;
-
-            public ControlledRandom(Queue<double> doubles, Queue<int> ints)
-            {
-                _doubles = doubles;
-                _ints = ints;
-            }
+            private readonly Queue<double> _doubles = doubles;
+            private readonly Queue<int> _ints = ints;
 
             public override double NextDouble()
             {

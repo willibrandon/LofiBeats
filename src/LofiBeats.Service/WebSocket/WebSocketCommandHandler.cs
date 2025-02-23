@@ -11,16 +11,24 @@ namespace LofiBeats.Service.WebSocket;
 /// <summary>
 /// Handles processing of WebSocket commands by routing them to appropriate services.
 /// </summary>
-public sealed class WebSocketCommandHandler
+public sealed class WebSocketCommandHandler(
+    ILogger<WebSocketCommandHandler> logger,
+    IAudioPlaybackService playback,
+    IBeatGeneratorFactory beatFactory,
+    IEffectFactory effectFactory,
+    PlaybackScheduler scheduler,
+    UserSampleRepository userSamples,
+    TelemetryTracker telemetry,
+    Func<string, object, CancellationToken, Task> broadcast)
 {
-    private readonly ILogger<WebSocketCommandHandler> _logger;
-    private readonly IAudioPlaybackService _playback;
-    private readonly IBeatGeneratorFactory _beatFactory;
-    private readonly IEffectFactory _effectFactory;
-    private readonly PlaybackScheduler _scheduler;
-    private readonly UserSampleRepository _userSamples;
-    private readonly TelemetryTracker _telemetry;
-    private readonly Func<string, object, CancellationToken, Task> _broadcast;
+    private readonly ILogger<WebSocketCommandHandler> _logger = logger;
+    private readonly IAudioPlaybackService _playback = playback;
+    private readonly IBeatGeneratorFactory _beatFactory = beatFactory;
+    private readonly IEffectFactory _effectFactory = effectFactory;
+    private readonly PlaybackScheduler _scheduler = scheduler;
+    private readonly UserSampleRepository _userSamples = userSamples;
+    private readonly TelemetryTracker _telemetry = telemetry;
+    private readonly Func<string, object, CancellationToken, Task> _broadcast = broadcast;
 
     private static readonly Action<ILogger, string, string, Exception?> _logCommandReceived =
         LoggerMessage.Define<string, string>(LogLevel.Debug, new EventId(1, "CommandReceived"),
@@ -37,26 +45,6 @@ public sealed class WebSocketCommandHandler
     private static readonly Action<ILogger, string, Exception> _logCommandError =
         LoggerMessage.Define<string>(LogLevel.Error, new EventId(4, "CommandError"),
             "Error processing command {Action}");
-
-    public WebSocketCommandHandler(
-        ILogger<WebSocketCommandHandler> logger,
-        IAudioPlaybackService playback,
-        IBeatGeneratorFactory beatFactory,
-        IEffectFactory effectFactory,
-        PlaybackScheduler scheduler,
-        UserSampleRepository userSamples,
-        TelemetryTracker telemetry,
-        Func<string, object, CancellationToken, Task> broadcast)
-    {
-        _logger = logger;
-        _playback = playback;
-        _beatFactory = beatFactory;
-        _effectFactory = effectFactory;
-        _scheduler = scheduler;
-        _userSamples = userSamples;
-        _telemetry = telemetry;
-        _broadcast = broadcast;
-    }
 
     /// <summary>
     /// Handles a WebSocket command message.

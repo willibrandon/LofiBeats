@@ -6,9 +6,9 @@ namespace LofiBeats.Core.Scheduling;
 /// <summary>
 /// Manages scheduled playback actions like delayed stops or fades.
 /// </summary>
-public class PlaybackScheduler : IDisposable
+public class PlaybackScheduler(ILogger<PlaybackScheduler> logger) : IDisposable
 {
-    private readonly ILogger<PlaybackScheduler> _logger;
+    private readonly ILogger<PlaybackScheduler> _logger = logger;
     private readonly ConcurrentDictionary<Guid, (Timer Timer, string Description)> _timers = new();
     private bool _disposed;
 
@@ -30,11 +30,6 @@ public class PlaybackScheduler : IDisposable
             new EventId(3, nameof(CancelAction)),
             "Cancelling scheduled action {ActionId}");
 
-    public PlaybackScheduler(ILogger<PlaybackScheduler> logger)
-    {
-        _logger = logger;
-    }
-
     /// <summary>
     /// Gets the number of currently scheduled actions.
     /// </summary>
@@ -53,9 +48,9 @@ public class PlaybackScheduler : IDisposable
     /// <exception cref="ObjectDisposedException">Thrown when the scheduler has been disposed</exception>
     public Guid ScheduleAction(int delay, Action callback, string? description = null)
     {
-        if (delay < 0) throw new ArgumentOutOfRangeException(nameof(delay));
-        if (callback == null) throw new ArgumentNullException(nameof(callback));
-        if (_disposed) throw new ObjectDisposedException(nameof(PlaybackScheduler));
+        ArgumentOutOfRangeException.ThrowIfNegative(delay);
+        ArgumentNullException.ThrowIfNull(callback);
+        ObjectDisposedException.ThrowIf(_disposed, this);
 
         var id = Guid.NewGuid();
         _logSchedulingAction(_logger, id, delay, null);
@@ -89,9 +84,9 @@ public class PlaybackScheduler : IDisposable
     /// </summary>
     public Guid ScheduleStopAction(int delay, Action callback, string? description = null)
     {
-        if (delay < 0) throw new ArgumentOutOfRangeException(nameof(delay));
-        if (callback == null) throw new ArgumentNullException(nameof(callback));
-        if (_disposed) throw new ObjectDisposedException(nameof(PlaybackScheduler));
+        ArgumentOutOfRangeException.ThrowIfNegative(delay);
+        ArgumentNullException.ThrowIfNull(callback);
+        ObjectDisposedException.ThrowIf(_disposed, this);
 
         // Cancel any existing stop actions
         var existingStopActions = _timers
@@ -113,7 +108,7 @@ public class PlaybackScheduler : IDisposable
     /// <returns>A list of tuples containing the action ID and its description</returns>
     public IReadOnlyList<(Guid Id, string Description)> GetScheduledActions()
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(PlaybackScheduler));
+        ObjectDisposedException.ThrowIf(_disposed, this);
         return _timers.Select(kvp => (kvp.Key, kvp.Value.Description)).ToList();
     }
 

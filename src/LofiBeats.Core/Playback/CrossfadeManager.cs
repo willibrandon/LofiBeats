@@ -5,21 +5,16 @@ namespace LofiBeats.Core.Playback;
 /// This class is thread-safe and handles the volume ramping calculations for both the old
 /// and new audio sources during a crossfade transition.
 /// </summary>
-public class CrossfadeManager
+/// <remarks>
+/// Initializes a new instance of the CrossfadeManager class.
+/// </remarks>
+/// <param name="crossfadeDurationSeconds">The duration of the crossfade in seconds.</param>
+public class CrossfadeManager(float crossfadeDurationSeconds)
 {
-    private readonly float _crossfadeDurationSeconds;
+    private readonly float _crossfadeDurationSeconds = crossfadeDurationSeconds;
     private readonly Lock _lockObj = new();
     private bool _isCrossfading;
     private DateTime _startTime;
-
-    /// <summary>
-    /// Initializes a new instance of the CrossfadeManager class.
-    /// </summary>
-    /// <param name="crossfadeDurationSeconds">The duration of the crossfade in seconds.</param>
-    public CrossfadeManager(float crossfadeDurationSeconds)
-    {
-        _crossfadeDurationSeconds = crossfadeDurationSeconds;
-    }
 
     /// <summary>
     /// Begins a new crossfade transition. This resets the internal timer and

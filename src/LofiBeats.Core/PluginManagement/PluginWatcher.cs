@@ -5,11 +5,11 @@ namespace LofiBeats.Core.PluginManagement;
 /// <summary>
 /// Watches the plugin directory for changes and triggers plugin refresh when needed.
 /// </summary>
-public sealed class PluginWatcher : IDisposable
+public sealed class PluginWatcher(ILogger<PluginWatcher> logger, PluginManager pluginManager, string? overrideDirectory = null) : IDisposable
 {
-    private readonly ILogger<PluginWatcher> _logger;
-    private readonly PluginManager _pluginManager;
-    private readonly string? _overrideDirectory;
+    private readonly ILogger<PluginWatcher> _logger = logger;
+    private readonly PluginManager _pluginManager = pluginManager;
+    private readonly string? _overrideDirectory = overrideDirectory;
     private FileSystemWatcher? _watcher;
     private bool _isDisposed;
     private FileSystemEventHandler? _onCreated;
@@ -43,13 +43,6 @@ public sealed class PluginWatcher : IDisposable
         LoggerMessage.Define(LogLevel.Error, new EventId(6, "WatcherError"),
             "Error in plugin watcher");
 
-    public PluginWatcher(ILogger<PluginWatcher> logger, PluginManager pluginManager, string? overrideDirectory = null)
-    {
-        _logger = logger;
-        _pluginManager = pluginManager;
-        _overrideDirectory = overrideDirectory;
-    }
-
     /// <summary>
     /// Starts watching the plugin directory for changes.
     /// </summary>
@@ -57,7 +50,7 @@ public sealed class PluginWatcher : IDisposable
     {
         lock (_lock)
         {
-            if (_isDisposed) throw new ObjectDisposedException(nameof(PluginWatcher));
+            ObjectDisposedException.ThrowIf(_isDisposed, this);
             if (_watcher != null) return; // Already watching
 
             string dir = _overrideDirectory ?? PluginPathHelper.GetPluginDirectory();

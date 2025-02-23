@@ -4,14 +4,9 @@ namespace LofiBeats.Core.Telemetry;
 /// A telemetry service that combines multiple telemetry services into one.
 /// This allows sending telemetry to multiple destinations simultaneously.
 /// </summary>
-public class CompositeTelemetryService : ITelemetryService, IAsyncDisposable
+public class CompositeTelemetryService(IEnumerable<ITelemetryService> services) : ITelemetryService, IAsyncDisposable
 {
-    private readonly IEnumerable<ITelemetryService> _services;
-
-    public CompositeTelemetryService(IEnumerable<ITelemetryService> services)
-    {
-        _services = services ?? throw new ArgumentNullException(nameof(services));
-    }
+    private readonly IEnumerable<ITelemetryService> _services = services ?? throw new ArgumentNullException(nameof(services));
 
     public void TrackEvent(string eventName, IDictionary<string, string>? properties = null, DateTimeOffset? timestamp = null)
     {

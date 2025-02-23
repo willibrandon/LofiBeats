@@ -8,12 +8,8 @@ using Xunit.Abstractions;
 namespace LofiBeats.Tests.Integration;
 
 [Collection("API Tests")]
-public class ApiEndpointTests : LofiBeatsTestBase
+public class ApiEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(output)
 {
-    public ApiEndpointTests(ITestOutputHelper output) : base(output)
-    {
-    }
-
     [Fact]
     public async Task HealthCheck_ReturnsHealthy()
     {

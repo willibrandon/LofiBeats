@@ -511,8 +511,7 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
     /// <returns>A configured sample provider for the pattern.</returns>
     private BeatPatternSampleProvider CreateProviderForPattern(BeatPattern pattern)
     {
-        if (pattern == null)
-            throw new ArgumentNullException(nameof(pattern));
+        ArgumentNullException.ThrowIfNull(pattern);
 
         var provider = new BeatPatternSampleProvider(
             pattern,

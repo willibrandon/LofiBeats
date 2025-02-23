@@ -301,17 +301,11 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
 /// <summary>
 /// Tracks rate limiting for a client
 /// </summary>
-internal sealed class ClientRateLimit
+internal sealed class ClientRateLimit(int maxMessagesPerSecond)
 {
-    private readonly int _maxMessagesPerSecond;
-    private readonly Queue<DateTime> _messageTimestamps;
+    private readonly int _maxMessagesPerSecond = maxMessagesPerSecond;
+    private readonly Queue<DateTime> _messageTimestamps = new();
     private readonly Lock _lock = new();
-
-    public ClientRateLimit(int maxMessagesPerSecond)
-    {
-        _maxMessagesPerSecond = maxMessagesPerSecond;
-        _messageTimestamps = new Queue<DateTime>();
-    }
 
     public bool CheckLimit()
     {

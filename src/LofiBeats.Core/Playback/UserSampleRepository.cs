@@ -105,7 +105,7 @@ public class UserSampleRepository : IDisposable
     /// <exception cref="ArgumentException">Thrown when the file is invalid or unsupported.</exception>
     public void RegisterSample(string name, string filePath, int? velocityLayer = null)
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(UserSampleRepository));
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Sample name cannot be empty", nameof(name));
         if (string.IsNullOrWhiteSpace(filePath)) throw new ArgumentException("File path cannot be empty", nameof(filePath));
         if (!File.Exists(filePath)) throw new ArgumentException("File does not exist", nameof(filePath));
@@ -159,7 +159,7 @@ public class UserSampleRepository : IDisposable
     /// <exception cref="KeyNotFoundException">Thrown when the sample is not found.</exception>
     public ISampleProvider CreateSampleProvider(string name, float velocity = 1.0f)
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(UserSampleRepository));
+        ObjectDisposedException.ThrowIf(_disposed, this);
 
         // Convert velocity (0-1) to MIDI velocity (0-127)
         int midiVelocity = (int)(velocity * 127);
@@ -214,7 +214,7 @@ public class UserSampleRepository : IDisposable
     /// <returns>True if any samples were unregistered, false otherwise.</returns>
     public bool UnregisterSample(string name)
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(UserSampleRepository));
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Sample name cannot be empty", nameof(name));
 
         var unregisteredAny = false;

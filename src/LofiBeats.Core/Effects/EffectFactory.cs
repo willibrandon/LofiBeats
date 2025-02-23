@@ -5,28 +5,15 @@ using LofiBeats.Core.PluginApi;
 
 namespace LofiBeats.Core.Effects;
 
-public interface IEffectFactory
+public class EffectFactory(ILoggerFactory loggerFactory, PluginManager pluginManager) : IEffectFactory
 {
-    IAudioEffect CreateEffect(string effectName, ISampleProvider source);
-}
-
-public class EffectFactory : IEffectFactory
-{
-    private readonly ILogger<EffectFactory> _logger;
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly PluginManager _pluginManager;
-
-    public EffectFactory(ILoggerFactory loggerFactory, PluginManager pluginManager)
-    {
-        _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
-        _pluginManager = pluginManager ?? throw new ArgumentNullException(nameof(pluginManager));
-        _logger = loggerFactory.CreateLogger<EffectFactory>();
-    }
+    private readonly ILogger<EffectFactory> _logger = loggerFactory.CreateLogger<EffectFactory>();
+    private readonly ILoggerFactory _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+    private readonly PluginManager _pluginManager = pluginManager ?? throw new ArgumentNullException(nameof(pluginManager));
 
     public IAudioEffect CreateEffect(string effectName, ISampleProvider source)
     {
-        if (source == null)
-            throw new ArgumentNullException(nameof(source));
+        ArgumentNullException.ThrowIfNull(source);
 
         _logger.LogInformation("Creating effect: {EffectName}", effectName);
 

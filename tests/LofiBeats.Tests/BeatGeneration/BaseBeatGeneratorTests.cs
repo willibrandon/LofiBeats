@@ -186,15 +186,11 @@ public class BaseBeatGeneratorTests
     /// <summary>
     /// Test implementation of BaseBeatGenerator
     /// </summary>
-    public sealed class TestBeatGenerator : BaseBeatGenerator
+    public sealed class TestBeatGenerator(ILogger logger) : BaseBeatGenerator(logger)
     {
         public override string Style => "test";
         public override (int MinBpm, int MaxBpm) BpmRange => (60, 120);
         public int CurrentBPM => _bpm;
-
-        public TestBeatGenerator(ILogger logger) : base(logger)
-        {
-        }
 
         public void SetRandomSeed(int seed)
         {
