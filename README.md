@@ -122,6 +122,12 @@ LofiBeats supports using your own audio samples for drum sounds. Samples are aut
 
 For detailed information about sample management, velocity layers, supported formats, and best practices, see [User Samples Guide](docs/USER_SAMPLES.md).
 
+## Plugins
+
+LofiBeats supports custom audio effect plugins that extend the application's capabilities. The plugin system allows you to create and use your own audio effects.
+
+For detailed information about creating plugins, installation, requirements, and best practices, see [Plugins Guide](docs/PLUGINS.md).
+
 ## Architecture
 
 LofiBeats consists of three main components:
