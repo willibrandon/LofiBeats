@@ -11,6 +11,7 @@ namespace LofiBeats.Tests.Integration;
 public class ApiEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(output)
 {
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task HealthCheck_ReturnsHealthy()
     {
         // Act
@@ -24,6 +25,7 @@ public class ApiEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(outp
     [InlineData("basic")]
     [InlineData("jazz")]
     [InlineData("lofi")]
+    [Trait("Category", "AI_Generated")]
     public async Task Generate_WithValidStyle_ReturnsPattern(string style)
     {
         // Act
@@ -49,6 +51,7 @@ public class ApiEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(outp
     [InlineData(0.0f)]
     [InlineData(0.5f)]
     [InlineData(1.0f)]
+    [Trait("Category", "AI_Generated")]
     public async Task Volume_WithValidLevel_SetsVolume(float level)
     {
         // Act
@@ -60,6 +63,7 @@ public class ApiEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(outp
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task Stop_WhenPlaying_StopsPlayback()
     {
         // Arrange
@@ -75,6 +79,7 @@ public class ApiEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(outp
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task Pause_WhenPlaying_PausesPlayback()
     {
         // Arrange
@@ -90,6 +95,7 @@ public class ApiEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(outp
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task Resume_WhenPaused_ResumesPlayback()
     {
         // Arrange
@@ -106,6 +112,7 @@ public class ApiEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(outp
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task Preset_GetAndApply_WorksCorrectly()
     {
         // Arrange - Set up initial state

@@ -347,6 +347,7 @@ public class AudioServiceIntegrationTests : IClassFixture<WebApplicationFactory<
     [InlineData("Db")]
     [InlineData("Eb")]
     [InlineData("Gb")]
+    [Trait("Category", "AI_Generated")]
     public async Task PlayWithFlatKeys_Success(string key)
     {
         // Act - Start playback with flat key

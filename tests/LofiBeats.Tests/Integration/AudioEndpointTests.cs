@@ -9,6 +9,7 @@ namespace LofiBeats.Tests.Integration;
 public class AudioEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(output)
 {
     [SkippableFact]
+    [Trait("Category", "AI_Generated")]
     public async Task Play_WithBasicStyle_StartsPlayback()
     {
         Skip.If(!HasAudioCapabilities(), "No audio device available");
@@ -23,6 +24,7 @@ public class AudioEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(ou
     }
 
     [SkippableFact]
+    [Trait("Category", "AI_Generated")]
     public async Task Play_WithCrossfade_TransitionsSmootly()
     {
         Skip.If(!HasAudioCapabilities(), "No audio device available");
@@ -41,6 +43,7 @@ public class AudioEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(ou
     }
 
     [SkippableFact]
+    [Trait("Category", "AI_Generated")]
     public async Task StopWithEffect_AppliesTapeStop()
     {
         Skip.If(!HasAudioCapabilities(), "No audio device available");
@@ -75,6 +78,7 @@ public class AudioEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(ou
     }
 
     [SkippableFact]
+    [Trait("Category", "AI_Generated")]
     public async Task Effect_AddAndRemove_ModifiesPlayback()
     {
         Skip.If(!HasAudioCapabilities(), "No audio device available");
@@ -95,6 +99,7 @@ public class AudioEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(ou
     }
 
     [SkippableFact]
+    [Trait("Category", "AI_Generated")]
     public async Task ScheduleStop_WithDelay_StopsAfterDelay()
     {
         Skip.If(!HasAudioCapabilities(), "No audio device available");
@@ -116,6 +121,7 @@ public class AudioEndpointTests(ITestOutputHelper output) : LofiBeatsTestBase(ou
     }
 
     [SkippableFact]
+    [Trait("Category", "AI_Generated")]
     public async Task SchedulePlay_WithDelay_StartsAfterDelay()
     {
         Skip.If(!HasAudioCapabilities(), "No audio device available");

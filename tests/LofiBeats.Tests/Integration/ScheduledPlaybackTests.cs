@@ -5,12 +5,14 @@ using System.Net.Http.Json;
 
 namespace LofiBeats.Tests.Integration;
 
+[Collection("AI Generated Tests")]
 public class ScheduledPlaybackTests(ServiceTestFixture fixture) : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture = fixture;
     private readonly HttpClient _client = fixture.CreateClient();
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task ScheduleStop_WithValidDelay_ReturnsActionId()
     {
         // Arrange
@@ -31,6 +33,7 @@ public class ScheduledPlaybackTests(ServiceTestFixture fixture) : IClassFixture<
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task ScheduleStop_WithInvalidDelay_ReturnsBadRequest()
     {
         // Arrange
@@ -50,6 +53,7 @@ public class ScheduledPlaybackTests(ServiceTestFixture fixture) : IClassFixture<
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task SchedulePlay_WithValidDelay_ReturnsActionId()
     {
         // Arrange
@@ -70,6 +74,7 @@ public class ScheduledPlaybackTests(ServiceTestFixture fixture) : IClassFixture<
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task SchedulePlay_WithInvalidDelay_ReturnsBadRequest()
     {
         // Arrange
@@ -89,6 +94,7 @@ public class ScheduledPlaybackTests(ServiceTestFixture fixture) : IClassFixture<
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task ScheduleMultipleStops_OnlyFirstOneStopsPlayback()
     {
         // Arrange
