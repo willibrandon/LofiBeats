@@ -103,6 +103,7 @@ WORKDIR /app
 COPY Directory.Packages.props .
 COPY *.sln .
 COPY src/LofiBeats.Core/*.csproj src/LofiBeats.Core/
+COPY src/LofiBeats.Core.PluginApi/*.csproj src/LofiBeats.Core.PluginApi/
 COPY src/LofiBeats.Service/*.csproj src/LofiBeats.Service/
 COPY src/LofiBeats.Cli/*.csproj src/LofiBeats.Cli/
 COPY tests/LofiBeats.Tests/*.csproj tests/LofiBeats.Tests/

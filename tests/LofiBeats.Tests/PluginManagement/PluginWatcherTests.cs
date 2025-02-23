@@ -52,7 +52,7 @@ public class PluginWatcherTests : IDisposable
     private readonly Mock<IPluginLoader> _pluginLoaderMock;
     private readonly Mock<PluginManager> _pluginManagerMock;
     private readonly PluginWatcher _watcher;
-    private bool _refreshCalled;
+    private volatile int _refreshCallCount;
     private readonly SemaphoreSlim _refreshSignal;
     private readonly PluginWatcherTestFixture _fixture;
     private readonly ITestOutputHelper _output;
@@ -65,7 +65,7 @@ public class PluginWatcherTests : IDisposable
         _loggerMock = new Mock<ILogger<PluginWatcher>>();
         _pluginLoaderMock = new Mock<IPluginLoader>();
         _pluginManagerMock = new Mock<PluginManager>(Mock.Of<ILogger<PluginManager>>(), _pluginLoaderMock.Object);
-        _refreshCalled = false;
+        _refreshCallCount = 0;
         _refreshSignal = new SemaphoreSlim(0);
 
         // Setup logging
@@ -85,8 +85,8 @@ public class PluginWatcherTests : IDisposable
         _pluginManagerMock.Setup(x => x.RefreshPlugins())
             .Callback(() =>
             {
-                _refreshCalled = true;
-                _output.WriteLine("RefreshPlugins called");
+                Interlocked.Increment(ref _refreshCallCount);
+                _output.WriteLine($"RefreshPlugins called (count: {_refreshCallCount})");
                 try { _refreshSignal.Release(); } catch { }
             });
 
@@ -124,7 +124,7 @@ public class PluginWatcherTests : IDisposable
     public async Task StartWatching_DetectsNewPlugin()
     {
         // Arrange
-        _refreshCalled = false;
+        _refreshCallCount = 0;
         _output.WriteLine("Starting test: StartWatching_DetectsNewPlugin");
 
         // Act
@@ -139,10 +139,11 @@ public class PluginWatcherTests : IDisposable
 
         // Wait for the file system watcher to detect the change
         var signaled = await _refreshSignal.WaitAsync(TimeSpan.FromSeconds(2));
-        _output.WriteLine($"Wait completed. Signaled: {signaled}, RefreshCalled: {_refreshCalled}");
+        var finalCount = _refreshCallCount;
+        _output.WriteLine($"Wait completed. Signaled: {signaled}, RefreshCallCount: {finalCount}");
 
         // Assert
-        Assert.True(signaled && _refreshCalled, "RefreshPlugins should have been called");
+        Assert.True(finalCount > 0, $"RefreshPlugins should have been called at least once (actual: {finalCount})");
     }
 
     [Fact]
@@ -150,7 +151,7 @@ public class PluginWatcherTests : IDisposable
     public async Task StartWatching_DetectsPluginDeletion()
     {
         // Arrange
-        _refreshCalled = false;
+        _refreshCallCount = 0;
         _output.WriteLine("Starting test: StartWatching_DetectsPluginDeletion");
 
         // Start watching first
@@ -170,10 +171,11 @@ public class PluginWatcherTests : IDisposable
 
         // Wait for the file system watcher to detect the change
         var signaled = await _refreshSignal.WaitAsync(TimeSpan.FromSeconds(2));
-        _output.WriteLine($"Wait completed. Signaled: {signaled}, RefreshCalled: {_refreshCalled}");
+        var finalCount = _refreshCallCount;
+        _output.WriteLine($"Wait completed. Signaled: {signaled}, RefreshCallCount: {finalCount}");
 
         // Assert
-        Assert.True(signaled && _refreshCalled, "RefreshPlugins should have been called");
+        Assert.True(finalCount > 0, $"RefreshPlugins should have been called at least once (actual: {finalCount})");
     }
 
     [Fact]
@@ -181,7 +183,7 @@ public class PluginWatcherTests : IDisposable
     public async Task StartWatching_DetectsPluginChanges()
     {
         // Arrange
-        _refreshCalled = false;
+        _refreshCallCount = 0;
         _output.WriteLine("Starting test: StartWatching_DetectsPluginChanges");
 
         // Start watching first
@@ -201,10 +203,11 @@ public class PluginWatcherTests : IDisposable
 
         // Wait for the file system watcher to detect the change
         var signaled = await _refreshSignal.WaitAsync(TimeSpan.FromSeconds(2));
-        _output.WriteLine($"Wait completed. Signaled: {signaled}, RefreshCalled: {_refreshCalled}");
+        var finalCount = _refreshCallCount;
+        _output.WriteLine($"Wait completed. Signaled: {signaled}, RefreshCallCount: {finalCount}");
 
         // Assert
-        Assert.True(signaled && _refreshCalled, "RefreshPlugins should have been called");
+        Assert.True(finalCount > 0, $"RefreshPlugins should have been called at least once (actual: {finalCount})");
     }
 
     [Fact]
@@ -212,7 +215,7 @@ public class PluginWatcherTests : IDisposable
     public async Task StopWatching_StopsDetectingChanges()
     {
         // Arrange
-        _refreshCalled = false;
+        _refreshCallCount = 0;
         _output.WriteLine("Starting test: StopWatching_StopsDetectingChanges");
 
         // Act
@@ -229,10 +232,11 @@ public class PluginWatcherTests : IDisposable
 
         // Wait a bit to ensure no events are triggered
         await Task.Delay(500);
-        _output.WriteLine($"Wait completed. RefreshCalled: {_refreshCalled}");
+        var finalCount = _refreshCallCount;
+        _output.WriteLine($"Wait completed. RefreshCallCount: {finalCount}");
 
         // Assert
-        Assert.False(_refreshCalled, "RefreshPlugins should not have been called after stopping");
+        Assert.True(finalCount == 0, $"RefreshPlugins should not have been called after stopping (actual: {finalCount})");
     }
 
     [Fact]
@@ -240,7 +244,7 @@ public class PluginWatcherTests : IDisposable
     public async Task Dispose_StopsWatching()
     {
         // Arrange
-        _refreshCalled = false;
+        _refreshCallCount = 0;
         _output.WriteLine("Starting test: Dispose_StopsWatching");
 
         // Act
@@ -257,9 +261,10 @@ public class PluginWatcherTests : IDisposable
 
         // Wait a bit to ensure no events are triggered
         await Task.Delay(500);
-        _output.WriteLine($"Wait completed. RefreshCalled: {_refreshCalled}");
+        var finalCount = _refreshCallCount;
+        _output.WriteLine($"Wait completed. RefreshCallCount: {finalCount}");
 
         // Assert
-        Assert.False(_refreshCalled, "RefreshPlugins should not have been called after disposal");
+        Assert.True(finalCount == 0, $"RefreshPlugins should not have been called after disposal (actual: {finalCount})");
     }
 } 
