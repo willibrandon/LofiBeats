@@ -107,8 +107,9 @@ public partial class Program
         // Register core services as singletons for performance
         builder.Services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
         builder.Services.AddSingleton<IBeatGeneratorFactory, BeatGeneratorFactory>();
-        builder.Services.AddSingleton<PluginLoader>();
+        builder.Services.AddSingleton<IPluginLoader, PluginLoader>();
         builder.Services.AddSingleton<PluginManager>();
+        builder.Services.AddSingleton<PluginWatcher>();
         builder.Services.AddSingleton<IEffectFactory, EffectFactory>();
         builder.Services.AddSingleton<PlaybackScheduler>();
         builder.Services.AddSingleton<UserSampleRepository>();
@@ -117,6 +118,7 @@ public partial class Program
         builder.Services.AddSingleton<IWebSocketHandler, WebSocketHandler>();
         builder.Services.AddSingleton<WebSocketHandler>();
         builder.Services.AddHostedService<RealTimeMetricsService>();
+        builder.Services.AddHostedService<PluginWatcherService>();
 
         // Configure JSON options for better performance
         builder.Services.Configure<JsonOptions>(options =>

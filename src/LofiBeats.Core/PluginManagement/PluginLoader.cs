@@ -8,7 +8,7 @@ namespace LofiBeats.Core.PluginManagement;
 /// Loads audio effect plugins from the plugin directory by scanning for assemblies
 /// containing types that implement IAudioEffect.
 /// </summary>
-public class PluginLoader
+public class PluginLoader : IPluginLoader
 {
     private readonly ILogger<PluginLoader> _logger;
     private readonly string _pluginDirectory;

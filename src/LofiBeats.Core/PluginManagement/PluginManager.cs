@@ -11,7 +11,7 @@ namespace LofiBeats.Core.PluginManagement
     public class PluginManager
     {
         private readonly ILogger<PluginManager> _logger;
-        private readonly PluginLoader _loader;
+        private readonly IPluginLoader _loader;
         private readonly Dictionary<string, (Type Type, PluginEffectNameAttribute Metadata)> _registeredEffects = new();
 
         // High-performance structured logging
@@ -39,7 +39,7 @@ namespace LofiBeats.Core.PluginManagement
             LoggerMessage.Define<string>(LogLevel.Warning, new EventId(6, "MissingAttribute"),
                 "Plugin effect type {Type} is missing [PluginEffectName] attribute, skipping");
 
-        public PluginManager(ILogger<PluginManager> logger, PluginLoader loader)
+        public PluginManager(ILogger<PluginManager> logger, IPluginLoader loader)
         {
             _logger = logger;
             _loader = loader;
@@ -49,7 +49,7 @@ namespace LofiBeats.Core.PluginManagement
         /// <summary>
         /// Refresh the plugin list by scanning the plugin directory again.
         /// </summary>
-        public void RefreshPlugins()
+        public virtual void RefreshPlugins()
         {
             _registeredEffects.Clear();
             var effectTypes = _loader.LoadEffectTypes();
