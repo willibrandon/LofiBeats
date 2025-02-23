@@ -48,7 +48,10 @@ public class MyCustomEffect : IAudioEffect
     private ISampleProvider? _source;
     private WaveFormat _waveFormat;
 
-    public string Name => "My Custom Effect";
+    public string Name => GetType()
+        .GetCustomAttribute<PluginEffectNameAttribute>()
+        ?.Name ?? "myeffect";
+
     public WaveFormat WaveFormat => _waveFormat;
 
     public MyCustomEffect()

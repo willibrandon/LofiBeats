@@ -340,12 +340,6 @@ dotnet test --filter "Category!=Platform_Specific"
 dotnet test --filter "Category=AI_Generated"
 ```
 
-### Adding New Effects
-
-1. Create a new effect class in `src/LofiBeats.Core/Effects`
-2. Implement the `IAudioEffect` interface
-3. Register the effect in `EffectFactory.cs`
-
 ### Test Container
 
 For running tests in CI or containerized environments, we provide a Docker container with a pre-configured audio testing environment. See [CONTAINER.md](docs/CONTAINER.md) for details.
