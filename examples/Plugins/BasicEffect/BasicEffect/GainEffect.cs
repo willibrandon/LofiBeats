@@ -12,7 +12,13 @@ public class GainEffect : IAudioEffect
     private ISampleProvider? _source;
     private readonly float _gainFactor = 1.5f; // 50% volume increase
 
+    public string Author => "LofiBeats Team";
+
+    public string Description => "A classic delay effect that creates echoes of the input audio";
+
     public string Name => "gain";
+
+    public string Version => "1.0.0";
 
     public WaveFormat WaveFormat => _source?.WaveFormat ?? 
         WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
