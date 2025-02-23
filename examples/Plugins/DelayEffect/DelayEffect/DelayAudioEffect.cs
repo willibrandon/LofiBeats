@@ -1,5 +1,4 @@
-using LofiBeats.Core.Effects;
-using LofiBeats.Core.PluginManagement;
+using LofiBeats.Core.PluginApi;
 using NAudio.Wave;
 using System.Reflection;
 
