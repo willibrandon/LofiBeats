@@ -41,6 +41,8 @@ public class PluginWatcherTestFixture : IDisposable
         {
             // Ignore cleanup errors
         }
+
+        GC.SuppressFinalize(this);
     }
 }
 
@@ -117,6 +119,8 @@ public class PluginWatcherTests : IDisposable
         {
             _output.WriteLine($"Error cleaning up directory: {ex}");
         }
+
+        GC.SuppressFinalize(this);
     }
 
     [Fact]

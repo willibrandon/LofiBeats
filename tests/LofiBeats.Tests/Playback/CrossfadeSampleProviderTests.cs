@@ -186,5 +186,7 @@ public class CrossfadeSampleProviderTests : IDisposable
             _disposed = true;
             _userSampleRepository.Dispose();
         }
+
+        GC.SuppressFinalize(this);
     }
 } 

@@ -248,5 +248,7 @@ public class WebSocketSecurityTests : IClassFixture<WebApplicationFactory<Progra
         _webSocket?.Dispose();
         _cts.Dispose();
         await _factory.DisposeAsync();
+
+        GC.SuppressFinalize(this);
     }
 } 

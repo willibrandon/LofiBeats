@@ -509,5 +509,7 @@ public class LocalFileTelemetryServiceTests : IAsyncDisposable
         {
             LogCleanupError(_loggerMock.Object, _testTelemetryPath, ex);
         }
+
+        GC.SuppressFinalize(this);
     }
 } 

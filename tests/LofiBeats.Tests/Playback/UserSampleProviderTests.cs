@@ -205,5 +205,7 @@ public class UserSampleProviderTests : IDisposable
             catch { }
             _disposed = true;
         }
+
+        GC.SuppressFinalize(this);
     }
 } 

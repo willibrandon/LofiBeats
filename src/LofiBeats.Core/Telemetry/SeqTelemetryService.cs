@@ -161,5 +161,7 @@ public class SeqTelemetryService : ITelemetryService, IDisposable
         {
             _logger.LogError(ex, "Error disposing Seq logger");
         }
+
+        GC.SuppressFinalize(this);
     }
 } 

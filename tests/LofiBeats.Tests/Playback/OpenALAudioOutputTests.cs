@@ -36,6 +36,8 @@ namespace LofiBeats.Tests.Playback
             {
                 _openAL?.Dispose();
             }
+
+            GC.SuppressFinalize(this);
         }
 
         [SkippableFact]

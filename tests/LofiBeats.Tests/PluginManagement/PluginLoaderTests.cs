@@ -60,5 +60,7 @@ public class PluginLoaderTests : IDisposable
         {
             Directory.Delete(_testPluginDir, true);
         }
+
+        GC.SuppressFinalize(this);
     }
 } 

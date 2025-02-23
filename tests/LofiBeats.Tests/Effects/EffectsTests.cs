@@ -39,7 +39,7 @@ public class EffectsTests : IDisposable
 
     public void Dispose()
     {
-        // No resources to dispose
+        GC.SuppressFinalize(this);
     }
 
     [Fact]

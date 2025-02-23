@@ -109,11 +109,11 @@ public class BaseBeatGeneratorTests
     public void ParseChord_ReturnsCorrectParts(string chord, string expectedRoot, string expectedQuality)
     {
         // Act
-        var result = TestBeatGenerator.TestParseChord(chord);
+        var (Root, Quality) = TestBeatGenerator.TestParseChord(chord);
 
         // Assert
-        Assert.Equal(expectedRoot, result.Root);
-        Assert.Equal(expectedQuality, result.Quality);
+        Assert.Equal(expectedRoot, Root);
+        Assert.Equal(expectedQuality, Quality);
     }
 
     [Theory]

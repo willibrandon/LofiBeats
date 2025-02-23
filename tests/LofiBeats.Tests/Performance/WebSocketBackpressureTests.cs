@@ -291,5 +291,7 @@ public class WebSocketBackpressureTests : IClassFixture<WebApplicationFactory<Pr
         await CleanupClientsAsync();
         _cts.Dispose();
         await _factory.DisposeAsync();
+
+        GC.SuppressFinalize(this);
     }
 } 

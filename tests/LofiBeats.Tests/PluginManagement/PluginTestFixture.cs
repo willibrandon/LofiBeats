@@ -41,5 +41,7 @@ public class PluginTestFixture : IDisposable
         {
             // Ignore cleanup errors in test fixture
         }
+
+        GC.SuppressFinalize(this);
     }
 } 

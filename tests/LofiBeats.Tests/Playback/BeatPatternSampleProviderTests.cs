@@ -92,6 +92,8 @@ public class BeatPatternSampleProviderTests : IDisposable
                 LogDebug(_loggerMock.Object, $"Failed to delete temporary file: {ex.Message}", ex);
             }
         }
+
+        GC.SuppressFinalize(this);
     }
 
     [Fact]

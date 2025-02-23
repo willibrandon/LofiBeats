@@ -148,5 +148,7 @@ public class PresetStorageTests : IDisposable
                 // Ignore cleanup errors
             }
         }
+
+        GC.SuppressFinalize(this);
     }
 } 

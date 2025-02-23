@@ -154,5 +154,7 @@ public class PluginSecurityTests : IDisposable
         {
             // Ignore cleanup errors in individual tests
         }
+
+        GC.SuppressFinalize(this);
     }
 }

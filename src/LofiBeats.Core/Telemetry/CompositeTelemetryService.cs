@@ -66,5 +66,7 @@ public class CompositeTelemetryService : ITelemetryService, IAsyncDisposable
                 disposable.Dispose();
             }
         }
+
+        GC.SuppressFinalize(this);
     }
 } 

@@ -294,5 +294,7 @@ public class WebSocketPerformanceTests : IClassFixture<WebApplicationFactory<Pro
         await CleanupClientsAsync();
         _cts.Dispose();
         await _factory.DisposeAsync();
+
+        GC.SuppressFinalize(this);
     }
 } 

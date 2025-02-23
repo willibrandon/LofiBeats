@@ -599,5 +599,7 @@ public class WebSocketShutdownTests : IClassFixture<WebApplicationFactory<Progra
 
         _cts.Dispose();
         await _factory.DisposeAsync();
+
+        GC.SuppressFinalize(this);
     }
 } 

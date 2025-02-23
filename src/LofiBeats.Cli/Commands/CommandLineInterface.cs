@@ -1001,6 +1001,7 @@ public class CommandLineInterface : IDisposable
     {
         (_serviceHelper as IDisposable)?.Dispose();
         _scheduler.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     private async Task ScheduleStop(bool tapeStop, TimeSpan delay)

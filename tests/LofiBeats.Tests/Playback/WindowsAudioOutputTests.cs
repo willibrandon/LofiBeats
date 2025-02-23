@@ -204,5 +204,7 @@ public class WindowsAudioOutputTests : IDisposable
             _audioOutput.Dispose();
             _disposed = true;
         }
+
+        GC.SuppressFinalize(this);
     }
 } 

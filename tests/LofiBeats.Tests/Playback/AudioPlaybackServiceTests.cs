@@ -601,6 +601,6 @@ public class AudioPlaybackServiceTests : IDisposable
 
     public void Dispose()
     {
-        // Dispose of resources
+        GC.SuppressFinalize(this);
     }
 } 

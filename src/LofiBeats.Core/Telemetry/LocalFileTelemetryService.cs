@@ -300,6 +300,8 @@ public class LocalFileTelemetryService : ITelemetryService, IAsyncDisposable
         
         // Ensure any remaining telemetry is flushed
         await FlushAsync();
+
+        GC.SuppressFinalize(this);
     }
 
     public void Dispose()

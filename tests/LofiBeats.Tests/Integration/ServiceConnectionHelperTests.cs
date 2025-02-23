@@ -154,6 +154,8 @@ public class ServiceConnectionHelperTests : IDisposable
                 // Ignore cleanup errors
             }
         }
+
+        GC.SuppressFinalize(this);
     }
 
     private bool IsLofiBeatsServiceProcess(Process process)

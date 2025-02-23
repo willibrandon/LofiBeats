@@ -535,5 +535,7 @@ public class WebSocketConcurrentCommandTests : IClassFixture<WebApplicationFacto
             _output?.WriteLine($"Error during disposal: {ex.Message}");
             throw;
         }
+
+        GC.SuppressFinalize(this);
     }
 } 

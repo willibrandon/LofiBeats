@@ -38,6 +38,8 @@ public class StartupTests : IDisposable
         {
             File.Delete(_originalConfigPath);
         }
+
+        GC.SuppressFinalize(this);
     }
 
     [Fact]

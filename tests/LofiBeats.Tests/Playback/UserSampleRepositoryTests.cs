@@ -174,5 +174,7 @@ public class UserSampleRepositoryTests : IDisposable
             _repository.Dispose();
             _disposed = true;
         }
+
+        GC.SuppressFinalize(this);
     }
 } 
