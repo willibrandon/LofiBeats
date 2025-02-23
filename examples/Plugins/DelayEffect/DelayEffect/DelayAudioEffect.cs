@@ -18,6 +18,12 @@ public class DelayAudioEffect : IAudioEffect
 
     public string Name => "delay";
 
+    public string Description => "A classic delay effect that creates echoes of the input audio";
+
+    public string Version => "1.0.0";
+    
+    public string Author => "LofiBeats Team";
+
     public WaveFormat WaveFormat => _source?.WaveFormat ?? WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
 
     /// <summary>

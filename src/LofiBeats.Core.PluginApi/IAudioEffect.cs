@@ -11,6 +11,21 @@ public interface IAudioEffect : ISampleProvider
     /// Gets the name of the effect.
     /// </summary>
     string Name { get; }
+
+    /// <summary>
+    /// Gets a description of what the effect does.
+    /// </summary>
+    string Description { get; }
+
+    /// <summary>
+    /// Gets the version of the effect.
+    /// </summary>
+    string Version { get; }
+
+    /// <summary>
+    /// Gets the author of the effect.
+    /// </summary>
+    string Author { get; }
     
     /// <summary>
     /// Sets or changes the source that this effect will process.

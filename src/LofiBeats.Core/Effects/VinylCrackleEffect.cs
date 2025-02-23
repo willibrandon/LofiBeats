@@ -10,7 +10,14 @@ public class VinylCrackleEffect : IAudioEffect
     private readonly Random _rand = new();
     private readonly ILogger<VinylCrackleEffect> _logger;
 
+    public string Author => "LofiBeats Team";
+
+    public string Description => "Adds vinyl record crackle and noise for that authentic feel";
+
     public string Name => "vinyl";
+
+    public string Version => "1.0.0";
+
     public WaveFormat WaveFormat => _source.WaveFormat;
 
     public VinylCrackleEffect(ISampleProvider source, ILogger<VinylCrackleEffect> logger)

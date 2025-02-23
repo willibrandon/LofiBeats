@@ -14,7 +14,14 @@ public class ReverbEffect : IAudioEffect
     private readonly float _feedback;
     private readonly float _mix;
 
+    public string Author => "LofiBeats Team";
+
+    public string Description => "Adds space and atmosphere to create depth";
+
     public string Name => "reverb";
+
+    public string Version => "1.0.0";
+
     public WaveFormat WaveFormat => _source.WaveFormat;
 
     public ReverbEffect(

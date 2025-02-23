@@ -13,7 +13,14 @@ public class LowPassFilterEffect : IAudioEffect
     private float _prevSample;
     private readonly float _alpha;
 
+    public string Author => "LofiBeats Team";
+
+    public string Description => "Reduces high frequencies for that warm, mellow sound";
+
     public string Name => "lowpass";
+
+    public string Version => "1.0.0";
+
     public WaveFormat WaveFormat => _source.WaveFormat;
 
     public LowPassFilterEffect(

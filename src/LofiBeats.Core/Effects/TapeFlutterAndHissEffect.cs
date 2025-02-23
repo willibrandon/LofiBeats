@@ -18,7 +18,14 @@ public class TapeFlutterAndHissEffect : IAudioEffect
     private readonly float _hissLevel;      // amplitude of hiss
     private readonly Random _rand;
 
+    public string Author => "LofiBeats Team";
+
+    public string Description => "Adds wow/flutter pitch drift and tape hiss for vintage vibes";
+
     public string Name => "tapeflutter";
+
+    public string Version => "1.0.0";
+
     public WaveFormat WaveFormat => _source.WaveFormat;
 
     public TapeFlutterAndHissEffect(ISampleProvider source,

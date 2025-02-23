@@ -12,6 +12,7 @@ namespace LofiBeats.Core.PluginManagement
         private readonly ILogger<PluginManager> _logger;
         private readonly IPluginLoader _loader;
         private readonly Dictionary<string, Type> _registeredEffects = [];
+        private readonly Dictionary<string, (string Description, string Version, string Author)> _effectMetadata = [];
 
         public PluginManager(ILogger<PluginManager> logger, IPluginLoader loader)
         {
@@ -26,6 +27,7 @@ namespace LofiBeats.Core.PluginManagement
         public virtual void RefreshPlugins()
         {
             _registeredEffects.Clear();
+            _effectMetadata.Clear();
             var effectTypes = _loader.LoadEffectTypes();
             foreach (var type in effectTypes)
             {
@@ -33,7 +35,9 @@ namespace LofiBeats.Core.PluginManagement
                 {
                     if (Activator.CreateInstance(type) is IAudioEffect instance)
                     {
-                        _registeredEffects[instance.Name.ToLowerInvariant()] = type;
+                        var name = instance.Name.ToLowerInvariant();
+                        _registeredEffects[name] = type;
+                        _effectMetadata[name] = (instance.Description, instance.Version, instance.Author);
                     }
                 }
                 catch
@@ -41,6 +45,20 @@ namespace LofiBeats.Core.PluginManagement
                     // Skip effects that can't be instantiated
                 }
             }
+        }
+
+        /// <summary>
+        /// Gets metadata for all available plugin effects.
+        /// </summary>
+        /// <returns>A collection of effect metadata.</returns>
+        public IEnumerable<(string Name, string Description, string Version, string Author)> GetEffectMetadata()
+        {
+            return _effectMetadata.Select(kvp => (
+                Name: kvp.Key,
+                kvp.Value.Description,
+                kvp.Value.Version,
+                kvp.Value.Author
+            ));
         }
 
         /// <summary>

@@ -20,7 +20,15 @@ public class TapeStopEffect : IAudioEffect
     private bool _bufferFilled;
     private readonly float _initialPitch = 1.0f;
 
+    public string Author => "LofiBeats Team";
+
+    public string Description => "Adds space and atmosphere to create depth";
+
     public string Name => "tapestop";
+
+    public string Version => "1.0.0";
+
+
     public WaveFormat WaveFormat => _source.WaveFormat;
     public bool IsFinished => _finished;
 

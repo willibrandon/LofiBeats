@@ -4,6 +4,7 @@ using LofiBeats.Core.Playback;
 using LofiBeats.Core.PluginManagement;
 using LofiBeats.Core.Scheduling;
 using LofiBeats.Core.Storage;
+using LofiBeats.Cli.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.CommandLine;
@@ -517,7 +518,7 @@ public class CommandLineInterface : IDisposable
                 var response = await _serviceHelper.SendCommandAsync(HttpMethod.Get, "effect/list");
                 if (response.IsSuccessStatusCode)
                 {
-                    var pluginEffects = await response.Content.ReadFromJsonAsync<PluginEffectInfo[]>();
+                    var pluginEffects = await response.Content.ReadFromJsonAsync<PluginEffectMetadata[]>();
                     if (pluginEffects?.Length > 0)
                     {
                         Console.WriteLine("\nPlugin effects:");

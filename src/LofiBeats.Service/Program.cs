@@ -489,17 +489,16 @@ public partial class Program
         // List effects endpoint
         api.MapGet("/effect/list", (PluginManager pluginManager) =>
         {
-            var pluginEffects = pluginManager.GetEffectNames()
-                .Select(name => new
+            var metaData = pluginManager.GetEffectMetadata()
+                .Select(m => new
                 {
-                    Name = name,
-                    Description = "Plugin effect",
-                    Version = "1.0.0",
-                    Author = "Plugin Author"
+                    name = m.Name,
+                    description = m.Description,
+                    version = m.Version,
+                    author = m.Author
                 })
                 .ToArray();
-
-            return Results.Json(pluginEffects, JsonOptions);
+            return Results.Json(metaData, JsonOptions);
         });
 
         // Get current preset endpoint
