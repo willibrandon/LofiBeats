@@ -30,9 +30,15 @@ public class PluginLoaderTests : IDisposable
 
     public PluginLoaderTests()
     {
-        _testPluginDir = PluginPathHelper.GetPluginDirectory();
+        // Create a unique test directory instead of using the real plugin directory
+        _testPluginDir = Path.Combine(
+            Path.GetTempPath(),
+            "LofiBeatsTests",
+            "Plugins",
+            Guid.NewGuid().ToString());
+
         _loggerMock = new Mock<ILogger<PluginLoader>>();
-        _loader = new PluginLoader(_loggerMock.Object);
+        _loader = new PluginLoader(_loggerMock.Object, _testPluginDir);
 
         // Ensure clean test environment
         if (Directory.Exists(_testPluginDir))
