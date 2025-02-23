@@ -1,5 +1,6 @@
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.Models;
+using LofiBeats.Core.PluginApi;
 using LofiBeats.Core.Telemetry;
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;

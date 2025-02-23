@@ -5,6 +5,7 @@ using LofiBeats.Core.Telemetry;
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;
 using Moq;
+using LofiBeats.Core.PluginApi;
 
 namespace LofiBeats.Tests.Infrastructure;
 

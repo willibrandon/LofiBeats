@@ -1,6 +1,7 @@
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
+using LofiBeats.Core.PluginApi;
 using LofiBeats.Core.PluginManagement;
 using LofiBeats.Core.Telemetry;
 using LofiBeats.Service;

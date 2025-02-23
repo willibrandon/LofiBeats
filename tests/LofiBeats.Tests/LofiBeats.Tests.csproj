@@ -9,6 +9,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\..\src\LofiBeats.Core.PluginApi\LofiBeats.Core.PluginApi.csproj" />
 		<ProjectReference Include="..\..\src\LofiBeats.Core\LofiBeats.Core.csproj" />
 		<ProjectReference Include="..\..\src\LofiBeats.Service\LofiBeats.Service.csproj" />
 		<ProjectReference Include="..\..\src\LofiBeats.Cli\LofiBeats.Cli.csproj" />
@@ -19,7 +20,7 @@
 		  <PrivateAssets>all</PrivateAssets>
 		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.AspNetCore.Mvc.Testing"/>
+		<PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
 		<PackageReference Include="Microsoft.NET.Test.Sdk" />
 		<PackageReference Include="Moq" />
 		<PackageReference Include="xunit" />

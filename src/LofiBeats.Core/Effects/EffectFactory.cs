@@ -1,6 +1,7 @@
 using NAudio.Wave;
 using Microsoft.Extensions.Logging;
 using LofiBeats.Core.PluginManagement;
+using LofiBeats.Core.PluginApi;
 
 namespace LofiBeats.Core.Effects;
 

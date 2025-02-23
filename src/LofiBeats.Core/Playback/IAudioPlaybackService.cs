@@ -1,5 +1,6 @@
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.Models;
+using LofiBeats.Core.PluginApi;
 using NAudio.Wave;
 
 namespace LofiBeats.Core.Playback;
