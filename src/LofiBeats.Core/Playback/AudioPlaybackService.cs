@@ -255,10 +255,11 @@ public class AudioPlaybackService : IAudioPlaybackService, IDisposable
     public void RemoveEffect(string effectName)
     {
         if (_isDisposed) return;
-        if (_effectChain == null) return;
 
         if (_effects.Remove(effectName))
         {
+            if (_effectChain == null) return;
+
             _effectChain.RemoveEffect(effectName);
 
             // If no more effects, remove the chain

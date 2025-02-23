@@ -1,6 +1,7 @@
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.PluginManagement;
 using NAudio.Wave;
+using System.Reflection;
 
 namespace LofiBeats.Plugins.DelayEffect;
 
@@ -21,7 +22,10 @@ public class DelayAudioEffect : IAudioEffect
     private readonly float _wetMix;
     private readonly float _dryMix;
 
-    public string Name => "Delay Effect";
+    public string Name => GetType()
+        .GetCustomAttribute<PluginEffectNameAttribute>()
+        ?.Name ?? "delay";
+
     public WaveFormat WaveFormat => _source?.WaveFormat ?? WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
 
     /// <summary>
