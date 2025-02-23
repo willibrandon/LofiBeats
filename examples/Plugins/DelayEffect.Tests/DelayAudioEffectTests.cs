@@ -5,22 +5,16 @@ namespace LofiBeats.Plugins.DelayEffect.Tests;
 
 public class DelayAudioEffectTests
 {
-    private sealed class TestSampleProvider : ISampleProvider
+    private sealed class TestSampleProvider(float[] samples, int sampleRate = 44100, int channels = 2) : ISampleProvider
     {
-        public WaveFormat WaveFormat { get; }
-        private readonly float[] _samples;
-        private int _position;
+        public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channels);
 
-        public TestSampleProvider(float[] samples, int sampleRate = 44100, int channels = 2)
-        {
-            _samples = samples;
-            WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channels);
-        }
+        private int _position;
 
         public int Read(float[] buffer, int offset, int count)
         {
-            int samplesAvailable = Math.Min(count, _samples.Length - _position);
-            Array.Copy(_samples, _position, buffer, offset, samplesAvailable);
+            int samplesAvailable = Math.Min(count, samples.Length - _position);
+            Array.Copy(samples, _position, buffer, offset, samplesAvailable);
             _position += samplesAvailable;
             return samplesAvailable;
         }
