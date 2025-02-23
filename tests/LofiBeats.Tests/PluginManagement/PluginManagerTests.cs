@@ -126,7 +126,7 @@ public class PluginManagerTests : IDisposable
     {
         // Arrange
         var invalidDllPath = Path.Combine(_testPluginDir, "invalid.dll");
-        File.WriteAllBytes(invalidDllPath, new byte[] { 0x0, 0x1, 0x2, 0x3 }); // Invalid DLL content
+        File.WriteAllBytes(invalidDllPath, [0x0, 0x1, 0x2, 0x3]); // Invalid DLL content
 
         var testAssembly = typeof(TestAudioEffect).Assembly;
         var validDllPath = Path.Combine(_testPluginDir, "valid.dll");

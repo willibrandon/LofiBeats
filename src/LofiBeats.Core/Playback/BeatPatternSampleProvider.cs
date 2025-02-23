@@ -78,7 +78,7 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
 
     // Mapping of semitones from C to frequency multiplier
     private static readonly float[] SemitoneMultipliers =
-    {
+    [
         1.0000f,  // C
         1.0595f,  // C#
         1.1225f,  // D
@@ -91,16 +91,16 @@ public class BeatPatternSampleProvider : ISampleProvider, IDisposable
         1.6818f,  // A
         1.7818f,  // A#
         1.8877f   // B
-    };
+    ];
 
     // Base frequencies for the I-IV-V-vi progression in C
     private static readonly float[] BaseFrequencies =
-    {
+    [
         261.63f,  // C4 (I)
         349.23f,  // F4 (IV)
         392.00f,  // G4 (V)
         440.00f   // A4 (vi)
-    };
+    ];
 
     public WaveFormat WaveFormat => _waveFormat;
 
