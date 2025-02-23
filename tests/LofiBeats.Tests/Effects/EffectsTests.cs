@@ -3,7 +3,6 @@ using LofiBeats.Core.PluginManagement;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NAudio.Wave;
-using Xunit;
 
 namespace LofiBeats.Tests.Effects;
 
