@@ -27,20 +27,24 @@ public class PluginLoader : IPluginLoader
         LoggerMessage.Define<string>(LogLevel.Error, new EventId(2, "PluginLoadError"),
             "Failed to load plugin assembly {DllPath}");
 
+    private static readonly Action<ILogger, string, Exception> _logPluginFileLocked =
+        LoggerMessage.Define<string>(LogLevel.Warning, new EventId(3, "PluginFileLocked"),
+            "Plugin file is locked and cannot be accessed: {DllPath}");
+
     private static readonly Action<ILogger, string, int, Exception?> _logPluginTypesFound =
-        LoggerMessage.Define<string, int>(LogLevel.Information, new EventId(3, "PluginTypesFound"),
+        LoggerMessage.Define<string, int>(LogLevel.Information, new EventId(4, "PluginTypesFound"),
             "Found {Count} effect types in assembly {DllPath}");
 
     private static readonly Action<ILogger, string, Exception?> _logMaxPluginsExceeded =
-        LoggerMessage.Define<string>(LogLevel.Warning, new EventId(4, "MaxPluginsExceeded"),
+        LoggerMessage.Define<string>(LogLevel.Warning, new EventId(5, "MaxPluginsExceeded"),
             "Maximum number of plugins exceeded in directory: {Dir}");
 
     private static readonly Action<ILogger, int, Exception?> _logMaxTotalPluginsExceeded =
-        LoggerMessage.Define<int>(LogLevel.Warning, new EventId(5, "MaxTotalPluginsExceeded"),
+        LoggerMessage.Define<int>(LogLevel.Warning, new EventId(6, "MaxTotalPluginsExceeded"),
             "Maximum total number of plugins ({Count}) exceeded");
 
     private static readonly Action<ILogger, string, int, Exception?> _logMaxDepthExceeded =
-        LoggerMessage.Define<string, int>(LogLevel.Warning, new EventId(6, "MaxDepthExceeded"),
+        LoggerMessage.Define<string, int>(LogLevel.Warning, new EventId(7, "MaxDepthExceeded"),
             "Maximum recursion depth ({Depth}) exceeded for directory: {Dir}");
 
     /// <summary>
@@ -101,6 +105,18 @@ public class PluginLoader : IPluginLoader
 
                     try
                     {
+                        // Try to open the file first to check if it's locked
+                        try
+                        {
+                            using var stream = File.Open(dllPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                        }
+                        catch (IOException ex) when ((ex.HResult & 0x0000FFFF) == 32 || // ERROR_SHARING_VIOLATION
+                                                   (ex.HResult & 0x0000FFFF) == 33)  // ERROR_LOCK_VIOLATION
+                        {
+                            _logPluginFileLocked(_logger, dllPath, ex);
+                            continue;
+                        }
+
                         // Load the assembly
                         var assembly = Assembly.LoadFrom(dllPath);
 

@@ -96,8 +96,9 @@ public class PluginManagerTests : IDisposable
         var effects = _manager.GetEffectNames().ToList();
 
         // Assert
-        Assert.Single(effects); // Should only find one unique effect name despite multiple DLLs
+        Assert.Equal(2, effects.Count); // Should find both TestAudioEffect and MockPlugin
         Assert.Contains("testeffect", effects);
+        Assert.Contains("mockplugin", effects);
     }
 
     [Fact]
@@ -116,8 +117,9 @@ public class PluginManagerTests : IDisposable
         var effects = _manager.GetEffectNames().ToList();
 
         // Assert
-        Assert.Single(effects);
+        Assert.Equal(2, effects.Count); // Should find both TestAudioEffect and MockPlugin once
         Assert.Contains("testeffect", effects);
+        Assert.Contains("mockplugin", effects);
     }
 
     [Fact]
@@ -137,8 +139,9 @@ public class PluginManagerTests : IDisposable
         var effects = _manager.GetEffectNames().ToList();
 
         // Assert
-        Assert.Single(effects); // Should only load the valid DLL
+        Assert.Equal(2, effects.Count); // Should find both TestAudioEffect and MockPlugin from valid DLL
         Assert.Contains("testeffect", effects);
+        Assert.Contains("mockplugin", effects);
     }
 
     [Fact]
@@ -158,8 +161,9 @@ public class PluginManagerTests : IDisposable
         var effects = _manager.GetEffectNames().ToList();
 
         // Assert
-        Assert.Single(effects); // Should still only find one unique effect
+        Assert.Equal(2, effects.Count); // Should find both TestAudioEffect and MockPlugin once
         Assert.Contains("testeffect", effects);
+        Assert.Contains("mockplugin", effects);
 
         // Force a GC collection to help release file handles
         GC.Collect();
