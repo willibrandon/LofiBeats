@@ -14,13 +14,25 @@ dotnet add package LofiBeats.Core.PluginApi
 using LofiBeats.Core.PluginApi;
 using NAudio.Wave;
 
-public class MyAudioEffect : IAudioEffect
+public class MyCustomEffect : IAudioEffect
 {
-    private WaveFormat _waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
     private ISampleProvider? _source;
+    private WaveFormat _waveFormat;
 
-    public string Name => "My Effect";
+    public string Author => "Example Author";
+
+    public string Description => "An example custom audio effect";
+
+    public string Name => "mycustomeffect";
+
+    public string Version => "1.0.0";
+
     public WaveFormat WaveFormat => _waveFormat;
+
+    public MyCustomEffect()
+    {
+        _waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
+    }
 
     public void SetSource(ISampleProvider source)
     {
@@ -31,11 +43,13 @@ public class MyAudioEffect : IAudioEffect
     public void ApplyEffect(float[] buffer, int offset, int count)
     {
         // Implement your audio processing here
+        // This method is called for each block of audio samples
     }
 
     public int Read(float[] buffer, int offset, int count)
     {
-        return _source?.Read(buffer, offset, count) ?? 0;
+        if (_source == null) return 0;
+        return _source.Read(buffer, offset, count);
     }
 }
 ```

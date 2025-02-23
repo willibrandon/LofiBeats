@@ -42,7 +42,13 @@ public class MyCustomEffect : IAudioEffect
     private ISampleProvider? _source;
     private WaveFormat _waveFormat;
 
-    public string Name => "My Custom Effect";
+    public string Author => "Example Author";
+
+    public string Description => "An example custom audio effect";
+
+    public string Name => "mycustomeffect";
+
+    public string Version => "1.0.0";
 
     public WaveFormat WaveFormat => _waveFormat;
 
