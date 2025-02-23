@@ -13,6 +13,11 @@ public class PluginLoader : IPluginLoader
     private readonly ILogger<PluginLoader> _logger;
     private readonly string _pluginDirectory;
 
+    // Configuration constants
+    private const int MaxRecursionDepth = 8;  // Maximum directory depth to search (2³)
+    private const int MaxPluginsPerDirectory = 64;  // Maximum plugins per directory (2⁶)
+    private const int MaxTotalPlugins = 256;  // Maximum total plugins to load (2⁸)
+
     // High-performance structured logging
     private static readonly Action<ILogger, string, Exception?> _logPluginDirectoryNotFound =
         LoggerMessage.Define<string>(LogLevel.Warning, new EventId(1, "PluginDirectoryNotFound"),
@@ -26,6 +31,18 @@ public class PluginLoader : IPluginLoader
         LoggerMessage.Define<string, int>(LogLevel.Information, new EventId(3, "PluginTypesFound"),
             "Found {Count} effect types in assembly {DllPath}");
 
+    private static readonly Action<ILogger, string, Exception?> _logMaxPluginsExceeded =
+        LoggerMessage.Define<string>(LogLevel.Warning, new EventId(4, "MaxPluginsExceeded"),
+            "Maximum number of plugins exceeded in directory: {Dir}");
+
+    private static readonly Action<ILogger, int, Exception?> _logMaxTotalPluginsExceeded =
+        LoggerMessage.Define<int>(LogLevel.Warning, new EventId(5, "MaxTotalPluginsExceeded"),
+            "Maximum total number of plugins ({Count}) exceeded");
+
+    private static readonly Action<ILogger, string, int, Exception?> _logMaxDepthExceeded =
+        LoggerMessage.Define<string, int>(LogLevel.Warning, new EventId(6, "MaxDepthExceeded"),
+            "Maximum recursion depth ({Depth}) exceeded for directory: {Dir}");
+
     /// <summary>
     /// Initializes a new instance of the PluginLoader.
     /// </summary>
@@ -34,12 +51,8 @@ public class PluginLoader : IPluginLoader
     public PluginLoader(ILogger<PluginLoader> logger, string? pluginDirectory = null)
     {
         _logger = logger;
-        _pluginDirectory = pluginDirectory ?? PluginPathHelper.EnsurePluginDirectoryExists();
-        
-        if (!string.IsNullOrEmpty(pluginDirectory))
-        {
-            Directory.CreateDirectory(pluginDirectory);
-        }
+        _pluginDirectory = pluginDirectory ?? PluginPathHelper.GetPluginDirectory();
+        Directory.CreateDirectory(_pluginDirectory);
     }
 
     /// <summary>
@@ -50,35 +63,82 @@ public class PluginLoader : IPluginLoader
     {
         var effectTypes = new List<Type>();
 
+        // Ensure directory exists, recreate if necessary
         if (!Directory.Exists(_pluginDirectory))
         {
             _logPluginDirectoryNotFound(_logger, _pluginDirectory, null);
-            return effectTypes;
+            Directory.CreateDirectory(_pluginDirectory);
         }
 
-        // Load all .dll assemblies from the plugin directory
-        foreach (var dllPath in Directory.EnumerateFiles(_pluginDirectory, "*.dll"))
+        try
         {
-            try
+            // Use a stack to track directories to process and their depth
+            var directories = new Stack<(string Path, int Depth)>();
+            directories.Push((_pluginDirectory, 0));
+
+            var totalPluginsLoaded = 0;
+
+            while (directories.Count > 0 && totalPluginsLoaded < MaxTotalPlugins)
             {
-                // Load the assembly
-                var assembly = Assembly.LoadFrom(dllPath);
+                var (currentDir, depth) = directories.Pop();
 
-                // Find all types implementing IAudioEffect
-                var types = assembly.GetTypes()
-                    .Where(t => typeof(IAudioEffect).IsAssignableFrom(t) && !t.IsAbstract && t.IsClass)
-                    .ToArray();
-
-                if (types.Length > 0)
+                // Check recursion depth
+                if (depth >= MaxRecursionDepth)
                 {
-                    _logPluginTypesFound(_logger, dllPath, types.Length, null);
-                    effectTypes.AddRange(types);
+                    _logMaxDepthExceeded(_logger, currentDir, depth, null);
+                    continue;
+                }
+
+                // Process DLLs in current directory
+                var pluginsInCurrentDir = 0;
+                foreach (var dllPath in Directory.EnumerateFiles(currentDir, "*.dll"))
+                {
+                    if (pluginsInCurrentDir >= MaxPluginsPerDirectory)
+                    {
+                        _logMaxPluginsExceeded(_logger, currentDir, null);
+                        break;
+                    }
+
+                    try
+                    {
+                        // Load the assembly
+                        var assembly = Assembly.LoadFrom(dllPath);
+
+                        // Find all types implementing IAudioEffect
+                        var types = assembly.GetTypes()
+                            .Where(t => typeof(IAudioEffect).IsAssignableFrom(t) && !t.IsAbstract && t.IsClass)
+                            .ToArray();
+
+                        if (types.Length > 0)
+                        {
+                            _logPluginTypesFound(_logger, dllPath, types.Length, null);
+                            effectTypes.AddRange(types);
+                            pluginsInCurrentDir += types.Length;
+                            totalPluginsLoaded += types.Length;
+
+                            if (totalPluginsLoaded >= MaxTotalPlugins)
+                            {
+                                _logMaxTotalPluginsExceeded(_logger, MaxTotalPlugins, null);
+                                break;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logPluginLoadError(_logger, dllPath, ex);
+                    }
+                }
+
+                // Add subdirectories to the stack
+                foreach (var subDir in Directory.EnumerateDirectories(currentDir))
+                {
+                    directories.Push((subDir, depth + 1));
                 }
             }
-            catch (Exception ex)
-            {
-                _logPluginLoadError(_logger, dllPath, ex);
-            }
+        }
+        catch (Exception ex)
+        {
+            _logPluginLoadError(_logger, _pluginDirectory, ex);
         }
 
         return effectTypes;
