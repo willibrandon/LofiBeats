@@ -1,16 +1,11 @@
 using LofiBeats.Core.PluginApi;
 using NAudio.Wave;
-using System.Reflection;
 
 namespace LofiBeats.Plugins.DelayEffect;
 
 /// <summary>
 /// A simple delay effect that creates an echo of the input audio.
 /// </summary>
-[PluginEffectName("delay", 
-    Description = "Adds an echo effect to the audio",
-    Version = "1.0.0",
-    Author = "LofiBeats Team")]
 public class DelayAudioEffect : IAudioEffect
 {
     private ISampleProvider? _source;
@@ -21,9 +16,7 @@ public class DelayAudioEffect : IAudioEffect
     private readonly float _wetMix;
     private readonly float _dryMix;
 
-    public string Name => GetType()
-        .GetCustomAttribute<PluginEffectNameAttribute>()
-        ?.Name ?? "delay";
+    public string Name => "delay";
 
     public WaveFormat WaveFormat => _source?.WaveFormat ?? WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
 

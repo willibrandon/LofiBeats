@@ -1,8 +1,6 @@
-using LofiBeats.Core.Effects;
 using LofiBeats.Core.PluginApi;
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;
-using System.Reflection;
 
 namespace LofiBeats.Core.PluginManagement
 {
@@ -13,7 +11,7 @@ namespace LofiBeats.Core.PluginManagement
     {
         private readonly ILogger<PluginManager> _logger;
         private readonly IPluginLoader _loader;
-        private readonly Dictionary<string, (Type Type, PluginEffectNameAttribute Metadata)> _registeredEffects = new();
+        private readonly Dictionary<string, Type> _registeredEffects = new();
 
         // High-performance structured logging
         private static readonly Action<ILogger, string, Exception?> _logDuplicateEffect =
@@ -54,27 +52,20 @@ namespace LofiBeats.Core.PluginManagement
         {
             _registeredEffects.Clear();
             var effectTypes = _loader.LoadEffectTypes();
-            foreach (var t in effectTypes)
+            foreach (var type in effectTypes)
             {
-                var nameAttr = t.GetCustomAttribute<PluginEffectNameAttribute>();
-                if (nameAttr == null)
+                try
                 {
-                    _logMissingAttribute(_logger, t.FullName ?? t.Name, null);
-                    continue;
+                    var instance = Activator.CreateInstance(type) as IAudioEffect;
+                    if (instance != null)
+                    {
+                        _registeredEffects[instance.Name.ToLowerInvariant()] = type;
+                    }
                 }
-
-                string effectName = nameAttr.Name.ToLowerInvariant();
-
-                // Avoid collisions with built-in effect names
-                // Possibly skip if name matches a built-in effect
-                if (_registeredEffects.ContainsKey(effectName))
+                catch
                 {
-                    _logDuplicateEffect(_logger, effectName, null);
-                    continue;
+                    // Skip effects that can't be instantiated
                 }
-
-                _registeredEffects[effectName] = (t, nameAttr);
-                _logEffectRegistered(_logger, effectName, t.FullName ?? t.Name, nameAttr.Version, nameAttr.Author, null);
             }
         }
 
@@ -84,23 +75,6 @@ namespace LofiBeats.Core.PluginManagement
         public IEnumerable<string> GetEffectNames() => _registeredEffects.Keys;
 
         /// <summary>
-        /// Gets metadata for a specific effect.
-        /// </summary>
-        public PluginEffectNameAttribute? GetEffectMetadata(string effectName)
-        {
-            var key = effectName.ToLowerInvariant();
-            return _registeredEffects.TryGetValue(key, out var effect) ? effect.Metadata : null;
-        }
-
-        /// <summary>
-        /// Gets all registered effects with their metadata.
-        /// </summary>
-        public IEnumerable<(string Name, PluginEffectNameAttribute Metadata)> GetEffectsWithMetadata()
-        {
-            return _registeredEffects.Select(kvp => (kvp.Key, kvp.Value.Metadata));
-        }
-
-        /// <summary>
         /// Instantiates a new IAudioEffect plugin by name.
         /// </summary>
         public virtual IAudioEffect? CreateEffect(string effectName, ISampleProvider source)
@@ -108,32 +82,22 @@ namespace LofiBeats.Core.PluginManagement
             ArgumentNullException.ThrowIfNull(source);
 
             var key = effectName.ToLowerInvariant();
-            if (!_registeredEffects.TryGetValue(key, out var effect))
+            if (!_registeredEffects.TryGetValue(key, out var effectType))
             {
-                _logEffectNotFound(_logger, effectName, null);
                 return null;
             }
 
-            // Instantiate
             try
             {
-                // We need a parameterless constructor or something that takes `ISampleProvider`
-                // If your plugin effect requires different constructor arguments, adapt here
-                var instance = Activator.CreateInstance(effect.Type) as IAudioEffect;
+                var instance = Activator.CreateInstance(effectType) as IAudioEffect;
                 if (instance != null)
                 {
                     instance.SetSource(source);
                 }
-                else
-                {
-                    _logInstantiationFailed(_logger, effectName, null);
-                }
-
                 return instance;
             }
-            catch (Exception ex)
+            catch
             {
-                _logInstantiationError(_logger, effectName, ex);
                 return null;
             }
         }

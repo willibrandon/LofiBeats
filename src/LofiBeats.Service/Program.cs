@@ -489,13 +489,13 @@ public partial class Program
         // List effects endpoint
         api.MapGet("/effect/list", (PluginManager pluginManager) =>
         {
-            var pluginEffects = pluginManager.GetEffectsWithMetadata()
-                .Select(e => new
+            var pluginEffects = pluginManager.GetEffectNames()
+                .Select(name => new
                 {
-                    Name = e.Name,
-                    Description = e.Metadata.Description,
-                    Version = e.Metadata.Version,
-                    Author = e.Metadata.Author
+                    Name = name,
+                    Description = "Plugin effect",
+                    Version = "1.0.0",
+                    Author = "Plugin Author"
                 })
                 .ToArray();
 

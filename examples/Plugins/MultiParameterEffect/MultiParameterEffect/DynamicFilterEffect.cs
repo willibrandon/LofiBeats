@@ -1,7 +1,5 @@
-using LofiBeats.Core.Effects;
-using LofiBeats.Core.PluginManagement;
+using LofiBeats.Core.PluginApi;
 using NAudio.Wave;
-using System.Reflection;
 
 namespace LofiBeats.Plugins.MultiParameterEffect;
 
@@ -9,11 +7,7 @@ namespace LofiBeats.Plugins.MultiParameterEffect;
 /// A dynamic filter effect that combines multiple audio processing parameters.
 /// This demonstrates a more complex audio effect plugin with multiple adjustable parameters.
 /// </summary>
-[PluginEffectName("dynamicfilter", 
-    Description = "A dynamic filter with adjustable cutoff, resonance, and modulation",
-    Version = "1.0.0",
-    Author = "LofiBeats Team")]
-public class DynamicFilterEffect : IAudioEffect
+public sealed class DynamicFilterEffect : IAudioEffect
 {
     private ISampleProvider? _source;
     private readonly float[] _filterBuffer;
@@ -28,9 +22,7 @@ public class DynamicFilterEffect : IAudioEffect
     private float _lastInput;
     private float _lastOutput;
 
-    public string Name => GetType()
-        .GetCustomAttribute<PluginEffectNameAttribute>()
-        ?.Name ?? "dynamicfilter";
+    public string Name => "dynamicfilter";
 
     public WaveFormat WaveFormat => _source?.WaveFormat ?? 
         WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
@@ -50,6 +42,7 @@ public class DynamicFilterEffect : IAudioEffect
 
     public void SetSource(ISampleProvider source)
     {
+        ArgumentNullException.ThrowIfNull(source);
         _source = source;
         Array.Clear(_filterBuffer, 0, _filterBuffer.Length);
         _lastInput = 0f;
@@ -71,6 +64,11 @@ public class DynamicFilterEffect : IAudioEffect
 
     public void ApplyEffect(float[] buffer, int offset, int count)
     {
+        ArgumentNullException.ThrowIfNull(buffer);
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(offset + count, buffer.Length);
+
         for (int i = 0; i < count; i++)
         {
             int bufferIndex = offset + i;

@@ -1,7 +1,5 @@
-using LofiBeats.Core.Effects;
-using LofiBeats.Core.PluginManagement;
+using LofiBeats.Core.PluginApi;
 using NAudio.Wave;
-using System.Reflection;
 
 namespace LofiBeats.Plugins.BasicEffect;
 
@@ -9,24 +7,19 @@ namespace LofiBeats.Plugins.BasicEffect;
 /// A simple gain effect that adjusts the volume of the audio.
 /// This demonstrates the most basic form of an audio effect plugin.
 /// </summary>
-[PluginEffectName("gain", 
-    Description = "Adjusts the volume of the audio",
-    Version = "1.0.0",
-    Author = "LofiBeats Team")]
 public class GainEffect : IAudioEffect
 {
     private ISampleProvider? _source;
     private readonly float _gainFactor = 1.5f; // 50% volume increase
 
-    public string Name => GetType()
-        .GetCustomAttribute<PluginEffectNameAttribute>()
-        ?.Name ?? "gain";
+    public string Name => "gain";
 
     public WaveFormat WaveFormat => _source?.WaveFormat ?? 
         WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
 
     public void SetSource(ISampleProvider source)
     {
+        ArgumentNullException.ThrowIfNull(source);
         _source = source;
     }
 
@@ -45,6 +38,11 @@ public class GainEffect : IAudioEffect
 
     public void ApplyEffect(float[] buffer, int offset, int count)
     {
+        ArgumentNullException.ThrowIfNull(buffer);
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(offset + count, buffer.Length);
+
         // Simple gain adjustment with clipping prevention
         for (int i = 0; i < count; i++)
         {

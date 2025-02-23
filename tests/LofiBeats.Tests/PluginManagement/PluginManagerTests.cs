@@ -4,6 +4,7 @@ using Moq;
 using NAudio.Wave;
 using System.Reflection;
 using System.Reflection.Emit;
+using LofiBeats.Tests.TestHelpers;
 
 namespace LofiBeats.Tests.PluginManagement;
 
@@ -76,27 +77,7 @@ public class PluginManagerTests : IDisposable
         // Assert
         Assert.NotNull(effect);
         Assert.IsType<TestAudioEffect>(effect);
-    }
-
-    [Fact]
-    [Trait("Category", "AI_Generated")]
-    public void GetEffectMetadata_ReturnsCorrectMetadata()
-    {
-        // Arrange
-        var testAssembly = typeof(TestAudioEffect).Assembly;
-        var testDllPath = Path.Combine(_testPluginDir, "test.dll");
-        File.Copy(testAssembly.Location, testDllPath);
-
-        // Act
-        _manager.RefreshPlugins();
-        var metadata = _manager.GetEffectMetadata("testeffect");
-
-        // Assert
-        Assert.NotNull(metadata);
-        Assert.Equal("testeffect", metadata.Name);
-        Assert.Equal("A test audio effect", metadata.Description);
-        Assert.Equal("1.0.0", metadata.Version);
-        Assert.Equal("Test Author", metadata.Author);
+        Assert.Equal("testeffect", effect.Name);
     }
 
     [Fact]
@@ -133,12 +114,10 @@ public class PluginManagerTests : IDisposable
         // Act
         _manager.RefreshPlugins();
         var effects = _manager.GetEffectNames().ToList();
-        var metadata = _manager.GetEffectMetadata("testeffect");
 
         // Assert
         Assert.Single(effects);
-        Assert.NotNull(metadata);
-        Assert.Equal("Test Author", metadata.Author);
+        Assert.Contains("testeffect", effects);
     }
 
     [Fact]
@@ -224,85 +203,30 @@ public class PluginManagerTests : IDisposable
         Assert.Throws<ArgumentNullException>(() => _manager.CreateEffect("testeffect", null!));
     }
 
-    [Fact]
-    [Trait("Category", "AI_Generated")]
-    public void GetEffectsWithMetadata_ReturnsCorrectMetadata()
-    {
-        // Arrange
-        var testAssembly = typeof(TestAudioEffect).Assembly;
-        var testDllPath = Path.Combine(_testPluginDir, "test.dll");
-        File.Copy(testAssembly.Location, testDllPath);
-
-        // Act
-        _manager.RefreshPlugins();
-        var effects = _manager.GetEffectsWithMetadata().ToList();
-
-        // Assert
-        Assert.Single(effects);
-        var effect = effects[0];
-        Assert.Equal("testeffect", effect.Name);
-        Assert.Equal("A test audio effect", effect.Metadata.Description);
-        Assert.Equal("1.0.0", effect.Metadata.Version);
-        Assert.Equal("Test Author", effect.Metadata.Author);
-    }
-
-    [Fact]
-    [Trait("Category", "AI_Generated")]
-    public void GetEffectsWithMetadata_MultiplePlugins_ReturnsAllEffects()
-    {
-        // Arrange - Create multiple test plugins
-        var testAssembly = typeof(TestAudioEffect).Assembly;
-        var testDllPath1 = Path.Combine(_testPluginDir, "test1.dll");
-        var testDllPath2 = Path.Combine(_testPluginDir, "test2.dll");
-        File.Copy(testAssembly.Location, testDllPath1);
-        File.Copy(testAssembly.Location, testDllPath2);
-
-        // Act
-        _manager.RefreshPlugins();
-        var effects = _manager.GetEffectsWithMetadata().ToList();
-
-        // Assert - Should only find one unique effect name despite multiple DLLs
-        Assert.Single(effects);
-        var effect = effects[0];
-        Assert.Equal("testeffect", effect.Name);
-        Assert.Equal("A test audio effect", effect.Metadata.Description);
-    }
-
-    [Fact]
-    [Trait("Category", "AI_Generated")]
-    public void GetEffectsWithMetadata_NoPlugins_ReturnsEmptyList()
-    {
-        // Act
-        _manager.RefreshPlugins();
-        var effects = _manager.GetEffectsWithMetadata();
-
-        // Assert
-        Assert.Empty(effects);
-    }
-
     public void Dispose()
     {
-        try
+        // Clean up test directory
+        if (Directory.Exists(_testPluginDir))
         {
-            if (Directory.Exists(_testPluginDir))
+            try
             {
                 Directory.Delete(_testPluginDir, true);
             }
-        }
-        catch
-        {
-            // Ignore cleanup errors in individual tests
+            catch
+            {
+                // Ignore cleanup errors
+            }
         }
     }
 }
 
-// Helper test classes
 internal sealed class TestSampleProvider : ISampleProvider
 {
     public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
 
     public int Read(float[] buffer, int offset, int count)
     {
+        Array.Fill(buffer, 0.0f, offset, count);
         return count;
     }
 }
