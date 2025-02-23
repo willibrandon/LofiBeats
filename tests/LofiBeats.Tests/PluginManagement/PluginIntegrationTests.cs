@@ -16,10 +16,12 @@ public class PluginIntegrationTests : IDisposable
     private readonly PluginLoader _loader;
     private readonly PluginManager _pluginManager;
     private readonly EffectFactory _effectFactory;
+    private readonly PluginTestFixture _fixture;
 
-    public PluginIntegrationTests()
+    public PluginIntegrationTests(PluginTestFixture fixture)
     {
-        _testPluginDir = PluginPathHelper.GetPluginDirectory();
+        _fixture = fixture;
+        _testPluginDir = Path.Combine(_fixture.TestPluginDirectory, "PluginIntegrationTests");
         _loggerFactoryMock = new Mock<ILoggerFactory>();
         _effectFactoryLoggerMock = new Mock<ILogger<EffectFactory>>();
         _pluginManagerLoggerMock = new Mock<ILogger<PluginManager>>();
@@ -31,7 +33,7 @@ public class PluginIntegrationTests : IDisposable
             .Returns(_effectFactoryLoggerMock.Object);
 
         // Create plugin system components
-        _loader = new PluginLoader(_pluginLoaderLoggerMock.Object);
+        _loader = new PluginLoader(_pluginLoaderLoggerMock.Object, _testPluginDir);
         _pluginManager = new PluginManager(_pluginManagerLoggerMock.Object, _loader);
         _effectFactory = new EffectFactory(_loggerFactoryMock.Object, _pluginManager);
 
@@ -99,10 +101,16 @@ public class PluginIntegrationTests : IDisposable
 
     public void Dispose()
     {
-        // Cleanup test directory
-        if (Directory.Exists(_testPluginDir))
+        try
         {
-            Directory.Delete(_testPluginDir, true);
+            if (Directory.Exists(_testPluginDir))
+            {
+                Directory.Delete(_testPluginDir, true);
+            }
+        }
+        catch
+        {
+            // Ignore cleanup errors in individual tests
         }
     }
 }

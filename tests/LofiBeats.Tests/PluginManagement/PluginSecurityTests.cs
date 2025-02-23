@@ -12,13 +12,15 @@ public class PluginSecurityTests : IDisposable
     private readonly Mock<ILogger<PluginLoader>> _loaderLoggerMock;
     private readonly PluginLoader _loader;
     private readonly PluginManager _manager;
+    private readonly PluginTestFixture _fixture;
 
-    public PluginSecurityTests()
+    public PluginSecurityTests(PluginTestFixture fixture)
     {
-        _testPluginDir = PluginPathHelper.GetPluginDirectory();
+        _fixture = fixture;
+        _testPluginDir = Path.Combine(_fixture.TestPluginDirectory, "PluginSecurityTests");
         _loggerMock = new Mock<ILogger<PluginManager>>();
         _loaderLoggerMock = new Mock<ILogger<PluginLoader>>();
-        _loader = new PluginLoader(_loaderLoggerMock.Object);
+        _loader = new PluginLoader(_loaderLoggerMock.Object, _testPluginDir);
         _manager = new PluginManager(_loggerMock.Object, _loader);
 
         // Ensure clean test environment
@@ -138,10 +140,16 @@ public class PluginSecurityTests : IDisposable
 
     public void Dispose()
     {
-        // Cleanup test directory
-        if (Directory.Exists(_testPluginDir))
+        try
         {
-            Directory.Delete(_testPluginDir, true);
+            if (Directory.Exists(_testPluginDir))
+            {
+                Directory.Delete(_testPluginDir, true);
+            }
+        }
+        catch
+        {
+            // Ignore cleanup errors in individual tests
         }
     }
 }

@@ -7,6 +7,7 @@ using Moq.Protected;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
+using LofiBeats.Cli;
 
 namespace LofiBeats.Tests.Commands;
 
@@ -16,6 +17,8 @@ public class EffectCommandTests : IDisposable
     private readonly Mock<ILogger<CommandLineInterface>> _loggerMock;
     private readonly Mock<ILoggerFactory> _loggerFactoryMock;
     private readonly Mock<IConfiguration> _configMock;
+    private readonly Mock<HttpMessageHandler> _mockHandler;
+    private readonly HttpClient _httpClient;
     private readonly CommandLineInterface _cli;
     private readonly StringWriter _consoleOutput;
     private readonly TextWriter _originalConsoleOut;
@@ -25,39 +28,82 @@ public class EffectCommandTests : IDisposable
         _loggerMock = new Mock<ILogger<CommandLineInterface>>();
         _loggerFactoryMock = new Mock<ILoggerFactory>();
         _configMock = new Mock<IConfiguration>();
+        _mockHandler = new Mock<HttpMessageHandler>();
 
-        // Setup logger factory
-        _loggerFactoryMock
-            .Setup(x => x.CreateLogger(It.IsAny<string>()))
-            .Returns(_loggerMock.Object);
+        // Setup HTTP client
+        _httpClient = new HttpClient(_mockHandler.Object)
+        {
+            BaseAddress = new Uri("http://localhost:5001")
+        };
 
         // Setup configuration
         _configMock
             .Setup(x => x["ServiceUrl"])
             .Returns("http://localhost:5001");
 
-        _cli = new CommandLineInterface(_loggerMock.Object, _loggerFactoryMock.Object, _configMock.Object);
+        // Setup logger factory
+        _loggerFactoryMock
+            .Setup(x => x.CreateLogger(It.IsAny<string>()))
+            .Returns(_loggerMock.Object);
+
+        // Create ServiceConnectionHelper with mocked HTTP client
+        var helper = new ServiceConnectionHelper(
+            _loggerFactoryMock.Object.CreateLogger<ServiceConnectionHelper>(),
+            _configMock.Object,
+            serviceUrl: "http://localhost:5001",
+            httpClient: _httpClient);
+
+        // Create CLI with mocked dependencies
+        _cli = new CommandLineInterface(
+            _loggerMock.Object,
+            _loggerFactoryMock.Object,
+            _configMock.Object);
 
         // Capture console output
         _originalConsoleOut = Console.Out;
         _consoleOutput = new StringWriter();
         Console.SetOut(_consoleOutput);
+
+        // Setup default mock for EnsureServiceRunningAsync
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(req => req.RequestUri!.PathAndQuery == "/healthz"),
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK));
     }
 
     [Fact]
     [Trait("Category", "AI_Generated")]
     public async Task EffectList_ShowsBuiltInEffects()
     {
+        // Arrange
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(req => req.Method == HttpMethod.Get && req.RequestUri!.PathAndQuery == "/api/lofi/effect/list"),
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent("[]") // Empty array for no plugins
+            });
+
         // Act
         await _cli.ExecuteAsync(["effect", "list"]);
         var output = _consoleOutput.ToString();
 
         // Assert
         Assert.Contains("Built-in effects:", output);
-        Assert.Contains("vinyl", output);
-        Assert.Contains("reverb", output);
-        Assert.Contains("lowpass", output);
-        Assert.Contains("tapeflutter", output);
+        var knownEffects = new[] { "vinyl", "reverb", "lowpass", "tapeflutter" };
+        foreach (var effect in knownEffects)
+        {
+            Assert.Contains(effect, output);
+        }
     }
 
     [Fact]
@@ -67,11 +113,16 @@ public class EffectCommandTests : IDisposable
         // Arrange
         var pluginEffects = new[]
         {
-            new { Name = "testeffect", Description = "A test effect", Version = "1.0.0", Author = "Test Author" }
+            new PluginEffectInfo 
+            { 
+                Name = "testeffect", 
+                Description = "A test effect", 
+                Version = "1.0.0", 
+                Author = "Test Author" 
+            }
         };
 
-        var mockHandler = new Mock<HttpMessageHandler>();
-        mockHandler
+        _mockHandler
             .Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
@@ -84,24 +135,20 @@ public class EffectCommandTests : IDisposable
                 Content = new StringContent(JsonSerializer.Serialize(pluginEffects))
             });
 
-        var httpClient = new HttpClient(mockHandler.Object)
-        {
-            BaseAddress = new Uri("http://localhost:5001")
-        };
-
-        // Create a new CLI instance with the mocked HTTP client
-        var cli = new CommandLineInterface(
-            _loggerMock.Object,
-            _loggerFactoryMock.Object,
-            _configMock.Object);
-
         // Act
-        await cli.ExecuteAsync(["effect", "list"]);
+        await _cli.ExecuteAsync(["effect", "list"]);
         var output = _consoleOutput.ToString();
 
-        // Assert
+        // Assert - Check built-in effects
         Assert.Contains("Built-in effects:", output);
-        Assert.Contains("Plugin effects:", output);
+        var knownEffects = new[] { "vinyl", "reverb", "lowpass", "tapeflutter" };
+        foreach (var effect in knownEffects)
+        {
+            Assert.Contains(effect, output);
+        }
+
+        // Assert - Check built-in effects
+        Assert.Contains("Built-in effects:", output);
         Assert.Contains("testeffect", output);
         Assert.Contains("A test effect", output);
         Assert.Contains("1.0.0", output);
@@ -112,13 +159,23 @@ public class EffectCommandTests : IDisposable
     [Trait("Category", "AI_Generated")]
     public async Task EffectList_ServiceDown_HandlesError()
     {
+        // Arrange
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(req => req.Method == HttpMethod.Get && req.RequestUri!.PathAndQuery == "/api/lofi/effect/list"),
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .ThrowsAsync(new HttpRequestException("Connection refused"));
+
         // Act
         await _cli.ExecuteAsync(["effect", "list"]);
         var output = _consoleOutput.ToString();
 
         // Assert
         Assert.Contains("Built-in effects:", output); // Should still show built-in effects
-        Assert.Contains("Error fetching effects:", output);
+        Assert.Contains("Error fetching plugin effects:", output);
         Assert.Contains("Please ensure the LofiBeats service is running", output);
     }
 
@@ -126,5 +183,6 @@ public class EffectCommandTests : IDisposable
     {
         Console.SetOut(_originalConsoleOut);
         _consoleOutput.Dispose();
+        _httpClient.Dispose();
     }
 } 

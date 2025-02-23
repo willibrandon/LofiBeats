@@ -30,10 +30,16 @@ public class PluginLoader : IPluginLoader
     /// Initializes a new instance of the PluginLoader.
     /// </summary>
     /// <param name="logger">Logger for capturing diagnostic information.</param>
-    public PluginLoader(ILogger<PluginLoader> logger)
+    /// <param name="pluginDirectory">Optional custom plugin directory path. If not specified, uses the default location.</param>
+    public PluginLoader(ILogger<PluginLoader> logger, string? pluginDirectory = null)
     {
         _logger = logger;
-        _pluginDirectory = PluginPathHelper.EnsurePluginDirectoryExists();
+        _pluginDirectory = pluginDirectory ?? PluginPathHelper.EnsurePluginDirectoryExists();
+        
+        if (!string.IsNullOrEmpty(pluginDirectory))
+        {
+            Directory.CreateDirectory(pluginDirectory);
+        }
     }
 
     /// <summary>

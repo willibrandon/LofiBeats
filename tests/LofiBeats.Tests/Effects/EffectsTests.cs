@@ -138,7 +138,7 @@ public class EffectsTests : IDisposable
         var loggerFactory = new Mock<ILoggerFactory>();
         loggerFactory.Setup(x => x.CreateLogger(It.IsAny<string>()))
             .Returns(_vinylLoggerMock.Object);
-        var pluginLoaderMock = new Mock<PluginLoader>(Mock.Of<ILogger<PluginLoader>>());
+        var pluginLoaderMock = new Mock<IPluginLoader>();
         var pluginManagerMock = new Mock<PluginManager>(Mock.Of<ILogger<PluginManager>>(), pluginLoaderMock.Object);
         var factory = new EffectFactory(loggerFactory.Object, pluginManagerMock.Object);
 
@@ -158,7 +158,7 @@ public class EffectsTests : IDisposable
         var loggerFactory = new Mock<ILoggerFactory>();
         loggerFactory.Setup(x => x.CreateLogger(It.IsAny<string>()))
             .Returns(_lowpassLoggerMock.Object);
-        var pluginLoaderMock = new Mock<PluginLoader>(Mock.Of<ILogger<PluginLoader>>());
+        var pluginLoaderMock = new Mock<IPluginLoader>();
         var pluginManagerMock = new Mock<PluginManager>(Mock.Of<ILogger<PluginManager>>(), pluginLoaderMock.Object);
         var factory = new EffectFactory(loggerFactory.Object, pluginManagerMock.Object);
 
@@ -178,7 +178,7 @@ public class EffectsTests : IDisposable
         var loggerFactory = new Mock<ILoggerFactory>();
         loggerFactory.Setup(x => x.CreateLogger(It.IsAny<string>()))
             .Returns(_lowpassLoggerMock.Object);
-        var pluginLoaderMock = new Mock<PluginLoader>(Mock.Of<ILogger<PluginLoader>>());
+        var pluginLoaderMock = new Mock<IPluginLoader>();
         var pluginManagerMock = new Mock<PluginManager>(Mock.Of<ILogger<PluginManager>>(), pluginLoaderMock.Object);
         var testEffect = new TestAudioEffect();
         pluginManagerMock.Setup(x => x.CreateEffect("testeffect", _sampleProviderMock.Object))
@@ -201,7 +201,7 @@ public class EffectsTests : IDisposable
         var loggerFactory = new Mock<ILoggerFactory>();
         loggerFactory.Setup(x => x.CreateLogger(It.IsAny<string>()))
             .Returns(_lowpassLoggerMock.Object);
-        var pluginLoaderMock = new Mock<PluginLoader>(Mock.Of<ILogger<PluginLoader>>());
+        var pluginLoaderMock = new Mock<IPluginLoader>();
         var pluginManagerMock = new Mock<PluginManager>(Mock.Of<ILogger<PluginManager>>(), pluginLoaderMock.Object);
         pluginManagerMock.Setup(x => x.CreateEffect("unknown", _sampleProviderMock.Object))
             .Returns((IAudioEffect?)null);

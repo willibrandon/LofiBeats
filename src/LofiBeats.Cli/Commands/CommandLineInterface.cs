@@ -91,23 +91,42 @@ public class CommandLineInterface : IDisposable
 
     private static void ShowSpinner(string message, int durationMs)
     {
-        var spinChars = new[] { '|', '/', '-', '\\' };
-        var originalLeft = Console.CursorLeft;
-        var originalTop = Console.CursorTop;
-        var startTime = DateTime.Now;
-
-        while ((DateTime.Now - startTime).TotalMilliseconds < durationMs)
+        // Check if we're running in a test environment or without a console
+        if (!Console.IsOutputRedirected && !Console.IsErrorRedirected)
         {
-            foreach (var spinChar in spinChars)
+            try
             {
+                var spinChars = new[] { '|', '/', '-', '\\' };
+                var originalLeft = Console.CursorLeft;
+                var originalTop = Console.CursorTop;
+                var startTime = DateTime.Now;
+
+                while ((DateTime.Now - startTime).TotalMilliseconds < durationMs)
+                {
+                    foreach (var spinChar in spinChars)
+                    {
+                        Console.SetCursorPosition(originalLeft, originalTop);
+                        Console.Write($"{message} {spinChar}");
+                        Thread.Sleep(100);
+                    }
+                }
                 Console.SetCursorPosition(originalLeft, originalTop);
-                Console.Write($"{message} {spinChar}");
-                Thread.Sleep(100);
+                Console.Write(new string(' ', message.Length + 2)); // Clear the spinner
+                Console.SetCursorPosition(originalLeft, originalTop);
+            }
+            catch (IOException)
+            {
+                // If we can't manipulate the cursor, just write the message
+                Console.WriteLine(message);
+                Thread.Sleep(durationMs);
             }
         }
-        Console.SetCursorPosition(originalLeft, originalTop);
-        Console.Write(new string(' ', message.Length + 2)); // Clear the spinner
-        Console.SetCursorPosition(originalLeft, originalTop);
+        else
+        {
+            // For redirected output (like in tests), just write the message
+            Console.WriteLine(message);
+            Thread.Sleep(durationMs);
+        }
     }
 
     public CommandLineInterface(ILogger<CommandLineInterface> logger, ILoggerFactory loggerFactory, IConfiguration configuration)
@@ -472,19 +491,19 @@ public class CommandLineInterface : IDisposable
         var effectListCommand = new Command("list", "List all available effects");
         effectListCommand.SetHandler(async () =>
         {
+            // Always show built-in effects first
+            Console.WriteLine("\nBuilt-in effects:");
+            foreach (var effect in ValidEffects)
+            {
+                Console.WriteLine($"  - {effect,-12} {GetEffectDescription(effect)}");
+            }
+
+            // Then try to fetch plugin effects
             try
             {
-                Console.Write("Fetching available effects... ");
-                ShowSpinner("Fetching available effects", 500);
+                Console.Write("\nFetching plugin effects... ");
+                ShowSpinner("Fetching plugin effects", 500);
 
-                // Get built-in effects
-                Console.WriteLine("\nBuilt-in effects:");
-                foreach (var effect in ValidEffects)
-                {
-                    Console.WriteLine($"  - {effect,-12} {GetEffectDescription(effect)}");
-                }
-
-                // Get plugin effects from service
                 var response = await _serviceHelper.SendCommandAsync(HttpMethod.Get, "effect/list");
                 if (response.IsSuccessStatusCode)
                 {
@@ -501,7 +520,7 @@ public class CommandLineInterface : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error fetching effects: {ex.Message}");
+                Console.WriteLine($"Error fetching plugin effects: {ex.Message}");
                 Console.WriteLine("Please ensure the LofiBeats service is running and try again.");
             }
         });

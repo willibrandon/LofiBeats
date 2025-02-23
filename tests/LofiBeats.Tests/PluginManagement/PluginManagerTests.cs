@@ -15,13 +15,15 @@ public class PluginManagerTests : IDisposable
     private readonly Mock<ILogger<PluginLoader>> _loaderLoggerMock;
     private readonly PluginLoader _loader;
     private readonly PluginManager _manager;
+    private readonly PluginTestFixture _fixture;
 
-    public PluginManagerTests()
+    public PluginManagerTests(PluginTestFixture fixture)
     {
-        _testPluginDir = PluginPathHelper.GetPluginDirectory();
+        _fixture = fixture;
+        _testPluginDir = Path.Combine(_fixture.TestPluginDirectory, "PluginManagerTests");
         _loggerMock = new Mock<ILogger<PluginManager>>();
         _loaderLoggerMock = new Mock<ILogger<PluginLoader>>();
-        _loader = new PluginLoader(_loaderLoggerMock.Object);
+        _loader = new PluginLoader(_loaderLoggerMock.Object, _testPluginDir);
         _manager = new PluginManager(_loggerMock.Object, _loader);
 
         // Ensure clean test environment
@@ -280,36 +282,16 @@ public class PluginManagerTests : IDisposable
 
     public void Dispose()
     {
-        // Give the runtime a chance to release file handles
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        Thread.Sleep(100); // Brief pause to allow async operations to complete
-
-        // Cleanup test directory with retries
-        if (Directory.Exists(_testPluginDir))
+        try
         {
-            for (int attempt = 1; attempt <= 3; attempt++)
+            if (Directory.Exists(_testPluginDir))
             {
-                try
-                {
-                    Directory.Delete(_testPluginDir, true);
-                    break;
-                }
-                catch (UnauthorizedAccessException) when (attempt < 3)
-                {
-                    // Wait a bit longer between retries
-                    Thread.Sleep(100 * attempt);
-                    GC.Collect();
-                    GC.WaitForPendingFinalizers();
-                }
-                catch (IOException) when (attempt < 3)
-                {
-                    // Wait a bit longer between retries
-                    Thread.Sleep(100 * attempt);
-                    GC.Collect();
-                    GC.WaitForPendingFinalizers();
-                }
+                Directory.Delete(_testPluginDir, true);
             }
+        }
+        catch
+        {
+            // Ignore cleanup errors in individual tests
         }
     }
 }
