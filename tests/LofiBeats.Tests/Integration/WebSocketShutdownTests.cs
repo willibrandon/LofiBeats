@@ -76,10 +76,10 @@ public class WebSocketShutdownTests : IClassFixture<WebApplicationFactory<Progra
         _wsClient = _factory.Server.CreateWebSocketClient();
         _wsClient.ConfigureRequest = request =>
         {
-            request.Headers["Sec-WebSocket-Version"] = "13";
-            request.Headers["Sec-WebSocket-Protocol"] = "lofi-protocol";
-            request.Headers["Connection"] = "Upgrade";
-            request.Headers["Upgrade"] = "websocket";
+            request.Headers.SecWebSocketVersion = "13";
+            request.Headers.SecWebSocketProtocol = "lofi-protocol";
+            request.Headers.Connection = "Upgrade";
+            request.Headers.Upgrade = "websocket";
         };
         _clients = [];
         _cts = new CancellationTokenSource();

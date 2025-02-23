@@ -175,7 +175,7 @@ public class PluginManagerTests : IDisposable
         var assembly = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.RunAndCollect);
         var module = assembly.DefineDynamicModule("DummyModule");
         var typeBuilder = module.DefineType("DummyType", TypeAttributes.Public | TypeAttributes.Class);
-        var dummyType = typeBuilder.CreateType();
+        _ = typeBuilder.CreateType();
 
         // Save the assembly to a file
         var dummyDllPath = Path.Combine(_testPluginDir, "dummy.dll");

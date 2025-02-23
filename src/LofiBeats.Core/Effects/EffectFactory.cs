@@ -43,11 +43,9 @@ public class EffectFactory : IEffectFactory
 
     private IAudioEffect CreatePluginEffect(string effectName, ISampleProvider source)
     {
-        var effect = _pluginManager.CreateEffect(effectName, source);
-        if (effect == null)
-        {
-            throw new ArgumentException($"Unknown effect: {effectName}", nameof(effectName));
-        }
+        var effect = _pluginManager.CreateEffect(effectName, source)
+            ?? throw new ArgumentException($"Unknown effect: {effectName}", nameof(effectName));
+        
         return effect;
     }
 } 

@@ -270,5 +270,7 @@ public class WebSocketIntegrationTests : IClassFixture<WebApplicationFactory<Pro
         {
             // Ignore disposal errors
         }
+
+        GC.SuppressFinalize(this);
     }
 } 

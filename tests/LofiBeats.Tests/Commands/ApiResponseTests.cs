@@ -62,7 +62,7 @@ public class ApiResponseTests
         Assert.Equal("Test message", response.Message);
         Assert.Equal("Test error", response.Error);
         Assert.NotNull(response.Pattern);
-        var patternObj = Assert.IsAssignableFrom<object>(response.Pattern);
+        var patternObj = Assert.IsType<object>(response.Pattern, exactMatch: false);
         Assert.Equal(pattern, patternObj);
     }
 

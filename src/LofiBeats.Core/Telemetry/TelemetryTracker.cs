@@ -185,8 +185,8 @@ public class TelemetryTracker
             process.TotalProcessorTime.TotalSeconds / Environment.ProcessorCount);
 
         // Track thread pool usage
-        ThreadPool.GetAvailableThreads(out int workerThreads, out int completionPortThreads);
-        ThreadPool.GetMaxThreads(out int maxWorkerThreads, out int maxCompletionPortThreads);
+        ThreadPool.GetAvailableThreads(out int workerThreads, out _);
+        ThreadPool.GetMaxThreads(out int maxWorkerThreads, out _);
 
         var threadPoolUsage = 1.0 - ((double)workerThreads / maxWorkerThreads);
         _telemetry.TrackMetric(TelemetryConstants.Metrics.ThreadPoolUsage, threadPoolUsage * 100);

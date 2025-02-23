@@ -78,10 +78,8 @@ public static class PresetStorage
         try
         {
             var json = File.ReadAllText(filePath);
-            var preset = JsonSerializer.Deserialize<Preset>(json, _serializerOptions);
-            
-            if (preset == null)
-                throw new JsonException($"Failed to deserialize preset from {filePath}");
+            var preset = JsonSerializer.Deserialize<Preset>(json, _serializerOptions)
+                ?? throw new JsonException($"Failed to deserialize preset from {filePath}");
 
             // Validate the loaded preset
             preset.Validate();

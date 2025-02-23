@@ -163,9 +163,7 @@ public static class ChordTransposer
             {
                 newRoot = "A";
             }
-            
-            // Handle bass note if present
-            string newBass = "";
+
             if (!string.IsNullOrEmpty(bassNote))
             {
                 if (!KeyHelper.IsValidKey(bassNote, out var normalizedBass))
@@ -173,9 +171,10 @@ public static class ChordTransposer
                     throw new ArgumentException($"Invalid bass note: {bassNote}");
                 }
 
+                // Handle bass note if present
                 // Apply special Gb to F# mapping to bass note
-                newBass = MaybeOverrideGbToFSharp(normalizedBass, fromKey, toKey);
-                
+                string newBass = MaybeOverrideGbToFSharp(normalizedBass, fromKey, toKey);
+
                 // Only shift if not already mapped and semitones != 0
                 if (newBass == normalizedBass)
                 {

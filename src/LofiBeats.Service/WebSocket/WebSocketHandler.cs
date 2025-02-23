@@ -280,7 +280,7 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
         _broadcastLock.Dispose();
         
         // Close all WebSocket connections
-        foreach (var (id, connection) in _connections)
+        foreach (var (_, connection) in _connections)
         {
             try
             {

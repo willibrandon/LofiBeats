@@ -305,7 +305,7 @@ public partial class Program
             var generator = factory.GetGenerator(style);
             var pattern = generator.GeneratePattern(bpm, normalizedKey);
 
-            return Results.Json(new { message = "Pattern generated", pattern = pattern }, JsonOptions);
+            return Results.Json(new { message = "Pattern generated", pattern }, JsonOptions);
         });
 
         // Play endpoint
@@ -379,7 +379,7 @@ public partial class Program
             playback.CurrentStyle = style;
             playback.StartPlayback();
 
-            return Results.Json(new { message = "Playback started", pattern = pattern }, JsonOptions);
+            return Results.Json(new { message = "Playback started", pattern }, JsonOptions);
         });
 
         // Stop endpoint
