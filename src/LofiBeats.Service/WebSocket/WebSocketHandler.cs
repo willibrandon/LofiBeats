@@ -257,7 +257,7 @@ public sealed class WebSocketHandler : IWebSocketHandler, IWebSocketBroadcaster,
                 var command = JsonSerializer.Deserialize<WebSocketMessage>(message);
                 if (command != null && command.Type == Core.WebSocket.WebSocketMessageType.Command)
                 {
-                    await _commandHandler.HandleCommandAsync(clientId, command.Action, 
+                    await _commandHandler.HandleCommandAsync(command.Action, 
                         JsonSerializer.SerializeToElement(command.Payload), cancellationToken);
                 }
                 else

@@ -49,11 +49,10 @@ public sealed class WebSocketCommandHandler(
     /// <summary>
     /// Handles a WebSocket command message.
     /// </summary>
-    /// <param name="clientId">The ID of the client sending the command</param>
     /// <param name="action">The command action</param>
     /// <param name="payload">The command payload</param>
     /// <param name="cancellationToken">Token to cancel the operation</param>
-    public async Task HandleCommandAsync(Guid clientId, string action, JsonElement payload, 
+    public async Task HandleCommandAsync(string action, JsonElement payload, 
         CancellationToken cancellationToken)
     {
         _logCommandReceived(_logger, action, payload.ToString(), null);
@@ -87,12 +86,12 @@ public sealed class WebSocketCommandHandler(
                     break;
 
                 case WebSocketActions.Commands.Ping:
-                    await HandlePingCommandAsync(clientId, cancellationToken);
+                    await HandlePingCommandAsync(cancellationToken);
                     break;
 
                 default:
                     _logUnknownCommand(_logger, action, null);
-                    await SendErrorAsync(clientId, WebSocketActions.Errors.UnknownCommand,
+                    await SendErrorAsync(WebSocketActions.Errors.UnknownCommand,
                         $"Unknown command: {action}", cancellationToken);
                     break;
             }
@@ -100,13 +99,13 @@ public sealed class WebSocketCommandHandler(
         catch (JsonException ex)
         {
             _logInvalidPayload(_logger, action, ex.Message, null);
-            await SendErrorAsync(clientId, WebSocketActions.Errors.InvalidPayload,
+            await SendErrorAsync(WebSocketActions.Errors.InvalidPayload,
                 $"Invalid payload for {action}: {ex.Message}", cancellationToken);
         }
         catch (Exception ex)
         {
             _logCommandError(_logger, action, ex);
-            await SendErrorAsync(clientId, "command-error",
+            await SendErrorAsync("command-error",
                 $"Error processing {action}: {ex.Message}", cancellationToken);
         }
     }
@@ -251,7 +250,7 @@ public sealed class WebSocketCommandHandler(
             cancellationToken);
     }
 
-    private async Task HandlePingCommandAsync(Guid clientId, CancellationToken cancellationToken)
+    private async Task HandlePingCommandAsync(CancellationToken cancellationToken)
     {
         // Simply respond with a pong event
         await _broadcast(
@@ -260,7 +259,7 @@ public sealed class WebSocketCommandHandler(
             cancellationToken);
     }
 
-    private async Task SendErrorAsync(Guid clientId, string errorAction, string message, 
+    private async Task SendErrorAsync(string errorAction, string message, 
         CancellationToken cancellationToken)
     {
         await _broadcast(

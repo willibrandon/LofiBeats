@@ -89,6 +89,12 @@ public class CommandLineInterface : IDisposable
     private static readonly string[] ValidEffects = ["vinyl", "reverb", "lowpass", "tapeflutter"];
     private static readonly string[] ValidBeatStyles = ["basic", "jazzy", "chillhop", "hiphop"];
 
+    private static readonly Action<ILogger, Exception?> _logCommandCancelled =
+        LoggerMessage.Define(LogLevel.Information, new EventId(23, "CommandCancelled"), "Command execution cancelled");
+
+    private static readonly Action<ILogger, Exception?> _logCommandCancelledByUser =
+        LoggerMessage.Define(LogLevel.Information, new EventId(24, "CommandCancelledByUser"), "Command execution was cancelled by user");
+
     private static void ShowSpinner(string message, int durationMs)
     {
         // Check if we're running in a test environment or without a console
@@ -1003,8 +1009,23 @@ public class CommandLineInterface : IDisposable
 
     public async Task<int> ExecuteAsync(string[] args, CancellationToken cancellationToken = default)
     {
-        _logExecutingCommand(_logger, string.Join(" ", args), null);
-        return await _rootCommand.InvokeAsync(args);
+        try
+        {
+            _logExecutingCommand(_logger, string.Join(" ", args), null);
+            
+            // Register cancellation
+            using var registration = cancellationToken.Register(() => 
+            {
+                _logCommandCancelled(_logger, null);
+            });
+            
+            return await _rootCommand.InvokeAsync(args);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logCommandCancelledByUser(_logger, null);
+            return 1; // Non-zero exit code for cancellation
+        }
     }
 
     public void Dispose()
