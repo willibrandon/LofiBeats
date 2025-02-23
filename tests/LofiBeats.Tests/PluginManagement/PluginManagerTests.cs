@@ -222,6 +222,62 @@ public class PluginManagerTests : IDisposable
         Assert.Throws<ArgumentNullException>(() => _manager.CreateEffect("testeffect", null!));
     }
 
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void GetEffectsWithMetadata_ReturnsCorrectMetadata()
+    {
+        // Arrange
+        var testAssembly = typeof(TestAudioEffect).Assembly;
+        var testDllPath = Path.Combine(_testPluginDir, "test.dll");
+        File.Copy(testAssembly.Location, testDllPath);
+
+        // Act
+        _manager.RefreshPlugins();
+        var effects = _manager.GetEffectsWithMetadata().ToList();
+
+        // Assert
+        Assert.Single(effects);
+        var effect = effects[0];
+        Assert.Equal("testeffect", effect.Name);
+        Assert.Equal("A test audio effect", effect.Metadata.Description);
+        Assert.Equal("1.0.0", effect.Metadata.Version);
+        Assert.Equal("Test Author", effect.Metadata.Author);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void GetEffectsWithMetadata_MultiplePlugins_ReturnsAllEffects()
+    {
+        // Arrange - Create multiple test plugins
+        var testAssembly = typeof(TestAudioEffect).Assembly;
+        var testDllPath1 = Path.Combine(_testPluginDir, "test1.dll");
+        var testDllPath2 = Path.Combine(_testPluginDir, "test2.dll");
+        File.Copy(testAssembly.Location, testDllPath1);
+        File.Copy(testAssembly.Location, testDllPath2);
+
+        // Act
+        _manager.RefreshPlugins();
+        var effects = _manager.GetEffectsWithMetadata().ToList();
+
+        // Assert - Should only find one unique effect name despite multiple DLLs
+        Assert.Single(effects);
+        var effect = effects[0];
+        Assert.Equal("testeffect", effect.Name);
+        Assert.Equal("A test audio effect", effect.Metadata.Description);
+    }
+
+    [Fact]
+    [Trait("Category", "AI_Generated")]
+    public void GetEffectsWithMetadata_NoPlugins_ReturnsEmptyList()
+    {
+        // Act
+        _manager.RefreshPlugins();
+        var effects = _manager.GetEffectsWithMetadata();
+
+        // Assert
+        Assert.Empty(effects);
+    }
+
     public void Dispose()
     {
         // Give the runtime a chance to release file handles

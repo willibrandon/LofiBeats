@@ -1,8 +1,9 @@
+using LofiBeats.Core.BeatGeneration;
 using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
+using LofiBeats.Core.PluginManagement;
 using LofiBeats.Core.Scheduling;
 using LofiBeats.Core.Storage;
-using LofiBeats.Core.BeatGeneration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.CommandLine;
@@ -467,6 +468,45 @@ public class CommandLineInterface : IDisposable
         // Add effect command
         var effectCommand = new Command("effect", "Manage audio effects");
         
+        // Add list subcommand
+        var effectListCommand = new Command("list", "List all available effects");
+        effectListCommand.SetHandler(async () =>
+        {
+            try
+            {
+                Console.Write("Fetching available effects... ");
+                ShowSpinner("Fetching available effects", 500);
+
+                // Get built-in effects
+                Console.WriteLine("\nBuilt-in effects:");
+                foreach (var effect in ValidEffects)
+                {
+                    Console.WriteLine($"  - {effect,-12} {GetEffectDescription(effect)}");
+                }
+
+                // Get plugin effects from service
+                var response = await _serviceHelper.SendCommandAsync(HttpMethod.Get, "effect/list");
+                if (response.IsSuccessStatusCode)
+                {
+                    var pluginEffects = await response.Content.ReadFromJsonAsync<PluginEffectInfo[]>();
+                    if (pluginEffects?.Length > 0)
+                    {
+                        Console.WriteLine("\nPlugin effects:");
+                        foreach (var effect in pluginEffects)
+                        {
+                            Console.WriteLine($"  - {effect.Name,-12} {effect.Description} (v{effect.Version} by {effect.Author})");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching effects: {ex.Message}");
+                Console.WriteLine("Please ensure the LofiBeats service is running and try again.");
+            }
+        });
+        effectCommand.AddCommand(effectListCommand);
+
         // Add effect name as a required argument instead of an option
         var effectNameArg = new Argument<string>(
             name: "effect-name",
@@ -1095,4 +1135,13 @@ public class CommandLineInterface : IDisposable
             Console.WriteLine("Please ensure the LofiBeats service is running and try again.");
         }
     }
+
+    private static string GetEffectDescription(string effect) => effect switch
+    {
+        "vinyl" => "Adds vinyl record crackle and noise for that authentic feel",
+        "reverb" => "Adds space and atmosphere to create depth",
+        "lowpass" => "Reduces high frequencies for that warm, mellow sound",
+        "tapeflutter" => "Adds wow/flutter pitch drift and tape hiss for vintage vibes",
+        _ => string.Empty
+    };
 }

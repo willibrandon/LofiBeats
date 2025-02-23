@@ -483,6 +483,22 @@ public partial class Program
             }
         });
 
+        // List effects endpoint
+        api.MapGet("/effect/list", (PluginManager pluginManager) =>
+        {
+            var pluginEffects = pluginManager.GetEffectsWithMetadata()
+                .Select(e => new
+                {
+                    Name = e.Name,
+                    Description = e.Metadata.Description,
+                    Version = e.Metadata.Version,
+                    Author = e.Metadata.Author
+                })
+                .ToArray();
+
+            return Results.Json(pluginEffects, JsonOptions);
+        });
+
         // Get current preset endpoint
         api.MapGet("/preset/current", (IAudioPlaybackService playback) =>
         {
