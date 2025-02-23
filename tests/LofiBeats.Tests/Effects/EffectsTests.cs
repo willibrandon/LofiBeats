@@ -47,11 +47,11 @@ public class EffectsTests : IDisposable
     {
         // Arrange
         var effect = new VinylCrackleEffect(_sampleProviderMock.Object, _vinylLoggerMock.Object);
-        var buffer = new float[1000];
-        var originalBuffer = new float[1000];
+        var buffer = new float[4000]; // Increased buffer size
+        var originalBuffer = new float[4000];
 
         // Force some crackle by reading multiple times
-        for (int attempt = 0; attempt < 10; attempt++)
+        for (int attempt = 0; attempt < 20; attempt++) // Increased attempts
         {
             Array.Fill(buffer, 1.0f);
             Array.Fill(originalBuffer, 1.0f);
