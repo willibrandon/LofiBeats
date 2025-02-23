@@ -60,7 +60,8 @@ public sealed class PluginWatcher : IDisposable
             if (_isDisposed) throw new ObjectDisposedException(nameof(PluginWatcher));
             if (_watcher != null) return; // Already watching
 
-            string dir = _overrideDirectory ?? PluginPathHelper.EnsurePluginDirectoryExists();
+            string dir = _overrideDirectory ?? PluginPathHelper.GetPluginDirectory();
+            Directory.CreateDirectory(dir); // Ensure directory exists
             _logStartingWatch(_logger, dir, null);
 
             _watcher = new FileSystemWatcher(dir, "*.dll")
