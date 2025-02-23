@@ -1,6 +1,6 @@
 # LofiBeats Plugin API
 
-A .NET library for creating audio effect plugins for the LofiBeats application. This package contains the core interfaces and attributes needed to create custom audio effects.
+A .NET library for creating audio effect plugins for the LofiBeats application. This package contains the core interfaces needed to create custom audio effects.
 
 ## Quick Start
 
@@ -14,7 +14,6 @@ dotnet add package LofiBeats.Core.PluginApi
 using LofiBeats.Core.PluginApi;
 using NAudio.Wave;
 
-[PluginEffectName("myeffect", Description = "My custom audio effect")]
 public class MyAudioEffect : IAudioEffect
 {
     private WaveFormat _waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);

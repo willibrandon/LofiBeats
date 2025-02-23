@@ -29,28 +29,20 @@ Plugins are loaded dynamically at runtime, so you don't need to restart LofiBeat
 - Target .NET 9.0 or later
 - Reference `LofiBeats.Core` assembly
 - Implement the `IAudioEffect` interface
-- Include the `PluginEffectNameAttribute` on your effect class
 - Provide a public parameterless constructor
 
 ### Example Plugin
 
 ```csharp
 using LofiBeats.Core.Effects;
-using LofiBeats.Core.PluginManagement;
 using NAudio.Wave;
 
-[PluginEffectName("myeffect", 
-    Description = "My custom audio effect",
-    Version = "1.0.0",
-    Author = "Your Name")]
 public class MyCustomEffect : IAudioEffect
 {
     private ISampleProvider? _source;
     private WaveFormat _waveFormat;
 
-    public string Name => GetType()
-        .GetCustomAttribute<PluginEffectNameAttribute>()
-        ?.Name ?? "myeffect";
+    public string Name => "My Custom Effect";
 
     public WaveFormat WaveFormat => _waveFormat;
 
@@ -81,12 +73,9 @@ public class MyCustomEffect : IAudioEffect
 
 ### Plugin Metadata
 
-The `PluginEffectNameAttribute` is required and provides metadata about your effect:
+Your effect class should provide meaningful information through its properties:
 
-- `Name` (required): Unique identifier for your effect (used in CLI commands)
-- `Description`: What your effect does
-- `Version`: Version number of your effect
-- `Author`: Your name or organization
+- `Name`: A descriptive name for your effect (used in CLI commands)
 
 ### Best Practices
 
@@ -166,7 +155,6 @@ For detailed API documentation, see the XML documentation in the `LofiBeats.Core
 
 Key interfaces and classes:
 - `IAudioEffect`: Main interface for audio effects
-- `PluginEffectNameAttribute`: Required attribute for effect metadata
 - `ISampleProvider`: NAudio interface for audio processing
 
 ## Example Projects
