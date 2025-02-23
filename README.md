@@ -14,6 +14,7 @@ A cross-platform command-line tool and service for generating and playing lofi b
   - Vinyl (adds vinyl record crackle and noise for that authentic feel)
   - Reverb (adds space and atmosphere to create depth)
   - Low Pass Filter (reduces high frequencies for that warm, mellow sound)
+- Plugin system for custom effects
 - Advanced Drum Synthesis:
   - Multi-stage envelopes for realistic drum sounds
   - Velocity and timing humanization
@@ -41,7 +42,6 @@ A cross-platform command-line tool and service for generating and playing lofi b
 - WebSocket connections for real-time control
 - Cross-platform support (Windows, macOS, Linux)
 - Telemetry support with local file and Seq logging
-- Plugin system for custom effects
 
 ## Quick Start
 
