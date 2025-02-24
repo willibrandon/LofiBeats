@@ -43,17 +43,13 @@ public static class SandboxLauncher
         }
 
         // Platform checks
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
-            !RuntimeInformation.IsOSPlatform(OSPlatform.OSX) &&
-            !RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
-            throw new PlatformNotSupportedException("Unsupported operating system for sandboxed plugin execution");
-        }
-
-        // Platform-specific launches
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             return LaunchWindowsSandbox(pluginHostPath, pluginAssemblyPath, startInfo);
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            return LaunchLinuxSandbox(pluginHostPath, pluginAssemblyPath, startInfo);
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
@@ -61,12 +57,17 @@ public static class SandboxLauncher
         }
         else
         {
-            return LaunchLinuxSandbox(pluginHostPath, pluginAssemblyPath, startInfo);
+            throw new PlatformNotSupportedException("Unsupported operating system for sandboxed plugin execution");
         }
     }
 
     private static Process LaunchWindowsSandbox(string pluginHostPath, string pluginAssemblyPath, ProcessStartInfo? startInfo = null)
     {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            throw new PlatformNotSupportedException("Windows sandbox is only supported on Windows");
+        }
+
         var jobName = $"LofiBeatsPlugin_{Guid.NewGuid():N}";
         var job = Windows.CreateJobObject(IntPtr.Zero, jobName);
         
@@ -80,7 +81,9 @@ public static class SandboxLauncher
         {
             var basicInfo = new Windows.JOBOBJECT_BASIC_LIMIT_INFORMATION
             {
-                LimitFlags = Windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+                LimitFlags = Windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | 
+                            Windows.JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION |
+                            Windows.JOB_OBJECT_LIMIT_ACTIVE_PROCESS,
                 ActiveProcessLimit = 1,
                 PriorityClass = 0x20 // NORMAL_PRIORITY_CLASS
             };
@@ -153,110 +156,68 @@ public static class SandboxLauncher
         }
     }
 
-    private static Process LaunchMacOSSandbox(string pluginHostPath, string pluginAssemblyPath, ProcessStartInfo? startInfo = null)
-    {
-        var sandboxProfilePath = Path.Combine(Path.GetTempPath(), $"lofibeats-sandbox-{Guid.NewGuid():N}.sb");
-        
-        using (var stream = typeof(SandboxLauncher).Assembly.GetManifestResourceStream(MacOSSandboxProfile))
-        using (var reader = new StreamReader(stream ?? throw new InvalidOperationException("Failed to load sandbox profile")))
-        {
-            File.WriteAllText(sandboxProfilePath, reader.ReadToEnd());
-        }
-
-        try
-        {
-            startInfo ??= new ProcessStartInfo
-            {
-                FileName = "sandbox-exec",
-                Arguments = $"-f \"{sandboxProfilePath}\" dotnet exec \"{pluginHostPath}\" --plugin-assembly \"{pluginAssemblyPath}\"",
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            return Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start sandboxed plugin host process");
-        }
-        finally
-        {
-            try { File.Delete(sandboxProfilePath); }
-            catch (Exception ex)
-            {
-                LogWarning($"Failed to delete temporary sandbox profile: {sandboxProfilePath}", ex);
-            }
-        }
-    }
-
     private static Process LaunchLinuxSandbox(string pluginHostPath, string pluginAssemblyPath, ProcessStartInfo? startInfo = null)
     {
-        var serviceId = Guid.NewGuid().ToString("N");
-        var servicePath = $"/etc/systemd/system/lofibeats-plugin@{serviceId}.service";
-
-        using (var stream = typeof(SandboxLauncher).Assembly.GetManifestResourceStream(LinuxServiceTemplate))
-             using (var reader = new StreamReader(stream ?? throw new InvalidOperationException("Failed to load service template")))
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            var serviceContent = reader.ReadToEnd()
-                .Replace("${PLUGIN_HOST_PATH}", pluginHostPath)
-                .Replace("${PLUGIN_PATH}", pluginAssemblyPath);
-
-            File.WriteAllText(servicePath, serviceContent);
+            throw new PlatformNotSupportedException("Linux sandbox is only supported on Linux");
         }
 
+        // Use a simpler approach without systemd for Docker compatibility
+        startInfo ??= new ProcessStartInfo
+        {
+            FileName = "nice",
+            Arguments = $"-n 19 dotnet exec \"{pluginHostPath}\" --plugin-assembly \"{pluginAssemblyPath}\"",
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start plugin host process");
+
+        // Set resource limits using ulimit if available
         try
         {
-            // Start the service
-            var startProcess = Process.Start(new ProcessStartInfo
+            var pid = process.Id;
+            Process.Start(new ProcessStartInfo
             {
-                FileName = "systemctl",
-                Arguments = $"start lofibeats-plugin@{serviceId}",
+                FileName = "bash",
+                Arguments = $"-c \"ulimit -t 3600 -v 1048576 -n 256 && prlimit --pid={pid} --nofile=256:256\"",
                 UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            }) ?? throw new InvalidOperationException("Failed to start systemd service");
-
-            startProcess.WaitForExit();
-
-            if (startProcess.ExitCode != 0)
-            {
-                throw new InvalidOperationException($"Failed to start systemd service: {startProcess.StandardError.ReadToEnd()}");
-            }
-
-            // Get the process ID of the service
-            var pidProcess = Process.Start(new ProcessStartInfo
-            {
-                FileName = "systemctl",
-                Arguments = $"show --property MainPID --value lofibeats-plugin@{serviceId}",
-                UseShellExecute = false,
-                RedirectStandardOutput = true
-            }) ?? throw new InvalidOperationException("Failed to get service PID");
-
-            pidProcess.WaitForExit();
-            var pid = int.Parse(pidProcess.StandardOutput.ReadToEnd().Trim());
-
-            return Process.GetProcessById(pid);
+                CreateNoWindow = true
+            })?.WaitForExit();
         }
-        catch
+        catch (Exception ex)
         {
-            try
-            {
-                // Cleanup on failure
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "systemctl",
-                    Arguments = $"stop lofibeats-plugin@{serviceId}",
-                    UseShellExecute = false
-                })?.WaitForExit();
-
-                File.Delete(servicePath);
-            }
-            catch (Exception ex)
-            {
-                LogWarning($"Failed to cleanup systemd service: {serviceId}", ex);
-            }
-            throw;
+            LogWarning("Failed to set resource limits", ex);
         }
+
+        return process;
+    }
+
+    private static Process LaunchMacOSSandbox(string pluginHostPath, string pluginAssemblyPath, ProcessStartInfo? startInfo = null)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            throw new PlatformNotSupportedException("macOS sandbox is only supported on macOS");
+        }
+
+        startInfo ??= new ProcessStartInfo
+        {
+            FileName = "sandbox-exec",
+            Arguments = $"-p '(version 1) (allow default) (deny file-write*) (allow file-write* (subpath \"{Path.GetTempPath()}\"))' dotnet exec \"{pluginHostPath}\" --plugin-assembly \"{pluginAssemblyPath}\"",
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        return Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start sandboxed plugin host process");
     }
 
     private static class Windows

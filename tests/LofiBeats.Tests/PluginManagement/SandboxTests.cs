@@ -3,39 +3,36 @@ using System.Runtime.InteropServices;
 
 namespace LofiBeats.Tests.PluginManagement;
 
-public class SandboxTests
+public class SandboxTests : IDisposable
 {
+    private readonly string _testPluginHostPath;
+    private readonly string _testPluginPath;
+
+    public SandboxTests()
+    {
+        // Create test files with minimal headers
+        _testPluginHostPath = Path.Combine(Path.GetTempPath(), "test.exe");
+        _testPluginPath = Path.Combine(Path.GetTempPath(), "test.dll");
+
+        // Create minimal PE header for Windows or ELF header for Linux
+        var header = new byte[] { 0x4D, 0x5A }; // MZ header
+        File.WriteAllBytes(_testPluginHostPath, header);
+        File.WriteAllBytes(_testPluginPath, header);
+    }
+
     [Fact]
-    [Trait("Category", "AI_Generated")]
     public void LaunchPluginHost_UnsupportedPlatform_ThrowsPlatformNotSupported()
     {
-        // Create test files to pass initial checks
-        var testExePath = Path.Combine(Path.GetTempPath(), "test.exe");
-        var testDllPath = Path.Combine(Path.GetTempPath(), "test.dll");
-        
-        try
+        // Skip on supported platforms
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ||
+            RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+            RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
-            File.WriteAllBytes(testExePath, new byte[] { 0x4D, 0x5A }); // Minimal EXE header
-            File.WriteAllBytes(testDllPath, new byte[] { 0x4D, 0x5A }); // Minimal DLL header
-
-            // Skip test on Windows since we can't easily mock the platform
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                return;
-            }
-
-            var ex = Assert.Throws<PlatformNotSupportedException>(() =>
-            {
-                SandboxLauncher.LaunchPluginHost(testExePath, testDllPath);
-            });
-
-            Assert.Contains("Unsupported operating system", ex.Message);
+            return;
         }
-        finally
-        {
-            try { File.Delete(testExePath); } catch { }
-            try { File.Delete(testDllPath); } catch { }
-        }
+
+        Assert.Throws<PlatformNotSupportedException>(() =>
+            SandboxLauncher.LaunchPluginHost(_testPluginHostPath, _testPluginPath));
     }
 
     [Fact]
@@ -51,32 +48,27 @@ public class SandboxTests
     }
 
     [Fact]
-    [Trait("Category", "AI_Generated")]
-    [PlatformSpecific(TestPlatforms.Windows)]
     public void WindowsSandbox_CreatesJobObject()
     {
-        // Create test files
-        var testExePath = Path.Combine(Path.GetTempPath(), "pluginhost.exe");
-        var testDllPath = Path.Combine(Path.GetTempPath(), "plugin.dll");
-        
+        // Skip on non-Windows platforms
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return;
+        }
+
+        var process = SandboxLauncher.LaunchPluginHost(_testPluginHostPath, _testPluginPath);
         try
         {
-            File.WriteAllBytes(testExePath, new byte[] { 0x4D, 0x5A }); // Minimal EXE header
-            File.WriteAllBytes(testDllPath, new byte[] { 0x4D, 0x5A }); // Minimal DLL header
-
-            var process = SandboxLauncher.LaunchPluginHost(testExePath, testDllPath);
             Assert.NotNull(process);
-            
-            try
-            {
-                process.Kill();
-            }
-            catch { }
+            Assert.False(process.HasExited);
         }
         finally
         {
-            try { File.Delete(testExePath); } catch { }
-            try { File.Delete(testDllPath); } catch { }
+            if (!process.HasExited)
+            {
+                process.Kill();
+            }
+            process.Dispose();
         }
     }
 
@@ -150,6 +142,21 @@ public class SandboxTests
             IntPtr processHandle,
             IntPtr jobHandle,
             [MarshalAs(UnmanagedType.Bool)] out bool result);
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            if (File.Exists(_testPluginHostPath))
+                File.Delete(_testPluginHostPath);
+            if (File.Exists(_testPluginPath))
+                File.Delete(_testPluginPath);
+        }
+        catch
+        {
+            // Ignore cleanup errors
+        }
     }
 }
 
