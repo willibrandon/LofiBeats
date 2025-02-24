@@ -205,19 +205,64 @@ public static class SandboxLauncher
             throw new PlatformNotSupportedException("macOS sandbox is only supported on macOS");
         }
 
-        startInfo ??= new ProcessStartInfo
-        {
-            FileName = "sandbox-exec",
-            Arguments = $"-p '(version 1) (allow default) (deny file-write*) (allow file-write* (subpath \"{Path.GetTempPath()}\"))' dotnet exec \"{pluginHostPath}\" --plugin-assembly \"{pluginAssemblyPath}\"",
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+        // Load sandbox profile from embedded resource
+        var assembly = typeof(SandboxLauncher).Assembly;
+        using var stream = assembly.GetManifestResourceStream(MacOSSandboxProfile)
+            ?? throw new InvalidOperationException($"Could not find embedded resource: {MacOSSandboxProfile}");
+        using var reader = new StreamReader(stream);
+        var sandboxProfile = reader.ReadToEnd();
 
-        return Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Failed to start sandboxed plugin host process");
+        // Create a temporary file for the sandbox profile
+        var tempProfilePath = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(tempProfilePath, sandboxProfile);
+
+            startInfo ??= new ProcessStartInfo
+            {
+                FileName = "sandbox-exec",
+                Arguments = $"-f \"{tempProfilePath}\" dotnet exec \"{pluginHostPath}\" --plugin-assembly \"{pluginAssemblyPath}\"",
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("Failed to start sandboxed plugin host process");
+
+            // Clean up the temporary profile file when the process exits
+            process.Exited += (sender, args) =>
+            {
+                try
+                {
+                    if (File.Exists(tempProfilePath))
+                        File.Delete(tempProfilePath);
+                }
+                catch (Exception ex)
+                {
+                    LogWarning($"Failed to delete temporary sandbox profile: {tempProfilePath}", ex);
+                }
+            };
+            process.EnableRaisingEvents = true;
+
+            return process;
+        }
+        catch
+        {
+            // Clean up the temporary file if something goes wrong
+            try
+            {
+                if (File.Exists(tempProfilePath))
+                    File.Delete(tempProfilePath);
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+            throw;
+        }
     }
 
     private static class Windows

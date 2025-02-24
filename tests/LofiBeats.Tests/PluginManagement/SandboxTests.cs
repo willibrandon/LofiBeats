@@ -93,7 +93,7 @@ public class SandboxTests : IDisposable
         
         // Verify profile contains required restrictions
         Assert.Contains("(deny network*)", profile);
-        Assert.Contains("(deny file-write*)", profile);
+        Assert.Contains("(deny file-write* (subpath \"/\"))", profile);
         Assert.Contains("(allow process-exec)", profile);
     }
 
