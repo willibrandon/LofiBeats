@@ -161,11 +161,24 @@ public class Program
 
     private static PluginResponse HandleInit(JsonElement? payload)
     {
-        // For initial handshake, we don't need to validate plugin name yet
+        // For initial handshake, return the list of available effects
+        var effects = _effectTypes.Values.Select(type =>
+        {
+            var instance = Activator.CreateInstance(type) as IAudioEffect;
+            return new
+            {
+                name = instance?.Name.ToLowerInvariant(),
+                description = instance?.Description,
+                version = instance?.Version,
+                author = instance?.Author
+            };
+        }).ToList();
+
         return new PluginResponse
         {
             Status = "ok",
-            Message = "Plugin host initialized"
+            Message = "Plugin host initialized",
+            Payload = JsonDocument.Parse(JsonSerializer.Serialize(new { effects })).RootElement
         };
     }
 
