@@ -1,4 +1,3 @@
-using LofiBeats.Core.Effects;
 using LofiBeats.Core.PluginApi;
 using LofiBeats.Core.PluginManagement;
 using Microsoft.Extensions.Logging;

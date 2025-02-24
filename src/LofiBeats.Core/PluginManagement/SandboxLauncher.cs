@@ -315,4 +315,5 @@ public static class SandboxLauncher
             [In] ref SECURITY_ATTRIBUTES jobAttributes,
             string name);
     }
-} 
+}
+

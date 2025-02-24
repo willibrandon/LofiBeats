@@ -1,10 +1,8 @@
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.PluginManagement;
-using LofiBeats.Core.PluginApi;
 using LofiBeats.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
 using Moq;
-using NAudio.Wave;
 using System.Diagnostics;
 
 namespace LofiBeats.Tests.PluginManagement;

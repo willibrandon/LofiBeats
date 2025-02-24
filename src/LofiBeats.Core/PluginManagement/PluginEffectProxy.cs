@@ -19,9 +19,13 @@ public sealed class PluginEffectProxy : IAudioEffect, IDisposable
     private bool _isEnabled;
 
     public string Name { get; }
+
     public string Description { get; }
+
     public string Version { get; }
+
     public string Author { get; }
+
     public WaveFormat WaveFormat => _source.WaveFormat;
 
     public bool IsEnabled

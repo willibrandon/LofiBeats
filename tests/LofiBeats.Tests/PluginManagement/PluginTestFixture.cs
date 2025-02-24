@@ -1,7 +1,3 @@
-using System;
-using System.IO;
-using Xunit;
-
 namespace LofiBeats.Tests.PluginManagement;
 
 [CollectionDefinition("Plugin Tests")]

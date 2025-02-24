@@ -1,6 +1,6 @@
+using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
 
 namespace LofiBeats.Core.PluginManagement;
 

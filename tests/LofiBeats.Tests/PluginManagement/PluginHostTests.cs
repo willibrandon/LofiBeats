@@ -1,7 +1,6 @@
+using LofiBeats.PluginHost.Models;
 using System.Diagnostics;
 using System.Text.Json;
-using LofiBeats.PluginHost.Models;
-using LofiBeats.Tests.TestHelpers;
 
 namespace LofiBeats.Tests.PluginManagement;
 

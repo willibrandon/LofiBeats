@@ -1,7 +1,5 @@
 using LofiBeats.Core.PluginManagement;
 using System.Runtime.InteropServices;
-using System.IO;
-using System;
 
 namespace LofiBeats.Tests.PluginManagement;
 
