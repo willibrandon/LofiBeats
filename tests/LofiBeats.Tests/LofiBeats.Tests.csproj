@@ -13,6 +13,7 @@
 		<ProjectReference Include="..\..\src\LofiBeats.Core\LofiBeats.Core.csproj" />
 		<ProjectReference Include="..\..\src\LofiBeats.Service\LofiBeats.Service.csproj" />
 		<ProjectReference Include="..\..\src\LofiBeats.Cli\LofiBeats.Cli.csproj" />
+		<ProjectReference Include="..\..\src\LofiBeats.PluginHost\LofiBeats.PluginHost.csproj" />
 	</ItemGroup>
 	
 	<ItemGroup>
