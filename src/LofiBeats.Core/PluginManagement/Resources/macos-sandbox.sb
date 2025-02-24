@@ -1,0 +1,30 @@
+(version 1)
+(allow default)
+
+;; Deny network access
+(deny network*)
+
+;; Deny file system access except for required paths
+(deny file-write* (subpath "/"))
+(allow file-write* (subpath "/tmp/lofibeats-plugins"))
+(allow file-write* (subpath "/var/log"))
+
+;; Allow reading from specific paths
+(allow file-read* (subpath "/usr/lib"))
+(allow file-read* (subpath "/System/Library"))
+(allow file-read* (subpath "/Library/Frameworks"))
+(allow file-read* (subpath "/dev/urandom"))
+(allow file-read* (subpath "/dev/null"))
+
+;; Allow process operations
+(allow process-exec)
+(allow process-fork)
+
+;; Allow IPC for plugin communication
+(allow ipc-posix-shm)
+(allow ipc-posix-sem)
+(allow ipc-posix-msg)
+
+;; Allow basic system calls
+(allow system-socket)
+(allow system-audit) 

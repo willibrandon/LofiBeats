@@ -24,4 +24,9 @@
 		<ProjectReference Include="..\LofiBeats.PluginHost\LofiBeats.PluginHost.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<EmbeddedResource Include="PluginManagement/Resources/macos-sandbox.sb" />
+		<EmbeddedResource Include="PluginManagement/Resources/lofibeats-plugin@.service" />
+	</ItemGroup>
+
 </Project>

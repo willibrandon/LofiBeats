@@ -135,43 +135,28 @@ namespace LofiBeats.Core.PluginManagement
 
                 if (!File.Exists(pluginHostPath))
                 {
-                    // Try to find it in the test output directory
-                    var testPluginHostPath = Path.Combine(
-                        Path.GetDirectoryName(typeof(PluginManager).Assembly.Location) ?? baseDir,
+                    // Try to find it in the source location
+                    var sourcePluginHostPath = Path.Combine(
+                        AppContext.BaseDirectory,
+                        "..", "..", "..", "..",
+                        "src", "LofiBeats.PluginHost", "bin", "Debug", "net9.0",
                         "LofiBeats.PluginHost.dll"
                     );
-                    _logger.LogInformation("Looking for plugin host in test directory: {TestPluginHostPath}", testPluginHostPath);
 
-                    if (File.Exists(testPluginHostPath))
+                    if (File.Exists(sourcePluginHostPath))
                     {
-                        pluginHostPath = testPluginHostPath;
-                        _logger.LogInformation("Found plugin host in test directory");
+                        Directory.CreateDirectory(Path.GetDirectoryName(pluginHostPath)!);
+                        File.Copy(sourcePluginHostPath, pluginHostPath, true);
                     }
                     else
                     {
-                        _logger.LogError("Plugin host not found at {Path} or {TestPath}", pluginHostPath, testPluginHostPath);
-                        throw new InvalidOperationException($"Plugin host not found at {pluginHostPath} or {testPluginHostPath}");
+                        throw new InvalidOperationException($"Plugin host not found at {pluginHostPath}");
                     }
                 }
 
                 _logger.LogInformation("Starting plugin host from {Path} for plugin {Plugin}", pluginHostPath, pluginPath);
 
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "dotnet",
-                    Arguments = $"exec \"{pluginHostPath}\" --plugin-assembly \"{pluginPath}\"",
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    WorkingDirectory = Path.GetDirectoryName(pluginHostPath) ?? baseDir // Set working directory to help with assembly loading
-                };
-
-                _logger.LogInformation("Starting process with command: dotnet {Args}", startInfo.Arguments);
-
-                var process = Process.Start(startInfo) 
-                    ?? throw new InvalidOperationException("Failed to start plugin host process");
+                var process = StartPluginHost(pluginPath);
 
                 var startTime = DateTime.UtcNow;
                 var timeout = TimeSpan.FromSeconds(5);
@@ -285,6 +270,37 @@ namespace LofiBeats.Core.PluginManagement
                 connection,
                 _loggerFactory.CreateLogger<PluginEffectProxy>()
             );
+        }
+
+        private static Process StartPluginHost(string pluginAssemblyPath)
+        {
+            var pluginHostPath = Path.Combine(
+                AppContext.BaseDirectory,
+                "LofiBeats.PluginHost.dll"
+            );
+
+            if (!File.Exists(pluginHostPath))
+            {
+                // Try to find it in the source location
+                var sourcePluginHostPath = Path.Combine(
+                    AppContext.BaseDirectory,
+                    "..", "..", "..", "..",
+                    "src", "LofiBeats.PluginHost", "bin", "Debug", "net9.0",
+                    "LofiBeats.PluginHost.dll"
+                );
+
+                if (File.Exists(sourcePluginHostPath))
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(pluginHostPath)!);
+                    File.Copy(sourcePluginHostPath, pluginHostPath, true);
+                }
+                else
+                {
+                    throw new InvalidOperationException($"Plugin host not found at {pluginHostPath}");
+                }
+            }
+
+            return SandboxLauncher.LaunchPluginHost(pluginHostPath, pluginAssemblyPath);
         }
 
         public void Dispose()

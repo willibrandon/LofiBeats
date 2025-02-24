@@ -1,0 +1,28 @@
+[Unit]
+Description=LofiBeats Plugin Host - %i
+After=network.target
+
+[Service]
+Type=simple
+User=lofibeats-plugin
+Group=lofibeats-plugin
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+Environment=DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+
+ExecStart=/usr/bin/dotnet exec ${PLUGIN_HOST_PATH} --plugin-assembly ${PLUGIN_PATH}
+
+[Install]
+WantedBy=multi-user.target 
