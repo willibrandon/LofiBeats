@@ -13,6 +13,7 @@ public class PluginManagerTests : IDisposable
 {
     private readonly string _testPluginDir;
     private readonly Mock<ILogger<PluginManager>> _loggerMock;
+    private readonly Mock<ILoggerFactory> _loggerFactoryMock;
     private readonly Mock<ILogger<PluginLoader>> _loaderLoggerMock;
     private readonly PluginLoader _loader;
     private readonly PluginManager _manager;
@@ -23,9 +24,19 @@ public class PluginManagerTests : IDisposable
         _fixture = fixture;
         _testPluginDir = Path.Combine(_fixture.TestPluginDirectory, "PluginManagerTests");
         _loggerMock = new Mock<ILogger<PluginManager>>();
+        _loggerFactoryMock = new Mock<ILoggerFactory>();
         _loaderLoggerMock = new Mock<ILogger<PluginLoader>>();
+
+        _loggerFactoryMock.Setup(x => x.CreateLogger(It.IsAny<string>()))
+            .Returns((string category) =>
+            {
+                if (category == typeof(PluginLoader).FullName)
+                    return _loaderLoggerMock.Object;
+                return _loggerMock.Object;
+            });
+
         _loader = new PluginLoader(_loaderLoggerMock.Object, _testPluginDir);
-        _manager = new PluginManager(_loggerMock.Object, _loader);
+        _manager = new PluginManager(_loggerMock.Object, _loggerFactoryMock.Object, _loader);
 
         // Ensure clean test environment
         if (Directory.Exists(_testPluginDir))
@@ -69,6 +80,7 @@ public class PluginManagerTests : IDisposable
         var testAssembly = typeof(TestAudioEffect).Assembly;
         var testDllPath = Path.Combine(_testPluginDir, "test.dll");
         File.Copy(testAssembly.Location, testDllPath);
+        _manager.OutOfProcessEnabled = false; // Disable out-of-process execution for this test
 
         // Act
         _manager.RefreshPlugins();
@@ -221,6 +233,9 @@ public class PluginManagerTests : IDisposable
                 // Ignore cleanup errors
             }
         }
+
+        // Dispose manager to clean up any host processes
+        _manager.Dispose();
 
         GC.SuppressFinalize(this);
     }

@@ -20,7 +20,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\LofiBeats.Core.PluginApi\LofiBeats.Core.PluginApi.csproj" />
+		<ProjectReference Include="..\LofiBeats.Core.PluginApi\LofiBeats.Core.PluginApi.csproj" />
+		<ProjectReference Include="..\LofiBeats.PluginHost\LofiBeats.PluginHost.csproj" />
 	</ItemGroup>
 
 </Project>

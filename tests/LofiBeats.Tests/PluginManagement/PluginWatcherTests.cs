@@ -66,7 +66,10 @@ public class PluginWatcherTests : IDisposable
         _testPluginDir = Path.Combine(_fixture.BaseTestDirectory, Guid.NewGuid().ToString());
         _loggerMock = new Mock<ILogger<PluginWatcher>>();
         _pluginLoaderMock = new Mock<IPluginLoader>();
-        _pluginManagerMock = new Mock<PluginManager>(Mock.Of<ILogger<PluginManager>>(), _pluginLoaderMock.Object);
+        _pluginManagerMock = new Mock<PluginManager>(
+            Mock.Of<ILogger<PluginManager>>(),
+            Mock.Of<ILoggerFactory>(),
+            _pluginLoaderMock.Object);
         _refreshCallCount = 0;
         _refreshSignal = new SemaphoreSlim(0);
 

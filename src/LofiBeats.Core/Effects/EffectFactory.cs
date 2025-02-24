@@ -14,6 +14,7 @@ public class EffectFactory(ILoggerFactory loggerFactory, PluginManager pluginMan
     public IAudioEffect CreateEffect(string effectName, ISampleProvider source)
     {
         ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(effectName);
 
         _logger.LogInformation("Creating effect: {EffectName}", effectName);
 
