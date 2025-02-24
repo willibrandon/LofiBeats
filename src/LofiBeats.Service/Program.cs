@@ -1,13 +1,16 @@
 using LofiBeats.Core.BeatGeneration;
+using LofiBeats.Core.Configuration;
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.Models;
 using LofiBeats.Core.Playback;
 using LofiBeats.Core.PluginManagement;
 using LofiBeats.Core.Scheduling;
+using LofiBeats.Core.Storage;
 using LofiBeats.Core.Telemetry;
 using LofiBeats.Core.WebSocket;
 using LofiBeats.Service.WebSocket;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.Extensions.Logging.Configuration;
 using System.Buffers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -103,6 +106,11 @@ public partial class Program
 
         // Configure resource pooling for audio buffers
         builder.Services.AddSingleton(ArrayPool<byte>.Shared);
+
+        // Configure settings
+        var pluginSettings = builder.Configuration.GetSection("PluginSettings").Get<PluginSettings>()
+            ?? new PluginSettings();
+        builder.Services.AddSingleton(pluginSettings);
 
         // Register core services as singletons for performance
         builder.Services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
@@ -461,10 +469,16 @@ public partial class Program
 
                 // Try creating the effect (will work for both built-in and plugin effects)
                 var effect = effectFactory.CreateEffect(name, currentSource) ?? 
-                           pluginManager.CreateEffect(name, currentSource);
+                            pluginManager.CreateEffect(name, currentSource);
 
                 if (effect == null)
                     return Results.Json(new { error = $"Unknown effect: {name}" }, JsonOptions, statusCode: 400);
+
+                // If it's a plugin effect, enable it
+                if (effect is PluginEffectProxy pluginEffect)
+                {
+                    pluginEffect.IsEnabled = true;
+                }
 
                 telemetryTracker.TrackEvent(TelemetryConstants.Events.EffectAdded, new Dictionary<string, string>
                 {
@@ -480,6 +494,22 @@ public partial class Program
                 {
                     { TelemetryConstants.Properties.EffectName, name }
                 });
+
+                // If it's currently active, disable it before removing
+                if (playback.CurrentSource != null)
+                {
+                    var currentPreset = playback.GetCurrentPreset();
+                    if (currentPreset.Effects.Contains(name))
+                    {
+                        var effect = effectFactory.CreateEffect(name, playback.CurrentSource) ??
+                                    pluginManager.CreateEffect(name, playback.CurrentSource);
+                        
+                        if (effect is PluginEffectProxy pluginEffect)
+                        {
+                            pluginEffect.IsEnabled = false;
+                        }
+                    }
+                }
 
                 playback.RemoveEffect(name);
                 return Results.Json(new { message = $"{name} effect disabled" }, JsonOptions);

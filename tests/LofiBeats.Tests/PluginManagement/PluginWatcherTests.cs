@@ -1,4 +1,5 @@
 using LofiBeats.Core.PluginManagement;
+using LofiBeats.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit.Abstractions;
@@ -52,7 +53,7 @@ public class PluginWatcherTests : IDisposable
     private readonly string _testPluginDir;
     private readonly Mock<ILogger<PluginWatcher>> _loggerMock;
     private readonly Mock<IPluginLoader> _pluginLoaderMock;
-    private readonly Mock<PluginManager> _pluginManagerMock;
+    private readonly PluginManager _pluginManager;
     private readonly PluginWatcher _watcher;
     private volatile int _refreshCallCount;
     private readonly SemaphoreSlim _refreshSignal;
@@ -66,10 +67,6 @@ public class PluginWatcherTests : IDisposable
         _testPluginDir = Path.Combine(_fixture.BaseTestDirectory, Guid.NewGuid().ToString());
         _loggerMock = new Mock<ILogger<PluginWatcher>>();
         _pluginLoaderMock = new Mock<IPluginLoader>();
-        _pluginManagerMock = new Mock<PluginManager>(
-            Mock.Of<ILogger<PluginManager>>(),
-            Mock.Of<ILoggerFactory>(),
-            _pluginLoaderMock.Object);
         _refreshCallCount = 0;
         _refreshSignal = new SemaphoreSlim(0);
 
@@ -86,9 +83,13 @@ public class PluginWatcherTests : IDisposable
                 _output.WriteLine($"[{level}] {message}");
             });
 
-        // Setup the mock to track when RefreshPlugins is called
-        _pluginManagerMock.Setup(x => x.RefreshPlugins())
-            .Callback(() =>
+        // Create the PluginManager with test settings and track RefreshPlugins calls
+        _pluginManager = new TestPluginManager(
+            Mock.Of<ILogger<PluginManager>>(),
+            Mock.Of<ILoggerFactory>(),
+            _pluginLoaderMock.Object,
+            TestPluginSettings.CreateDefault(runOutOfProcess: false),
+            () =>
             {
                 Interlocked.Increment(ref _refreshCallCount);
                 _output.WriteLine($"RefreshPlugins called (count: {_refreshCallCount})");
@@ -100,7 +101,7 @@ public class PluginWatcherTests : IDisposable
         _output.WriteLine($"Created test directory: {_testPluginDir}");
 
         // Create the watcher with the test directory
-        _watcher = new PluginWatcher(_loggerMock.Object, _pluginManagerMock.Object, _testPluginDir);
+        _watcher = new PluginWatcher(_loggerMock.Object, _pluginManager, _testPluginDir);
     }
 
     public void Dispose()

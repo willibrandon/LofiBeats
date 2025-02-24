@@ -1,6 +1,7 @@
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.PluginManagement;
 using LofiBeats.PluginHost.Models;
+using LofiBeats.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NAudio.Wave;
@@ -53,7 +54,8 @@ public class EffectsTests : IDisposable
         _pluginManager = new PluginManager(
             Mock.Of<ILogger<PluginManager>>(),
             _loggerFactoryMock.Object,
-            pluginLoaderMock.Object);
+            pluginLoaderMock.Object,
+            TestPluginSettings.CreateDefault(runOutOfProcess: false));
 
         _effectFactory = new EffectFactory(_loggerFactoryMock.Object, _pluginManager);
     }
@@ -130,8 +132,12 @@ public class EffectsTests : IDisposable
         loggerFactory.Setup(x => x.CreateLogger(It.IsAny<string>()))
             .Returns(_vinylLoggerMock.Object);
         var pluginLoaderMock = new Mock<IPluginLoader>();
-        var pluginManagerMock = new Mock<PluginManager>(Mock.Of<ILogger<PluginManager>>(), loggerFactory.Object, pluginLoaderMock.Object);
-        var factory = new EffectFactory(loggerFactory.Object, pluginManagerMock.Object);
+        var pluginManagerMock = new PluginManager(
+            Mock.Of<ILogger<PluginManager>>(),
+            loggerFactory.Object,
+            pluginLoaderMock.Object,
+            TestPluginSettings.CreateDefault(runOutOfProcess: false));
+        var factory = new EffectFactory(loggerFactory.Object, pluginManagerMock);
 
         // Act
         var effect = factory.CreateEffect("vinyl", _sampleProviderMock.Object);
@@ -150,8 +156,12 @@ public class EffectsTests : IDisposable
         loggerFactory.Setup(x => x.CreateLogger(It.IsAny<string>()))
             .Returns(_lowpassLoggerMock.Object);
         var pluginLoaderMock = new Mock<IPluginLoader>();
-        var pluginManagerMock = new Mock<PluginManager>(Mock.Of<ILogger<PluginManager>>(), loggerFactory.Object, pluginLoaderMock.Object);
-        var factory = new EffectFactory(loggerFactory.Object, pluginManagerMock.Object);
+        var pluginManagerMock = new PluginManager(
+            Mock.Of<ILogger<PluginManager>>(),
+            loggerFactory.Object,
+            pluginLoaderMock.Object,
+            TestPluginSettings.CreateDefault(runOutOfProcess: false));
+        var factory = new EffectFactory(loggerFactory.Object, pluginManagerMock);
 
         // Act
         var effect = factory.CreateEffect("lowpass", _sampleProviderMock.Object);
@@ -179,17 +189,6 @@ public class EffectsTests : IDisposable
             });
 
         var pluginLoaderMock = new Mock<IPluginLoader>();
-        var pluginManagerMock = new Mock<PluginManager>(Mock.Of<ILogger<PluginManager>>(), loggerFactory.Object, pluginLoaderMock.Object);
-
-        var hostConnectionMock = new Mock<IPluginHostConnection>();
-        hostConnectionMock.Setup(x => x.SendMessageAsync<PluginResponse>(It.IsAny<object>(), default))
-            .ReturnsAsync(new PluginResponse 
-            { 
-                Status = "ok",
-                Message = "Success",
-                Payload = JsonDocument.Parse(JsonSerializer.Serialize(new { effectId = "test-effect-id" })).RootElement
-            });
-
         var testEffect = new PluginEffectProxy(
             "testeffect",
             "Test Effect",
@@ -197,20 +196,29 @@ public class EffectsTests : IDisposable
             "Test Author",
             "test-effect-id",
             _sampleProviderMock.Object,
-            hostConnectionMock.Object,
+            Mock.Of<IPluginHostConnection>(),
             Mock.Of<ILogger<PluginEffectProxy>>()
         );
 
-        pluginManagerMock.Setup(x => x.CreateEffect("testeffect", _sampleProviderMock.Object))
-            .Returns(testEffect);
-        var factory = new EffectFactory(loggerFactory.Object, pluginManagerMock.Object);
+        // Set up the plugin loader to return our test effect type
+        var testEffectType = typeof(TestAudioEffect);
+        pluginLoaderMock.Setup(x => x.LoadEffectTypes())
+            .Returns([testEffectType]);
+
+        var pluginManagerMock = new PluginManager(
+            Mock.Of<ILogger<PluginManager>>(),
+            loggerFactory.Object,
+            pluginLoaderMock.Object,
+            TestPluginSettings.CreateDefault(runOutOfProcess: false));
+
+        var factory = new EffectFactory(loggerFactory.Object, pluginManagerMock);
 
         // Act
         var effect = factory.CreateEffect("testeffect", _sampleProviderMock.Object);
 
         // Assert
         Assert.NotNull(effect);
-        Assert.Same(testEffect, effect);
+        Assert.Equal("testeffect", effect.Name);
     }
 
     [Fact]

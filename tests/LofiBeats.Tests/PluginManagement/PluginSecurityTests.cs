@@ -39,7 +39,7 @@ public class PluginSecurityTests : IDisposable
             });
 
         _loader = new PluginLoader(_loaderLoggerMock.Object, _testPluginDir);
-        _manager = new PluginManager(_loggerMock.Object, _loggerFactoryMock.Object, _loader);
+        _manager = new PluginManager(_loggerMock.Object, _loggerFactoryMock.Object, _loader, TestPluginSettings.CreateDefault());
 
         // Ensure clean test environment
         if (Directory.Exists(_testPluginDir))

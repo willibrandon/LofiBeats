@@ -1,10 +1,10 @@
 using LofiBeats.Core.Effects;
 using LofiBeats.Core.PluginManagement;
+using LofiBeats.Core.PluginApi;
+using LofiBeats.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
 using Moq;
-using LofiBeats.Core.PluginApi;
 using NAudio.Wave;
-using LofiBeats.Tests.TestHelpers;
 using System.Diagnostics;
 
 namespace LofiBeats.Tests.PluginManagement;
@@ -43,7 +43,7 @@ public class PluginIntegrationTests : IDisposable
             });
 
         _loader = new PluginLoader(_loaderLoggerMock.Object, _testPluginDir);
-        _manager = new PluginManager(_loggerMock.Object, _loggerFactoryMock.Object, _loader);
+        _manager = new PluginManager(_loggerMock.Object, _loggerFactoryMock.Object, _loader, TestPluginSettings.CreateDefault());
         _effectFactory = new EffectFactory(_loggerFactoryMock.Object, _manager);
 
         // Ensure clean test environment

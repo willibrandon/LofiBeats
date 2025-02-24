@@ -16,12 +16,41 @@ public sealed class PluginEffectProxy : IAudioEffect, IDisposable
     private readonly string _effectId;
     private ISampleProvider _source;
     private bool _isDisposed;
+    private bool _isEnabled;
 
     public string Name { get; }
     public string Description { get; }
     public string Version { get; }
     public string Author { get; }
     public WaveFormat WaveFormat => _source.WaveFormat;
+
+    public bool IsEnabled
+    {
+        get => _isEnabled;
+        set
+        {
+            if (_isEnabled != value)
+            {
+                _isEnabled = value;
+                var payload = JsonDocument.Parse(JsonSerializer.Serialize(new
+                {
+                    EffectId = _effectId,
+                    Enable = value
+                })).RootElement;
+
+                var response = _connection.SendMessageAsync<PluginResponse>(new PluginMessage
+                {
+                    Action = "setEnable",
+                    Payload = payload
+                }).GetAwaiter().GetResult();
+
+                if (response?.Status != "ok")
+                {
+                    _logger.LogError("Failed to set effect enabled state: {Message}", response?.Message ?? "Unknown error");
+                }
+            }
+        }
+    }
 
     public PluginEffectProxy(
         string name,
@@ -41,6 +70,7 @@ public sealed class PluginEffectProxy : IAudioEffect, IDisposable
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _isEnabled = false; // Start disabled by default
     }
 
     public void SetSource(ISampleProvider source)
@@ -56,11 +86,16 @@ public sealed class PluginEffectProxy : IAudioEffect, IDisposable
             Channels = source.WaveFormat.Channels
         })).RootElement;
 
-        _ = _connection.SendMessageAsync<PluginResponse>(new PluginMessage
+        var response = _connection.SendMessageAsync<PluginResponse>(new PluginMessage
         {
             Action = "setSource",
             Payload = payload
-        });
+        }).GetAwaiter().GetResult();
+
+        if (response?.Status != "ok")
+        {
+            _logger.LogError("Failed to set source: {Message}", response?.Message ?? "Unknown error");
+        }
     }
 
     public int Read(float[] buffer, int offset, int count)
@@ -70,8 +105,11 @@ public sealed class PluginEffectProxy : IAudioEffect, IDisposable
         // First read from the source
         var samplesRead = _source.Read(buffer, offset, count);
 
-        // Then apply the effect through the plugin host
-        ApplyEffect(buffer, offset, samplesRead);
+        // Only apply the effect if enabled
+        if (_isEnabled)
+        {
+            ApplyEffect(buffer, offset, samplesRead);
+        }
 
         return samplesRead;
     }
@@ -89,11 +127,25 @@ public sealed class PluginEffectProxy : IAudioEffect, IDisposable
             Count = count
         })).RootElement;
 
-        _ = _connection.SendMessageAsync<PluginResponse>(new PluginMessage
+        var response = _connection.SendMessageAsync<PluginResponse>(new PluginMessage
         {
             Action = "applyEffect",
             Payload = payload
-        });
+        }).GetAwaiter().GetResult();
+
+        if (response?.Status == "ok" && response.Payload.HasValue)
+        {
+            var modifiedBuffer = response.Payload.Value.GetProperty("Buffer").EnumerateArray()
+                .Select(x => (float)x.GetDouble())
+                .ToArray();
+
+            // Copy the processed buffer back
+            Array.Copy(modifiedBuffer, 0, buffer, offset, count);
+        }
+        else
+        {
+            _logger.LogError("Failed to apply effect: {Message}", response?.Message ?? "Unknown error");
+        }
     }
 
     public void Dispose()
@@ -117,7 +169,7 @@ public sealed class PluginEffectProxy : IAudioEffect, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error disposing plugin effect proxy");
+            _logger.LogError(ex, "Error disposing effect");
         }
     }
 } 

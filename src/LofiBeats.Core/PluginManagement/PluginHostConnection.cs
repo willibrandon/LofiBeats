@@ -29,6 +29,14 @@ public sealed class PluginHostConnection : IPluginHostConnection, IDisposable
         LoggerMessage.Define<string>(LogLevel.Error, new EventId(3, "ProcessError"),
             "Error in plugin host process: {Message}");
 
+    private static readonly Action<ILogger, Exception?> _logMessageReceived =
+        LoggerMessage.Define(LogLevel.Trace, new EventId(4, "MessageReceived"),
+            "Received message from plugin host");
+
+    private static readonly Action<ILogger, Exception?> _logMessageSent =
+        LoggerMessage.Define(LogLevel.Trace, new EventId(5, "MessageSent"),
+            "Sent message to plugin host");
+
     public PluginHostConnection(Process process, ILogger<PluginHostConnection> logger)
     {
         _process = process ?? throw new ArgumentNullException(nameof(process));
@@ -39,6 +47,7 @@ public sealed class PluginHostConnection : IPluginHostConnection, IDisposable
         {
             if (e.Data != null)
             {
+                _logMessageReceived(_logger, null);
                 lock (_responseQueue)
                 {
                     _responseQueue.Enqueue(e.Data);
@@ -85,7 +94,7 @@ public sealed class PluginHostConnection : IPluginHostConnection, IDisposable
             }
 
             var json = JsonSerializer.Serialize(message);
-            _logger.LogDebug("Sending message to plugin host: {Message}", json);
+            _logMessageSent(_logger, null);
             await _process.StandardInput.WriteLineAsync(json.AsMemory(), cancellationToken);
             await _process.StandardInput.FlushAsync();
 
@@ -111,24 +120,25 @@ public sealed class PluginHostConnection : IPluginHostConnection, IDisposable
                                 if (response.StartsWith("[RESPONSE] "))
                                 {
                                     response = response["[RESPONSE] ".Length..];
+                                    _logger.LogTrace("Processing response");
                                 }
                                 else
                                 {
-                                    _logger.LogDebug("Skipping status message: {Message}", response);
+                                    _logger.LogTrace("Skipping status message");
                                     continue;
                                 }
                             }
 
                             try
                             {
-                                _logger.LogDebug("Attempting to parse response: {Response}", response);
+                                _logger.LogTrace("Attempting to parse response");
                                 return JsonSerializer.Deserialize<T>(response);
                             }
                             catch (JsonException ex)
                             {
                                 // If this response isn't valid JSON or the right type,
                                 // log it and keep waiting for the real response
-                                _logger.LogDebug(ex, "Failed to parse response as JSON: {Message}", response);
+                                _logger.LogDebug(ex, "Failed to parse response as JSON");
                             }
                         }
                     }
@@ -150,9 +160,7 @@ public sealed class PluginHostConnection : IPluginHostConnection, IDisposable
             {
                 if (_responseQueue.Count > 0)
                 {
-                    _logger.LogError("Timeout with {Count} messages in queue: {Messages}",
-                        _responseQueue.Count,
-                        string.Join(Environment.NewLine, _responseQueue));
+                    _logger.LogError("Timeout with {Count} messages in queue", _responseQueue.Count);
                 }
             }
 

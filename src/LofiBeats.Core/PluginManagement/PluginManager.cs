@@ -5,6 +5,7 @@ using NAudio.Wave;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text;
+using LofiBeats.Core.Configuration;
 
 namespace LofiBeats.Core.PluginManagement
 {
@@ -16,18 +17,38 @@ namespace LofiBeats.Core.PluginManagement
         private readonly ILogger<PluginManager> _logger;
         private readonly ILoggerFactory _loggerFactory;
         private readonly IPluginLoader _loader;
+        private readonly PluginSettings _settings;
         private readonly Dictionary<string, Type> _registeredEffects = [];
         private readonly Dictionary<string, (string Description, string Version, string Author)> _effectMetadata = [];
         private readonly Dictionary<string, PluginHostConnection> _hostConnections = [];
+        private readonly Dictionary<string, int> _restartAttempts = [];
         private bool _isDisposed;
 
-        public bool OutOfProcessEnabled { get; set; } = true;
+        // High-performance structured logging
+        private static readonly Action<ILogger, string, Exception?> _logHostStartupFailed =
+            LoggerMessage.Define<string>(LogLevel.Error, new EventId(1, "HostStartupFailed"),
+                "Plugin host startup failed for effect {EffectName}");
 
-        public PluginManager(ILogger<PluginManager> logger, ILoggerFactory loggerFactory, IPluginLoader loader)
+        private static readonly Action<ILogger, string, int, Exception?> _logHostRestarting =
+            LoggerMessage.Define<string, int>(LogLevel.Warning, new EventId(2, "HostRestarting"),
+                "Restarting plugin host for effect {EffectName} (attempt {Attempt})");
+
+        private static readonly Action<ILogger, string, Exception?> _logHostMaxRestartAttempts =
+            LoggerMessage.Define<string>(LogLevel.Error, new EventId(3, "HostMaxRestartAttempts"),
+                "Maximum restart attempts reached for effect {EffectName}");
+
+        public bool OutOfProcessEnabled 
+        { 
+            get => _settings.RunOutOfProcess;
+            set => _settings.RunOutOfProcess = value;
+        }
+
+        public PluginManager(ILogger<PluginManager> logger, ILoggerFactory loggerFactory, IPluginLoader loader, PluginSettings settings)
         {
             _logger = logger;
             _loggerFactory = loggerFactory;
             _loader = loader;
+            _settings = settings;
             RefreshPlugins();
         }
 
@@ -156,91 +177,7 @@ namespace LofiBeats.Core.PluginManagement
 
                 _logger.LogInformation("Starting plugin host from {Path} for plugin {Plugin}", pluginHostPath, pluginPath);
 
-                var process = StartPluginHost(pluginPath);
-
-                var startTime = DateTime.UtcNow;
-                var timeout = TimeSpan.FromSeconds(5);
-                string? startupMessage = null;
-                string? effectsLoadedMessage = null;
-                var outputLines = new List<string>();
-                var outputEvent = new AutoResetEvent(false);
-
-                process.OutputDataReceived += (sender, e) =>
-                {
-                    if (e.Data == null) return;
-
-                    lock (outputLines)
-                    {
-                        outputLines.Add(e.Data);
-                        _logger.LogInformation("Plugin host output: {Line}", e.Data);
-
-                        if (e.Data.Contains("[DEBUG] PluginHost started"))
-                        {
-                            startupMessage = e.Data;
-                        }
-                        else if (e.Data.Contains("[DEBUG] Loaded") && e.Data.Contains("effect type(s)"))
-                        {
-                            effectsLoadedMessage = e.Data;
-                        }
-
-                        if (startupMessage != null || effectsLoadedMessage != null)
-                        {
-                            outputEvent.Set();
-                        }
-                    }
-                };
-
-                process.ErrorDataReceived += (sender, e) =>
-                {
-                    if (e.Data != null)
-                    {
-                        _logger.LogError("Plugin host error: {Error}", e.Data);
-                    }
-                };
-
-                // Create the connection first so it can set up its output handling
-                connection = new PluginHostConnection(process, _loggerFactory.CreateLogger<PluginHostConnection>());
-                _hostConnections[effectName] = connection;
-
-                // Wait for startup messages or timeout
-                var success = outputEvent.WaitOne(timeout);
-
-                if (process.HasExited)
-                {
-                    var standardOutput = string.Join("\n", outputLines);
-                    _logger.LogError("Plugin host process exited with code {Code}. Output: {Output}", 
-                        process.ExitCode, standardOutput);
-                    throw new InvalidOperationException(
-                        $"Plugin host process exited prematurely. Exit code: {process.ExitCode}. " +
-                        $"Output: {standardOutput}");
-                }
-
-                if (!success)
-                {
-                    var standardOutput = string.Join("\n", outputLines);
-                    _logger.LogError("Plugin host startup timeout. Output: {Output}", standardOutput);
-                    process.Kill();
-                    throw new InvalidOperationException(
-                        $"Plugin host failed to start: Timeout waiting for startup messages. " +
-                        $"Output: {standardOutput}");
-                }
-
-                _logger.LogInformation("Plugin host started successfully with output:\n{Output}", string.Join("\n", outputLines));
-
-                // Initialize the plugin host with a basic handshake
-                var initPayload = JsonDocument.Parse(JsonSerializer.Serialize(new { action = "init" })).RootElement;
-                var response = connection.SendMessageAsync<PluginResponse>(new PluginMessage
-                {
-                    Action = "init",
-                    Payload = initPayload
-                }).GetAwaiter().GetResult();
-
-                if (response?.Status != "ok")
-                {
-                    throw new InvalidOperationException($"Failed to initialize plugin host: {response?.Message}");
-                }
-
-                _logger.LogInformation("Plugin host initialized successfully");
+                connection = StartPluginHost(effectName, pluginPath);
             }
 
             // Create the effect in the plugin host
@@ -272,47 +209,108 @@ namespace LofiBeats.Core.PluginManagement
             );
         }
 
-        private static Process StartPluginHost(string pluginAssemblyPath)
+        private PluginHostConnection StartPluginHost(string effectName, string pluginPath)
         {
-            var pluginHostPath = Path.Combine(
-                AppContext.BaseDirectory,
-                "LofiBeats.PluginHost.dll"
-            );
+            var outputLines = new List<string>();
+            var outputEvent = new AutoResetEvent(false);
+            var timeout = TimeSpan.FromSeconds(10);
+            PluginHostConnection? connection = null;
 
-            if (!File.Exists(pluginHostPath))
+            try
             {
-                // Try to find it in the source location
-                var sourcePluginHostPath = Path.Combine(
-                    AppContext.BaseDirectory,
-                    "..", "..", "..", "..",
-                    "src", "LofiBeats.PluginHost", "bin", "Debug", "net9.0",
-                    "LofiBeats.PluginHost.dll"
-                );
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "dotnet",
+                        Arguments = $"exec \"{GetPluginHostPath()}\" --plugin-assembly \"{pluginPath}\"",
+                        RedirectStandardInput = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
 
-                if (File.Exists(sourcePluginHostPath))
+                // Create the connection first, it will set up its own output handling
+                process.Start();
+                connection = new PluginHostConnection(process, _loggerFactory.CreateLogger<PluginHostConnection>());
+                _hostConnections[effectName] = connection;
+
+                // Wait for startup messages or timeout
+                var success = outputEvent.WaitOne(timeout);
+
+                if (process.HasExited)
                 {
-                    Directory.CreateDirectory(Path.GetDirectoryName(pluginHostPath)!);
-                    File.Copy(sourcePluginHostPath, pluginHostPath, true);
+                    var standardOutput = string.Join("\n", outputLines);
+                    _logger.LogError("Plugin host process exited with code {Code}. Output: {Output}", 
+                        process.ExitCode, standardOutput);
+
+                    // Handle restart logic
+                    if (_settings.AutoRestartFailedHosts)
+                    {
+                        _restartAttempts.TryGetValue(effectName, out var attempts);
+                        if (attempts < _settings.MaxRestartAttempts)
+                        {
+                            _restartAttempts[effectName] = attempts + 1;
+                            _logHostRestarting(_logger, effectName, attempts + 1, null);
+                            Thread.Sleep(_settings.RestartDelayMilliseconds);
+                            return StartPluginHost(effectName, pluginPath);
+                        }
+                        else
+                        {
+                            _logHostMaxRestartAttempts(_logger, effectName, null);
+                        }
+                    }
+
+                    throw new InvalidOperationException(
+                        $"Plugin host process exited prematurely. Exit code: {process.ExitCode}. " +
+                        $"Output: {standardOutput}");
                 }
-                else
-                {
-                    throw new InvalidOperationException($"Plugin host not found at {pluginHostPath}");
-                }
+
+                return connection;
             }
-
-            return SandboxLauncher.LaunchPluginHost(pluginHostPath, pluginAssemblyPath);
+            catch
+            {
+                connection?.Dispose();
+                throw;
+            }
         }
 
         public void Dispose()
         {
             if (_isDisposed) return;
-            _isDisposed = true;
 
             foreach (var connection in _hostConnections.Values)
             {
-                connection.Dispose();
+                try
+                {
+                    connection.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error disposing plugin host connection");
+                }
             }
+
             _hostConnections.Clear();
+            _restartAttempts.Clear();
+            _isDisposed = true;
+        }
+
+        private static string GetPluginHostPath()
+        {
+            var hostPath = Path.Combine(
+                AppContext.BaseDirectory,
+                "LofiBeats.PluginHost.dll"
+            );
+
+            if (!File.Exists(hostPath))
+            {
+                throw new InvalidOperationException($"Plugin host not found at {hostPath}");
+            }
+
+            return hostPath;
         }
     }
 } 

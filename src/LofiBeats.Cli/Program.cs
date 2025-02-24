@@ -1,6 +1,7 @@
 ﻿using LofiBeats.Cli.Commands;
 using LofiBeats.Core.Telemetry;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace LofiBeats.Cli;
@@ -35,11 +36,12 @@ public class Program
             Environment.Exit(1);
         };
 
-        var builder = Startup.CreateHostBuilder(args);
-        using var host = builder.Build();
-
+        IHost? host = null;
         try
         {
+            // Use the Startup class to create and configure the host
+            host = Startup.CreateHostBuilder(args).Build();
+
             // Get the CLI interface from the service provider
             var cli = host.Services.GetRequiredService<CommandLineInterface>();
             return await cli.ExecuteAsync(args, _cts.Token);
@@ -47,32 +49,46 @@ public class Program
         catch (OperationCanceledException)
         {
             // Get telemetry if possible
-            var telemetry = host.Services.GetService<TelemetryTracker>();
-            if (telemetry != null)
+            if (host != null)
             {
-                await telemetry.TrackApplicationStop();
+                var telemetry = host.Services.GetService<TelemetryTracker>();
+                if (telemetry != null)
+                {
+                    await telemetry.TrackApplicationStop();
+                }
             }
             return 0;
         }
         catch (Exception ex)
         {
             // Get logger and telemetry if possible
-            var logger = host.Services.GetService<ILogger<Program>>();
-            var telemetry = host.Services.GetService<TelemetryTracker>();
-
-            if (logger != null)
+            if (host != null)
             {
-                LogErrorExecutingCommand(logger, ex);
+                var logger = host.Services.GetService<ILogger<Program>>();
+                var telemetry = host.Services.GetService<TelemetryTracker>();
+
+                if (logger != null)
+                {
+                    LogErrorExecutingCommand(logger, ex);
+                }
+                else
+                {
+                    Console.Error.WriteLine($"Error: {ex.Message}");
+                }
+
+                // Track the exception in telemetry if available
+                telemetry?.TrackError(ex, "CLI Command Execution");
             }
             else
             {
                 Console.Error.WriteLine($"Error: {ex.Message}");
             }
 
-            // Track the exception in telemetry if available
-            telemetry?.TrackError(ex, "CLI Command Execution");
-
             return 1;
+        }
+        finally
+        {
+            host?.Dispose();
         }
     }
 }

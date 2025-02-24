@@ -1,4 +1,5 @@
 using LofiBeats.Core.PluginManagement;
+using LofiBeats.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
 using Moq;
 using System.Diagnostics;
@@ -105,7 +106,7 @@ public class OutOfProcessPluginTests : IDisposable
             (Func<It.IsAnyType, Exception?, string>)It.IsAny<object>()));
 
         _loader = new PluginLoader(_loaderLoggerMock.Object, _testPluginDir);
-        _manager = new PluginManager(_loggerMock.Object, _loggerFactoryMock.Object, _loader);
+        _manager = new PluginManager(_loggerMock.Object, _loggerFactoryMock.Object, _loader, TestPluginSettings.CreateDefault());
 
         // Create a simple test plugin assembly with unique name
         _testPluginPath = Path.Combine(_testPluginDir, $"TestPlugin_{_uniqueId}.dll");

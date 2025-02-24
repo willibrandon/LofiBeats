@@ -1,8 +1,9 @@
-﻿using System.CommandLine;
-using System.Text.Json;
-using System.Reflection;
-using LofiBeats.Core.PluginApi;
+﻿using LofiBeats.Core.PluginApi;
 using LofiBeats.PluginHost.Models;
+using NAudio.Wave;
+using System.CommandLine;
+using System.Reflection;
+using System.Text.Json;
 
 namespace LofiBeats.PluginHost;
 
@@ -10,6 +11,7 @@ public class Program
 {
     private static readonly Dictionary<string, Type> _effectTypes = [];
     private static readonly Dictionary<string, IAudioEffect> _activeEffects = [];
+    private static readonly Dictionary<string, bool> _effectStates = [];
 
     public static async Task<int> Main(string[] args)
     {
@@ -131,7 +133,10 @@ public class Program
                     {
                         "init" => HandleInit(message.Payload),
                         "createEffect" => HandleCreateEffect(message.Payload),
+                        "setEnable" => HandleSetEnabled(message.Payload),
+                        "setSource" => HandleSetSource(message.Payload),
                         "applyEffect" => HandleApplyEffect(message.Payload),
+                        "disposeEffect" => HandleDisposeEffect(message.Payload),
                         _ => new PluginResponse
                         {
                             Status = "error",
@@ -219,6 +224,7 @@ public class Program
 
             var effectId = Guid.NewGuid().ToString();
             _activeEffects[effectId] = instance;
+            _effectStates[effectId] = false; // Start disabled
 
             return new PluginResponse
             {
@@ -233,6 +239,93 @@ public class Program
             {
                 Status = "error",
                 Message = $"Error creating effect: {ex.Message}"
+            };
+        }
+    }
+
+    private static PluginResponse HandleSetEnabled(JsonElement? payload)
+    {
+        if (payload == null)
+        {
+            return new PluginResponse
+            {
+                Status = "error",
+                Message = "Missing payload"
+            };
+        }
+
+        var effectId = payload.Value.GetProperty("EffectId").GetString();
+        if (effectId == null || !_activeEffects.ContainsKey(effectId))
+        {
+            return new PluginResponse
+            {
+                Status = "error",
+                Message = $"Effect {effectId} not found"
+            };
+        }
+
+        try
+        {
+            var enable = payload.Value.GetProperty("Enable").GetBoolean();
+            _effectStates[effectId] = enable;
+
+            return new PluginResponse
+            {
+                Status = "ok",
+                Message = $"Effect {(enable ? "enabled" : "disabled")}"
+            };
+        }
+        catch (Exception ex)
+        {
+            return new PluginResponse
+            {
+                Status = "error",
+                Message = $"Error setting effect state: {ex.Message}"
+            };
+        }
+    }
+
+    private static PluginResponse HandleSetSource(JsonElement? payload)
+    {
+        if (payload == null)
+        {
+            return new PluginResponse
+            {
+                Status = "error",
+                Message = "Missing payload"
+            };
+        }
+
+        var effectId = payload.Value.GetProperty("EffectId").GetString();
+        if (effectId == null || !_activeEffects.TryGetValue(effectId, out var effect))
+        {
+            return new PluginResponse
+            {
+                Status = "error",
+                Message = $"Effect {effectId} not found"
+            };
+        }
+
+        try
+        {
+            var sampleRate = payload.Value.GetProperty("SampleRate").GetInt32();
+            var channels = payload.Value.GetProperty("Channels").GetInt32();
+
+            var format = new WaveFormat(sampleRate, channels);
+            effect.SetSource(new DummySampleProvider(format));
+
+            return new PluginResponse
+            {
+                Status = "ok",
+                Message = "Source set successfully"
+            };
+        }
+        catch (Exception ex)
+        {
+            return new PluginResponse
+            {
+                Status = "error",
+                Message = $"Error setting source: {ex.Message}"
             };
         }
     }
@@ -266,7 +359,11 @@ public class Program
             var offset = payload.Value.GetProperty("Offset").GetInt32();
             var count = payload.Value.GetProperty("Count").GetInt32();
 
-            effect.ApplyEffect(buffer, offset, count);
+            // Only apply the effect if it's enabled
+            if (_effectStates.TryGetValue(effectId, out var isEnabled) && isEnabled)
+            {
+                effect.ApplyEffect(buffer, offset, count);
+            }
 
             // Return the modified buffer
             return new PluginResponse
@@ -283,6 +380,60 @@ public class Program
                 Status = "error",
                 Message = $"Error applying effect: {ex.Message}"
             };
+        }
+    }
+
+    private static PluginResponse HandleDisposeEffect(JsonElement? payload)
+    {
+        if (payload == null)
+        {
+            return new PluginResponse
+            {
+                Status = "error",
+                Message = "Missing payload"
+            };
+        }
+
+        var effectId = payload.Value.GetProperty("EffectId").GetString();
+        if (effectId == null)
+        {
+            return new PluginResponse
+            {
+                Status = "error",
+                Message = "Effect ID not provided"
+            };
+        }
+
+        if (_activeEffects.TryGetValue(effectId, out var effect))
+        {
+            _activeEffects.Remove(effectId);
+            _effectStates.Remove(effectId);
+            (effect as IDisposable)?.Dispose();
+        }
+
+        return new PluginResponse
+        {
+            Status = "ok",
+            Message = "Effect disposed"
+        };
+    }
+
+    /// <summary>
+    /// A dummy sample provider that just provides the correct format for effects
+    /// </summary>
+    private sealed class DummySampleProvider : ISampleProvider
+    {
+        public WaveFormat WaveFormat { get; }
+
+        public DummySampleProvider(WaveFormat format)
+        {
+            WaveFormat = format;
+        }
+
+        public int Read(float[] buffer, int offset, int count)
+        {
+            Array.Clear(buffer, offset, count);
+            return count;
         }
     }
 

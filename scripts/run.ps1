@@ -15,6 +15,13 @@ if (-not (Test-Path $cliPath)) {
     if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 }
 
+# Ensure we're using the correct config file
+$configPath = "$root/src/LofiBeats.Cli/bin/Debug/net9.0/cli.appsettings.json"
+if (-not (Test-Path $configPath)) {
+    Write-Host "⚠️ Configuration file not found at: $configPath" -ForegroundColor Yellow
+    exit 1
+}
+
 # Run the CLI with any provided arguments
 Write-Host "🎵 Running LofiBeats..." -ForegroundColor Cyan
 & dotnet exec $cliPath $Arguments
