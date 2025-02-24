@@ -4,6 +4,7 @@ using System.Text.Json;
 
 namespace LofiBeats.Tests.PluginManagement;
 
+[Collection("AI Generated Tests")]
 public class PluginHostTests : IDisposable
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -392,6 +393,7 @@ namespace TestPlugin_{_uniqueId}
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task InitMessage_ShouldReturnSuccess()
     {
         // Arrange
@@ -423,6 +425,7 @@ namespace TestPlugin_{_uniqueId}
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task InvalidAction_ShouldReturnError()
     {
         // Arrange
@@ -443,6 +446,7 @@ namespace TestPlugin_{_uniqueId}
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task InvalidJson_ShouldReturnError()
     {
         // Arrange
@@ -500,6 +504,7 @@ namespace TestPlugin_{_uniqueId}
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public void MissingPluginAssembly_ShouldStartAnyway()
     {
         // Arrange & Act
@@ -511,6 +516,7 @@ namespace TestPlugin_{_uniqueId}
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task CreateEffect_ShouldReturnEffectId()
     {
         // Arrange
@@ -545,6 +551,7 @@ namespace TestPlugin_{_uniqueId}
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task CreateEffect_WithInvalidName_ShouldReturnError()
     {
         // Arrange
@@ -573,6 +580,7 @@ namespace TestPlugin_{_uniqueId}
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task CreateEffect_WithMissingPayload_ShouldReturnError()
     {
         // Arrange
@@ -601,6 +609,7 @@ namespace TestPlugin_{_uniqueId}
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task ApplyEffect_ShouldModifyBuffer()
     {
         // Arrange
@@ -660,6 +669,7 @@ namespace TestPlugin_{_uniqueId}
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task ApplyEffect_WithInvalidEffectId_ShouldReturnError()
     {
         // Arrange
@@ -686,6 +696,7 @@ namespace TestPlugin_{_uniqueId}
     }
 
     [Fact]
+    [Trait("Category", "AI_Generated")]
     public async Task ApplyEffect_WithMissingPayload_ShouldReturnError()
     {
         // Arrange
@@ -703,4 +714,4 @@ namespace TestPlugin_{_uniqueId}
         Assert.Equal("error", response.Status);
         Assert.Equal("Missing payload", response.Message);
     }
-} 
+}
