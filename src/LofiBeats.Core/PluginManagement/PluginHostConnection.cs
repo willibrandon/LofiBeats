@@ -105,11 +105,18 @@ public sealed class PluginHostConnection : IPluginHostConnection, IDisposable
                             response = _responseQueue.Dequeue();
                             if (response == null) continue;
 
-                            // Skip any lines that start with [STATUS], [DEBUG], etc.
+                            // Skip debug/status messages, but handle response messages
                             if (response.StartsWith('['))
                             {
-                                _logger.LogDebug("Skipping status message: {Message}", response);
-                                continue;
+                                if (response.StartsWith("[RESPONSE] "))
+                                {
+                                    response = response["[RESPONSE] ".Length..];
+                                }
+                                else
+                                {
+                                    _logger.LogDebug("Skipping status message: {Message}", response);
+                                    continue;
+                                }
                             }
 
                             try

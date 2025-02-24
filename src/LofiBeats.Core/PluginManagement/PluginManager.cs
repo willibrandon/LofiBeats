@@ -189,16 +189,16 @@ namespace LofiBeats.Core.PluginManagement
                         outputLines.Add(e.Data);
                         _logger.LogInformation("Plugin host output: {Line}", e.Data);
 
-                        if (e.Data.Contains("[STATUS] PluginHost started"))
+                        if (e.Data.Contains("[DEBUG] PluginHost started"))
                         {
                             startupMessage = e.Data;
                         }
-                        else if (e.Data.Contains("[STATUS] Loaded") && e.Data.Contains("effect type(s)"))
+                        else if (e.Data.Contains("[DEBUG] Loaded") && e.Data.Contains("effect type(s)"))
                         {
                             effectsLoadedMessage = e.Data;
                         }
 
-                        if (startupMessage != null && effectsLoadedMessage != null)
+                        if (startupMessage != null || effectsLoadedMessage != null)
                         {
                             outputEvent.Set();
                         }

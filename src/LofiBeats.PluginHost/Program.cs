@@ -8,7 +8,6 @@ namespace LofiBeats.PluginHost;
 
 public class Program
 {
-    private static Assembly? _pluginAssembly;
     private static readonly Dictionary<string, Type> _effectTypes = [];
     private static readonly Dictionary<string, IAudioEffect> _activeEffects = [];
 
@@ -45,119 +44,54 @@ public class Program
             if (!File.Exists(pluginAssemblyPath))
             {
                 Console.WriteLine($"Error: Plugin assembly not found at {pluginAssemblyPath}");
-                Console.WriteLine($"Searched in directory: {Path.GetDirectoryName(pluginAssemblyPath)}");
-                Console.WriteLine($"Directory contents: {string.Join(", ", Directory.GetFiles(Path.GetDirectoryName(pluginAssemblyPath) ?? "."))}");
-                await Console.Out.FlushAsync();
-                Environment.Exit(1);
-                return;
-            }
-
-            Console.WriteLine($"Found plugin assembly at: {pluginAssemblyPath}");
-            Console.WriteLine($"Assembly file size: {new FileInfo(pluginAssemblyPath).Length} bytes");
-            await Console.Out.FlushAsync();
-
-            // First ensure we can load the plugin API assembly
-            try
-            {
-                var apiAssembly = typeof(IAudioEffect).Assembly;
-                Console.WriteLine($"[DEBUG] Successfully loaded plugin API assembly: {apiAssembly.FullName}");
-                Console.WriteLine($"[DEBUG] Plugin API assembly location: {apiAssembly.Location}");
-                await Console.Out.FlushAsync();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[ERROR] Failed to load plugin API assembly: {ex.Message}");
-                Console.WriteLine($"[ERROR] Stack trace: {ex.StackTrace}");
-                await Console.Out.FlushAsync();
-                Environment.Exit(1);
-                return;
-            }
-
-            try
-            {
-                // Load the plugin assembly first
-                _pluginAssembly = Assembly.LoadFrom(pluginAssemblyPath);
-                Console.WriteLine($"[DEBUG] Successfully loaded plugin assembly: {_pluginAssembly.FullName}");
-                Console.WriteLine($"[DEBUG] Plugin assembly location: {_pluginAssembly.Location}");
-                await Console.Out.FlushAsync();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[ERROR] Failed to load plugin assembly: {ex.Message}");
-                Console.WriteLine($"[ERROR] Stack trace: {ex.StackTrace}");
-                Console.WriteLine($"[ERROR] Assembly file exists: {File.Exists(pluginAssemblyPath)}");
-                Console.WriteLine($"[ERROR] Assembly file size: {new FileInfo(pluginAssemblyPath).Length} bytes");
-                Console.WriteLine($"[ERROR] Assembly file permissions: {File.GetAttributes(pluginAssemblyPath)}");
-                await Console.Out.FlushAsync();
-                Environment.Exit(1);
-                return;
-            }
-
-            // Find effect types
-            var effectTypes = new List<Type>();
-            try
-            {
-                Console.WriteLine("[DEBUG] Scanning for effect types...");
-                await Console.Out.FlushAsync();
-
-                foreach (var type in _pluginAssembly.GetTypes())
+                var directory = Path.GetDirectoryName(pluginAssemblyPath);
+                if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
                 {
-                    Console.WriteLine($"[DEBUG] Found type: {type.FullName}");
-                    if (typeof(IAudioEffect).IsAssignableFrom(type) && !type.IsAbstract)
-                    {
-                        effectTypes.Add(type);
-                        Console.WriteLine($"[DEBUG] Found effect type: {type.FullName}");
-                        Console.WriteLine($"[DEBUG] Effect type implements IAudioEffect: {typeof(IAudioEffect).IsAssignableFrom(type)}");
-                        Console.WriteLine($"[DEBUG] Effect type is abstract: {type.IsAbstract}");
-                        await Console.Out.FlushAsync();
-                    }
+                    Console.WriteLine($"Searched in directory: {directory}");
+                    Console.WriteLine($"Directory contents: {string.Join(", ", Directory.GetFiles(directory))}");
                 }
-
-                if (effectTypes.Count == 0)
+                else
                 {
-                    Console.WriteLine("[WARNING] No effect types found in assembly");
-                    Console.WriteLine($"[DEBUG] Assembly types: {string.Join(", ", _pluginAssembly.GetTypes().Select(t => t.FullName))}");
-                    await Console.Out.FlushAsync();
+                    Console.WriteLine($"Directory does not exist: {directory}");
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[ERROR] Failed to enumerate types: {ex.Message}");
-                Console.WriteLine($"[ERROR] Stack trace: {ex.StackTrace}");
                 await Console.Out.FlushAsync();
-                Environment.Exit(1);
-                return;
             }
-
-            // Try to instantiate effects
-            foreach (var type in effectTypes)
+            else
             {
+                // Load the plugin assembly
                 try
                 {
-                    Console.WriteLine($"[DEBUG] Attempting to instantiate effect: {type.FullName}");
-                    await Console.Out.FlushAsync();
+                    var assembly = Assembly.LoadFrom(pluginAssemblyPath);
+                    var effectTypes = assembly.GetTypes()
+                        .Where(t => !t.IsAbstract && typeof(IAudioEffect).IsAssignableFrom(t));
 
-                    if (Activator.CreateInstance(type) is IAudioEffect instance)
+                    foreach (var type in effectTypes)
                     {
-                        _effectTypes[instance.Name.ToLowerInvariant()] = type;
-                        Console.WriteLine($"[DEBUG] Successfully instantiated effect: {instance.Name}");
-                        Console.WriteLine($"[DEBUG] Effect metadata - Description: {instance.Description}, Version: {instance.Version}, Author: {instance.Author}");
-                        await Console.Out.FlushAsync();
+                        try
+                        {
+                            if (Activator.CreateInstance(type) is IAudioEffect instance)
+                            {
+                                _effectTypes[instance.Name.ToLowerInvariant()] = type;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[ERROR] Failed to instantiate effect type {type.FullName}: {ex.Message}");
+                        }
                     }
+
+                    Console.WriteLine($"[DEBUG] Loaded {_effectTypes.Count} effect type(s)");
+                    Console.WriteLine($"[DEBUG] Available effects: {string.Join(", ", _effectTypes.Keys)}");
                 }
                 catch (Exception ex)
                 {
-                    // Log but continue - we might have other valid effects
-                    Console.WriteLine($"[WARNING] Could not instantiate effect type {type.Name}: {ex.Message}");
-                    Console.WriteLine($"[WARNING] Stack trace: {ex.StackTrace}");
-                    await Console.Out.FlushAsync();
+                    Console.WriteLine($"[ERROR] Failed to load plugin assembly: {ex.Message}");
+                    Console.WriteLine($"[ERROR] Stack trace: {ex.StackTrace}");
                 }
             }
 
-            // Send startup success message
-            Console.WriteLine("[STATUS] PluginHost started");
-            Console.WriteLine($"[STATUS] Loaded {_effectTypes.Count} effect type(s)");
-            Console.WriteLine($"[STATUS] Available effects: {string.Join(", ", _effectTypes.Keys)}");
+            // Send startup success message - we continue even if plugin not found or failed to load
+            Console.WriteLine("[DEBUG] PluginHost started");
             await Console.Out.FlushAsync();
 
             // Set up JSON serializer options
@@ -218,8 +152,8 @@ public class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error: {ex.Message}");
-            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            Console.WriteLine($"[ERROR] {ex.Message}");
+            Console.WriteLine($"[ERROR] Stack trace: {ex.StackTrace}");
             await Console.Out.FlushAsync();
             Environment.Exit(1);
         }
@@ -231,7 +165,7 @@ public class Program
         return new PluginResponse
         {
             Status = "ok",
-            Message = "Plugin initialized"
+            Message = "Plugin host initialized"
         };
     }
 
@@ -292,7 +226,7 @@ public class Program
     private static async Task WriteResponse(PluginResponse response, JsonSerializerOptions options)
     {
         var json = JsonSerializer.Serialize(response, options);
-        await Console.Out.WriteLineAsync(json);
+        await Console.Out.WriteLineAsync($"[RESPONSE] {json}");
         await Console.Out.FlushAsync();
     }
 }

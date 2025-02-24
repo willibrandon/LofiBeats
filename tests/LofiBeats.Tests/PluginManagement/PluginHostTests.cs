@@ -8,6 +8,11 @@ public class PluginHostTests : IDisposable
 {
     private Process? _pluginHostProcess;
     private readonly string _pluginHostPath;
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = false
+    };
 
     public PluginHostTests()
     {
@@ -44,26 +49,92 @@ public class PluginHostTests : IDisposable
             }
         };
 
-        process.Start();
-        // Read the initial startup message
-        var startupMessage = process.StandardOutput.ReadLine();
-        Assert.NotNull(startupMessage);
-        Assert.Contains("PluginHost started", startupMessage);
+        var errorOutput = new List<string>();
+        process.ErrorDataReceived += (sender, e) =>
+        {
+            if (e.Data != null)
+            {
+                errorOutput.Add(e.Data);
+            }
+        };
 
+        process.Start();
+        process.BeginErrorReadLine();
+
+        // Read lines until we find the startup message or timeout
+        var startTime = DateTime.UtcNow;
+        var timeout = TimeSpan.FromSeconds(5);
+        var startupFound = false;
+        var allOutput = new List<string>();
+
+        while (DateTime.UtcNow - startTime < timeout)
+        {
+            var line = process.StandardOutput.ReadLine();
+            if (line == null)
+            {
+                break;
+            }
+
+            allOutput.Add(line);
+            if (line.Contains("[DEBUG] PluginHost started"))
+            {
+                startupFound = true;
+                break;
+            }
+        }
+
+        // If startup message wasn't found, log all output for debugging
+        if (!startupFound)
+        {
+            Console.WriteLine("Plugin host output:");
+            foreach (var line in allOutput)
+            {
+                Console.WriteLine($"  {line}");
+            }
+
+            if (errorOutput.Count > 0)
+            {
+                Console.WriteLine("Plugin host error output:");
+                foreach (var line in errorOutput)
+                {
+                    Console.WriteLine($"  {line}");
+                }
+            }
+        }
+
+        Assert.True(startupFound, "Plugin host did not output startup message within timeout period");
         return process;
     }
 
     private static async Task<PluginResponse> SendMessageAndGetResponse(Process process, PluginMessage message)
     {
-        var json = JsonSerializer.Serialize(message);
+        var json = JsonSerializer.Serialize(message, _jsonOptions);
+        Console.WriteLine($"Sending message: {json}");
         await process.StandardInput.WriteLineAsync(json);
         await process.StandardInput.FlushAsync();
 
-        var responseLine = await process.StandardOutput.ReadLineAsync();
-        Assert.NotNull(responseLine);
+        // Read lines until we find a response
+        var startTime = DateTime.UtcNow;
+        var timeout = TimeSpan.FromSeconds(5);
 
-        return JsonSerializer.Deserialize<PluginResponse>(responseLine)
-            ?? throw new InvalidOperationException("Failed to deserialize response");
+        while (DateTime.UtcNow - startTime < timeout)
+        {
+            var line = await process.StandardOutput.ReadLineAsync();
+            if (line == null)
+            {
+                break;
+            }
+
+            Console.WriteLine($"Received line: {line}");
+            if (line.StartsWith("[RESPONSE] "))
+            {
+                var responseJson = line.Substring("[RESPONSE] ".Length);
+                return JsonSerializer.Deserialize<PluginResponse>(responseJson, _jsonOptions)
+                    ?? throw new InvalidOperationException("Failed to deserialize response");
+            }
+        }
+
+        throw new TimeoutException("Did not receive response within timeout period");
     }
 
     [Fact]
@@ -115,11 +186,30 @@ public class PluginHostTests : IDisposable
         // Act
         await _pluginHostProcess.StandardInput.WriteLineAsync("invalid json");
         await _pluginHostProcess.StandardInput.FlushAsync();
-        var responseLine = await _pluginHostProcess.StandardOutput.ReadLineAsync();
+
+        // Read lines until we find a response
+        var startTime = DateTime.UtcNow;
+        var timeout = TimeSpan.FromSeconds(5);
+        var response = default(PluginResponse);
+
+        while (DateTime.UtcNow - startTime < timeout)
+        {
+            var line = await _pluginHostProcess.StandardOutput.ReadLineAsync();
+            if (line == null)
+            {
+                break;
+            }
+
+            Console.WriteLine($"Received line: {line}");
+            if (line.StartsWith("[RESPONSE] "))
+            {
+                var responseJson = line.Substring("[RESPONSE] ".Length);
+                response = JsonSerializer.Deserialize<PluginResponse>(responseJson, _jsonOptions);
+                break;
+            }
+        }
 
         // Assert
-        Assert.NotNull(responseLine);
-        var response = JsonSerializer.Deserialize<PluginResponse>(responseLine);
         Assert.NotNull(response);
         Assert.Equal("error", response.Status);
         Assert.Contains("Error processing message", response.Message ?? "");
