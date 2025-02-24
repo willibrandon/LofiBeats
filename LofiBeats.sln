@@ -14,7 +14,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{DAD93E08-5
 		docs\LINUX-DEPS.md = docs\LINUX-DEPS.md
 		docs\PLUGINS.md = docs\PLUGINS.md
 		README.md = README.md
-		Secure Plugin Execution -Guide.md = Secure Plugin Execution -Guide.md
 		docs\USER_SAMPLES.md = docs\USER_SAMPLES.md
 	EndProjectSection
 EndProject
