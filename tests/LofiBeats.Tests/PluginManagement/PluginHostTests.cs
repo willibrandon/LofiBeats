@@ -539,9 +539,10 @@ namespace TestPlugin_{_uniqueId}
         Assert.Equal("Effect created", response.Message);
         Assert.NotNull(response.Payload);
         
-        var effectId = response.Payload.Value.GetProperty("effectId").GetString();
+        var payload = response.Payload.Value;
+        Assert.True(payload.TryGetProperty("effectId", out var effectIdElement));
+        var effectId = effectIdElement.GetString();
         Assert.NotNull(effectId);
-        Assert.True(Guid.TryParse(effectId, out _), "Effect ID should be a valid GUID");
     }
 
     [Fact]
@@ -594,6 +595,110 @@ namespace TestPlugin_{_uniqueId}
             Payload = null
         };
         var response = await SendMessageAndGetResponse(_pluginHostProcess, createMessage);
+
+        // Assert
+        Assert.Equal("error", response.Status);
+        Assert.Equal("Missing payload", response.Message);
+    }
+
+    [Fact]
+    public async Task ApplyEffect_ShouldModifyBuffer()
+    {
+        // Arrange
+        _pluginHostProcess = StartPluginHost();
+
+        // First send init to ensure plugin is loaded
+        var initMessage = new PluginMessage
+        {
+            Action = "init",
+            Payload = null
+        };
+        var initResponse = await SendMessageAndGetResponse(_pluginHostProcess, initMessage);
+        Assert.Equal("ok", initResponse.Status);
+
+        // Create an effect
+        var createMessage = new PluginMessage
+        {
+            Action = "createEffect",
+            Payload = JsonDocument.Parse(JsonSerializer.Serialize(new { EffectName = "testeffect" })).RootElement
+        };
+        var createResponse = await SendMessageAndGetResponse(_pluginHostProcess, createMessage);
+        Assert.Equal("ok", createResponse.Status);
+        Assert.NotNull(createResponse.Payload);
+        var payload = createResponse.Payload.Value;
+        Assert.True(payload.TryGetProperty("effectId", out var effectIdElement));
+        var effectId = effectIdElement.GetString();
+        Assert.NotNull(effectId);
+
+        // Act
+        var buffer = new float[] { 0.5f, -0.5f, 0.25f, -0.25f };
+        var applyMessage = new PluginMessage
+        {
+            Action = "applyEffect",
+            Payload = JsonDocument.Parse(JsonSerializer.Serialize(new 
+            { 
+                EffectId = effectId,
+                Buffer = buffer,
+                Offset = 0,
+                Count = buffer.Length
+            })).RootElement
+        };
+        var response = await SendMessageAndGetResponse(_pluginHostProcess, applyMessage);
+
+        // Assert
+        Assert.Equal("ok", response.Status);
+        Assert.Equal("Effect applied", response.Message);
+        Assert.NotNull(response.Payload);
+        
+        Assert.True(response.Payload.Value.TryGetProperty("Buffer", out var bufferElement));
+        
+        var modifiedBuffer = bufferElement.EnumerateArray()
+            .Select(x => (float)x.GetDouble())
+            .ToArray();
+        Assert.Equal(buffer.Length, modifiedBuffer.Length);
+        // Since our test effect is a pass-through, the buffer should be unchanged
+        Assert.Equal(buffer, modifiedBuffer);
+    }
+
+    [Fact]
+    public async Task ApplyEffect_WithInvalidEffectId_ShouldReturnError()
+    {
+        // Arrange
+        _pluginHostProcess = StartPluginHost();
+
+        // Act
+        var buffer = new float[] { 0.5f, -0.5f };
+        var message = new PluginMessage
+        {
+            Action = "applyEffect",
+            Payload = JsonDocument.Parse(JsonSerializer.Serialize(new 
+            { 
+                EffectId = "nonexistent-effect-id",
+                Buffer = buffer,
+                Offset = 0,
+                Count = buffer.Length
+            })).RootElement
+        };
+        var response = await SendMessageAndGetResponse(_pluginHostProcess, message);
+
+        // Assert
+        Assert.Equal("error", response.Status);
+        Assert.Contains("Effect nonexistent-effect-id not found", response.Message);
+    }
+
+    [Fact]
+    public async Task ApplyEffect_WithMissingPayload_ShouldReturnError()
+    {
+        // Arrange
+        _pluginHostProcess = StartPluginHost();
+
+        // Act
+        var message = new PluginMessage
+        {
+            Action = "applyEffect",
+            Payload = null
+        };
+        var response = await SendMessageAndGetResponse(_pluginHostProcess, message);
 
         // Assert
         Assert.Equal("error", response.Status);

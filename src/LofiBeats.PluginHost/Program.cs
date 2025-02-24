@@ -131,6 +131,7 @@ public class Program
                     {
                         "init" => HandleInit(message.Payload),
                         "createEffect" => HandleCreateEffect(message.Payload),
+                        "applyEffect" => HandleApplyEffect(message.Payload),
                         _ => new PluginResponse
                         {
                             Status = "error",
@@ -232,6 +233,55 @@ public class Program
             {
                 Status = "error",
                 Message = $"Error creating effect: {ex.Message}"
+            };
+        }
+    }
+
+    private static PluginResponse HandleApplyEffect(JsonElement? payload)
+    {
+        if (payload == null)
+        {
+            return new PluginResponse
+            {
+                Status = "error",
+                Message = "Missing payload"
+            };
+        }
+
+        var effectId = payload.Value.GetProperty("EffectId").GetString();
+        if (effectId == null || !_activeEffects.TryGetValue(effectId, out var effect))
+        {
+            return new PluginResponse
+            {
+                Status = "error",
+                Message = $"Effect {effectId} not found"
+            };
+        }
+
+        try
+        {
+            var buffer = payload.Value.GetProperty("Buffer").EnumerateArray()
+                .Select(x => (float)x.GetDouble())
+                .ToArray();
+            var offset = payload.Value.GetProperty("Offset").GetInt32();
+            var count = payload.Value.GetProperty("Count").GetInt32();
+
+            effect.ApplyEffect(buffer, offset, count);
+
+            // Return the modified buffer
+            return new PluginResponse
+            {
+                Status = "ok",
+                Message = "Effect applied",
+                Payload = JsonDocument.Parse(JsonSerializer.Serialize(new { Buffer = buffer })).RootElement
+            };
+        }
+        catch (Exception ex)
+        {
+            return new PluginResponse
+            {
+                Status = "error",
+                Message = $"Error applying effect: {ex.Message}"
             };
         }
     }
