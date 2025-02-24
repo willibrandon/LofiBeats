@@ -510,4 +510,93 @@ namespace TestPlugin_{_uniqueId}
         // The process should start and be ready for messages
         Assert.False(_pluginHostProcess.HasExited);
     }
+
+    [Fact]
+    public async Task CreateEffect_ShouldReturnEffectId()
+    {
+        // Arrange
+        _pluginHostProcess = StartPluginHost();
+
+        // First send init to ensure plugin is loaded
+        var initMessage = new PluginMessage
+        {
+            Action = "init",
+            Payload = null
+        };
+        var initResponse = await SendMessageAndGetResponse(_pluginHostProcess, initMessage);
+        Assert.Equal("ok", initResponse.Status);
+
+        // Act
+        var createMessage = new PluginMessage
+        {
+            Action = "createEffect",
+            Payload = JsonDocument.Parse(JsonSerializer.Serialize(new { EffectName = "testeffect" })).RootElement
+        };
+        var response = await SendMessageAndGetResponse(_pluginHostProcess, createMessage);
+
+        // Assert
+        Assert.Equal("ok", response.Status);
+        Assert.Equal("Effect created", response.Message);
+        Assert.NotNull(response.Payload);
+        
+        var effectId = response.Payload.Value.GetProperty("effectId").GetString();
+        Assert.NotNull(effectId);
+        Assert.True(Guid.TryParse(effectId, out _), "Effect ID should be a valid GUID");
+    }
+
+    [Fact]
+    public async Task CreateEffect_WithInvalidName_ShouldReturnError()
+    {
+        // Arrange
+        _pluginHostProcess = StartPluginHost();
+
+        // First send init to ensure plugin is loaded
+        var initMessage = new PluginMessage
+        {
+            Action = "init",
+            Payload = null
+        };
+        var initResponse = await SendMessageAndGetResponse(_pluginHostProcess, initMessage);
+        Assert.Equal("ok", initResponse.Status);
+
+        // Act
+        var createMessage = new PluginMessage
+        {
+            Action = "createEffect",
+            Payload = JsonDocument.Parse(JsonSerializer.Serialize(new { EffectName = "nonexistenteffect" })).RootElement
+        };
+        var response = await SendMessageAndGetResponse(_pluginHostProcess, createMessage);
+
+        // Assert
+        Assert.Equal("error", response.Status);
+        Assert.Contains("Effect nonexistenteffect not found", response.Message);
+    }
+
+    [Fact]
+    public async Task CreateEffect_WithMissingPayload_ShouldReturnError()
+    {
+        // Arrange
+        _pluginHostProcess = StartPluginHost();
+
+        // First send init to ensure plugin is loaded
+        var initMessage = new PluginMessage
+        {
+            Action = "init",
+            Payload = null
+        };
+        var initResponse = await SendMessageAndGetResponse(_pluginHostProcess, initMessage);
+        Assert.Equal("ok", initResponse.Status);
+
+        // Act
+        var createMessage = new PluginMessage
+        {
+            Action = "createEffect",
+            Payload = null
+        };
+        var response = await SendMessageAndGetResponse(_pluginHostProcess, createMessage);
+
+        // Assert
+        Assert.Equal("error", response.Status);
+        Assert.Equal("Missing payload", response.Message);
+    }
 } 
